@@ -1,0 +1,581 @@
+{
+  "_comment": "Banque de questions. difficulty va de 1 (facile) a 4 (difficile) et determine le gain annonce sur l'ecran de choix du sujet : voir TRIVIA_REWARD_TIER dans InteractionRules. Le chiffre affiche est celui de la VRAIE question tiree pour ce sujet a ce tour - jamais un nombre decoratif. Fichier UTF-8 : c'est un des deux seuls endroits, avec hud_labels.json, ou l'hebreu a le droit de vivre.",
+  "questions": [
+    {
+      "category": "Tanakh",
+      "difficulty": 1,
+      "question": "מי היה המלך הראשון של עם ישראל?",
+      "answers": [
+        "דוד",
+        "שלמה",
+        "שאול",
+        "שמואל"
+      ],
+      "correctIndex": 2
+    },
+    {
+      "category": "Tanakh",
+      "difficulty": 1,
+      "question": "כמה שנים הלכו בני ישראל במדבר?",
+      "answers": [
+        "שבע",
+        "ארבעים",
+        "שבעים",
+        "שתים עשרה"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Tanakh",
+      "difficulty": 1,
+      "question": "מי קיבל את התורה בהר סיני?",
+      "answers": [
+        "אהרן",
+        "יהושע",
+        "משה",
+        "אברהם"
+      ],
+      "correctIndex": 2
+    },
+    {
+      "category": "Tanakh",
+      "difficulty": 2,
+      "question": "כמה בנים היו ליעקב אבינו?",
+      "answers": [
+        "עשרה",
+        "שנים עשר",
+        "שבעה",
+        "ארבעה עשר"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Tanakh",
+      "difficulty": 2,
+      "question": "מי בנה את בית המקדש הראשון?",
+      "answers": [
+        "דוד",
+        "שלמה",
+        "חזקיהו",
+        "עזרא"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Tanakh",
+      "difficulty": 2,
+      "question": "באיזו עיר נולד דוד המלך?",
+      "answers": [
+        "חברון",
+        "ירושלים",
+        "בית לחם",
+        "שילה"
+      ],
+      "correctIndex": 2
+    },
+    {
+      "category": "Tanakh",
+      "difficulty": 3,
+      "question": "מי היה הנביא שעלה בסערה השמימה?",
+      "answers": [
+        "אלישע",
+        "ירמיהו",
+        "אליהו",
+        "יונה"
+      ],
+      "correctIndex": 2
+    },
+    {
+      "category": "Tanakh",
+      "difficulty": 3,
+      "question": "מי היה אביו של אברהם אבינו?",
+      "answers": [
+        "נחור",
+        "תרח",
+        "הרן",
+        "שם"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Tanakh",
+      "difficulty": 3,
+      "question": "איזה שופט ניצח את מדין עם שלוש מאות איש בלבד?",
+      "answers": [
+        "שמשון",
+        "גדעון",
+        "דבורה",
+        "יפתח"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Tanakh",
+      "difficulty": 4,
+      "question": "מי מלך ביהודה אחרי שלמה המלך?",
+      "answers": [
+        "ירבעם",
+        "רחבעם",
+        "אביה",
+        "אסא"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Tanakh",
+      "difficulty": 4,
+      "question": "כמה שנים מלך דוד המלך?",
+      "answers": [
+        "שלושים",
+        "ארבעים",
+        "חמישים",
+        "עשרים"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Tanakh",
+      "difficulty": 4,
+      "question": "בימי אילו מלכים התנבא ישעיהו לפי פתיחת ספרו?",
+      "answers": [
+        "שאול ודוד",
+        "עוזיהו יותם אחז וחזקיהו",
+        "יאשיהו וצדקיהו",
+        "אחאב ויהושפט"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Halacha",
+      "difficulty": 1,
+      "question": "כמה ציציות יש בטלית?",
+      "answers": [
+        "שתיים",
+        "ארבע",
+        "שמונה",
+        "שתים עשרה"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Halacha",
+      "difficulty": 1,
+      "question": "על איזו יד מניח אדם ימני תפילין של יד?",
+      "answers": [
+        "יד ימין",
+        "יד שמאל",
+        "שתי הידיים",
+        "על הראש בלבד"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Halacha",
+      "difficulty": 1,
+      "question": "כמה כוסות יין שותים בליל הסדר?",
+      "answers": [
+        "שתיים",
+        "שלוש",
+        "ארבע",
+        "חמש"
+      ],
+      "correctIndex": 2
+    },
+    {
+      "category": "Halacha",
+      "difficulty": 2,
+      "question": "כמה ברכות יש בברכת המזון?",
+      "answers": [
+        "שתיים",
+        "שלוש",
+        "ארבע",
+        "חמש"
+      ],
+      "correctIndex": 2
+    },
+    {
+      "category": "Halacha",
+      "difficulty": 2,
+      "question": "באיזו יד נוטלים את הכוס לקידוש?",
+      "answers": [
+        "יד ימין",
+        "יד שמאל",
+        "שתי הידיים",
+        "אין הבדל"
+      ],
+      "correctIndex": 0
+    },
+    {
+      "category": "Halacha",
+      "difficulty": 2,
+      "question": "כמה ימים נמשך חג הסוכות בארץ ישראל?",
+      "answers": [
+        "שישה",
+        "שבעה",
+        "שמונה",
+        "תשעה"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Halacha",
+      "difficulty": 3,
+      "question": "כמה שעות ממתינים בין בשר לחלב לפי מנהג בני אשכנז?",
+      "answers": [
+        "שעה אחת",
+        "שלוש שעות",
+        "שש שעות",
+        "עשרים וארבע שעות"
+      ],
+      "correctIndex": 2
+    },
+    {
+      "category": "Halacha",
+      "difficulty": 3,
+      "question": "כמה בתים יש בתפילין של ראש?",
+      "answers": [
+        "אחד",
+        "שניים",
+        "שלושה",
+        "ארבעה"
+      ],
+      "correctIndex": 3
+    },
+    {
+      "category": "Halacha",
+      "difficulty": 3,
+      "question": "כמה ימים סופרים בספירת העומר?",
+      "answers": [
+        "שלושים ושלושה",
+        "ארבעים ותשעה",
+        "חמישים",
+        "שבעה"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Halacha",
+      "difficulty": 4,
+      "question": "כמה מלאכות אסורות בשבת?",
+      "answers": [
+        "שלושים ותשע",
+        "ארבעים",
+        "שלושים ושש",
+        "ארבעים ותשע"
+      ],
+      "correctIndex": 0
+    },
+    {
+      "category": "Halacha",
+      "difficulty": 4,
+      "question": "כמה ברכות חייב אדם לברך בכל יום לפי חז״ל?",
+      "answers": [
+        "חמישים",
+        "שבעים",
+        "מאה",
+        "מאתיים"
+      ],
+      "correctIndex": 2
+    },
+    {
+      "category": "Halacha",
+      "difficulty": 4,
+      "question": "כמה הדסים יש בארבעת המינים?",
+      "answers": [
+        "אחד",
+        "שניים",
+        "שלושה",
+        "חמישה"
+      ],
+      "correctIndex": 2
+    },
+    {
+      "category": "Musar",
+      "difficulty": 1,
+      "question": "מי חיבר את ספר מסילת ישרים?",
+      "answers": [
+        "הרמב״ם",
+        "הרמח״ל",
+        "הרמב״ן",
+        "הרשב״א"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Musar",
+      "difficulty": 1,
+      "question": "מי היה מייסד תנועת החסידות?",
+      "answers": [
+        "הגאון מווילנא",
+        "הבעל שם טוב",
+        "רבי עקיבא איגר",
+        "החתם סופר"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Musar",
+      "difficulty": 1,
+      "question": "מי חיבר את ספר התניא?",
+      "answers": [
+        "רבי נחמן מברסלב",
+        "רבי שניאור זלמן מלאדי",
+        "המגיד ממזריטש",
+        "רבי לוי יצחק מברדיטשב"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Musar",
+      "difficulty": 2,
+      "question": "מי היה מייסד תנועת המוסר?",
+      "answers": [
+        "רבי ישראל סלנטר",
+        "רבי חיים מוולוז׳ין",
+        "הרב קוק",
+        "החפץ חיים"
+      ],
+      "correctIndex": 0
+    },
+    {
+      "category": "Musar",
+      "difficulty": 2,
+      "question": "מי חיבר את ספר חובות הלבבות?",
+      "answers": [
+        "רבנו בחיי אבן פקודה",
+        "רבי יהודה הלוי",
+        "הרמב״ם",
+        "רבנו סעדיה גאון"
+      ],
+      "correctIndex": 0
+    },
+    {
+      "category": "Musar",
+      "difficulty": 2,
+      "question": "מי חיבר את ספר חפץ חיים על הלכות לשון הרע?",
+      "answers": [
+        "הרב קוק",
+        "רבי ישראל מאיר הכהן",
+        "רבי חיים מבריסק",
+        "הסבא מסלבודקה"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Musar",
+      "difficulty": 3,
+      "question": "מי חיבר את ספר שערי תשובה?",
+      "answers": [
+        "רבנו יונה מגירונדי",
+        "הרמב״ם",
+        "רבי אלעזר מוורמייזא",
+        "הרמח״ל"
+      ],
+      "correctIndex": 0
+    },
+    {
+      "category": "Musar",
+      "difficulty": 3,
+      "question": "מי הנהיג את החסידות אחרי הבעל שם טוב?",
+      "answers": [
+        "רבי אלימלך מליז׳נסק",
+        "המגיד ממזריטש",
+        "רבי נחמן מברסלב",
+        "רבי לוי יצחק מברדיטשב"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Musar",
+      "difficulty": 3,
+      "question": "מי חיבר את ליקוטי מוהר״ן?",
+      "answers": [
+        "רבי נתן מנמירוב",
+        "רבי נחמן מברסלב",
+        "רבי אהרן מקרלין",
+        "רבי ישראל מרוז׳ין"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Musar",
+      "difficulty": 4,
+      "question": "מי חיבר את ספר נפש החיים?",
+      "answers": [
+        "הגאון מווילנא",
+        "רבי חיים מוולוז׳ין",
+        "רבי יצחק מוולוז׳ין",
+        "רבי זונדל מסלנט"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Musar",
+      "difficulty": 4,
+      "question": "מי חיבר את ספר תומר דבורה?",
+      "answers": [
+        "האר״י הקדוש",
+        "רבי משה קורדוברו",
+        "רבי חיים ויטאל",
+        "רבי יוסף קארו"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Musar",
+      "difficulty": 4,
+      "question": "מי חיבר את מכתב מאליהו?",
+      "answers": [
+        "הרב אליהו אליעזר דסלר",
+        "הרב אליהו לופיאן",
+        "הרב יחזקאל לוינשטיין",
+        "הרב שלמה וולבה"
+      ],
+      "correctIndex": 0
+    },
+    {
+      "category": "Tefillah",
+      "difficulty": 1,
+      "question": "כמה תפילות מתפללים בכל יום חול?",
+      "answers": [
+        "שתיים",
+        "שלוש",
+        "ארבע",
+        "חמש"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Tefillah",
+      "difficulty": 1,
+      "question": "כמה פעמים ביום קוראים קריאת שמע?",
+      "answers": [
+        "פעם אחת",
+        "פעמיים",
+        "שלוש פעמים",
+        "ארבע פעמים"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Tefillah",
+      "difficulty": 1,
+      "question": "מהי התפילה הראשונה של היום?",
+      "answers": [
+        "מנחה",
+        "ערבית",
+        "שחרית",
+        "מוסף"
+      ],
+      "correctIndex": 2
+    },
+    {
+      "category": "Tefillah",
+      "difficulty": 2,
+      "question": "איזו תפילה מוסיפים בשבת ובראשי חודשים?",
+      "answers": [
+        "נעילה",
+        "מוסף",
+        "מנחה גדולה",
+        "סליחות"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Tefillah",
+      "difficulty": 2,
+      "question": "מי תיקן את תפילת ערבית לפי חז״ל?",
+      "answers": [
+        "אברהם אבינו",
+        "יצחק אבינו",
+        "יעקב אבינו",
+        "משה רבנו"
+      ],
+      "correctIndex": 2
+    },
+    {
+      "category": "Tefillah",
+      "difficulty": 2,
+      "question": "כמה אנשים צריך כדי לקיים מניין?",
+      "answers": [
+        "שבעה",
+        "עשרה",
+        "שנים עשר",
+        "עשרים"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Tefillah",
+      "difficulty": 3,
+      "question": "מי תיקן את תפילת שחרית לפי חז״ל?",
+      "answers": [
+        "אברהם אבינו",
+        "יצחק אבינו",
+        "יעקב אבינו",
+        "אהרן הכהן"
+      ],
+      "correctIndex": 0
+    },
+    {
+      "category": "Tefillah",
+      "difficulty": 3,
+      "question": "כמה ברכות אומרים לפני קריאת שמע של שחרית?",
+      "answers": [
+        "אחת",
+        "שתיים",
+        "שלוש",
+        "ארבע"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Tefillah",
+      "difficulty": 3,
+      "question": "באיזה חלק של התפילה אומרים ונתנה תוקף?",
+      "answers": [
+        "בשחרית של שבת",
+        "במוסף של ימים נוראים",
+        "בערבית של יום כיפור",
+        "בהלל של שלוש רגלים"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Tefillah",
+      "difficulty": 4,
+      "question": "מי תיקן את תפילת מנחה לפי חז״ל?",
+      "answers": [
+        "אברהם אבינו",
+        "יצחק אבינו",
+        "יעקב אבינו",
+        "דוד המלך"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "category": "Tefillah",
+      "difficulty": 4,
+      "question": "כמה ברכות יש בתפילת שמונה עשרה של חול?",
+      "answers": [
+        "שבע עשרה",
+        "שמונה עשרה",
+        "תשע עשרה",
+        "עשרים"
+      ],
+      "correctIndex": 2
+    },
+    {
+      "category": "Tefillah",
+      "difficulty": 4,
+      "question": "בימי מי הוסיפו את ברכת המינים לשמונה עשרה?",
+      "answers": [
+        "רבן יוחנן בן זכאי",
+        "רבן גמליאל",
+        "רבי עקיבא",
+        "אנשי כנסת הגדולה"
+      ],
+      "correctIndex": 1
+    }
+  ]
+}

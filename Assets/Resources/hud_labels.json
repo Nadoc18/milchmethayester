@@ -1,0 +1,186 @@
+{
+  "_comment": "Tous les libelles hebreux de l'interface. Ce fichier est en UTF-8 : c'est le seul endroit ou l'hebreu doit vivre. Les .cs restent en pur ASCII. Modifie ici, puis relance Milchemet > Construire le HUD.",
+  "phases": [
+    "הכנסה",
+    "הוצאה",
+    "טנקים",
+    "יצר הרע",
+    "סוף התור"
+  ],
+  "energy": "אנרגיה",
+  "turn": "תור",
+  "portals": "שערים",
+  "base": "בסיס",
+  "endTurn": "סיים תור",
+  "keySpace": "רווח",
+  "keyTab": "Tab",
+  "energyDeltaFormat": "+{0}",
+  "portalCountFormat": "{0}/{1}",
+  "subtitleLevelFormat": "רמה {0}",
+  "tooltip": {
+    "tankCreate": "בניית טנק",
+    "tankEvolve": "שדרוג טנק",
+    "stanceChange": "אפשרויות הטנק",
+    "bunker": "בונקר",
+    "gas": "מתקן גז",
+    "crystal": "גביש",
+    "mountain": "מרכז פיקוד",
+    "maxLevel": "ברמה המרבית",
+    "occupied": "תפוס",
+    "free": "חינם",
+    "shotsPerTurn": "יריות בתור",
+    "range": "טווח",
+    "shotCost": "עלות ליריה",
+    "heal": "ריפוי",
+    "income": "הכנסה לתור",
+    "maxHpBonus": "תוספת חיים",
+    "damage": "נזק",
+    "hitPoints": "חיים",
+    "afterBalance": "היתרה אחרי",
+    "commandRadius": "רדיוס פיקוד",
+    "moveBonus": "תוספת תנועה",
+    "decay": "שחיקה לתור",
+    "effects": {
+      "bunker": "יורה לבד על כל אויב שמתקרב, בלי לסכן טנק. כל ירייה עולה אנרגיה.",
+      "gas": "המפעל שלך: כל האנרגיה שלך מגיעה מכאן. האויב יבוא להרוס אותו · שמור עליו.",
+      "crystal": "לא מביא אנרגיה. מרפא טנקים שלידו כל תור, נותן להם 20 חיים, ורק לידו אפשר לשדרג טנק לרמה 2.",
+      "mountain": "חוסם מעבר לאויבים סביבו. טנקי שמירה מגנים עליו כמו על הבסיס, וכל טנק ברדיוס שלו צועד משבצת נוספת. נשחק כל תור · בנה אותו קדימה, לא בבית.",
+      "tankCreate": "היחידה היחידה שיכולה לסגור שער. בחר לו תפקיד בחלון שייפתח.",
+      "tankEvolve": "כפול נזק, טווח ארוך יותר ומשבצת תנועה נוספת."
+    }
+  },
+  "portal": {
+    "_comment": "Six noms de Shofar, dans l'ordre est, nord-est, nord-ouest, ouest, sud-ouest, sud-est.",
+    "directions": [
+      "השער המזרחי",
+      "השער הצפוני־מזרחי",
+      "השער הצפוני־מערבי",
+      "השער המערבי",
+      "השער הדרומי־מערבי",
+      "השער הדרומי־מזרחי"
+    ],
+    "levelFormat": "רמה {0}",
+    "hpFormat": "{0}/{1}",
+    "instability": "סדקים",
+    "instabilityFormat": "{0}/{1}",
+    "floorNote": "הקו הלבן הוא הרצפה: הנזק החוזר לעולם לא יורד מתחתיו.",
+    "shieldIntactTitle": "המגן שלם",
+    "shieldIntactBody": "הנזק מתחלק לשניים",
+    "shieldBrokenTitle": "המגן נשבר",
+    "shieldBrokenBodyFormat": "נזק מלא · לא פורס · נותרו {0} תורות",
+    "surgeTitle": "גל מתקרב",
+    "surgeBodyFormat": "{0} אויבים · עד רמה {1}",
+    "evolveLabel": "עולה לרמה 2 בעוד",
+    "evolveFormat": "{0} תורות"
+  },
+  "trivia": {
+    "_comment": "Panneau de question, phase 1. Les cles des categories doivent correspondre EXACTEMENT au champ category de trivia_questions.json : c'est ce qui evite d'afficher du latin dans un champ droite-a-gauche, ou il sortirait a l'envers.",
+    "rewardLabel": "תגמול",
+    "timerLabel": "זמן שנותר",
+    "rewardFormat": "+{0}",
+    "secondsFormat": "{0} שנ׳",
+    "categories": {
+      "Halacha": "הלכה",
+      "Tanakh": "תנ״ך",
+      "Musar": "מוסר",
+      "Tefillah": "תפילה"
+    }
+  },
+  "unit": {
+    "_comment": "Carte d'unite, phases 3 et 4. Une seule carte pour les deux : meme grammaire, couleur differente.",
+    "tankNameFormat": "טנק {0}",
+    "enemyName": "יצר הרע",
+    "levelFormat": "רמה {0}",
+    "hpFormat": "{0}/{1}",
+    "stances": [
+      "שמירה",
+      "הסתערות",
+      "ציד"
+    ],
+    "rowTarget": "מטרה",
+    "rowDamage": "נזק",
+    "rowRange": "טווח",
+    "rowMobility": "ניידות",
+    "rowOrigin": "שער המוצא",
+    "unitHex": "משבצת",
+    "unitHexPerTurn": "משבצת בתור",
+    "targetBase": "הבסיס",
+    "targetEnemy": "יצר הרע",
+    "targetTank": "טנק",
+    "captionDamage": "נזק",
+    "captionShielded": "נזק · המגן שלם",
+    "captionBaseHp": "חיים לבסיס",
+    "captionMove": "מתקדם",
+    "damageReducedFormat": "{0} ← {1}"
+  },
+  "turnAnnounce": {
+    "_comment": "L'ouverture jouee au debut de chaque tour. Breve et sans interaction : un ecran d'ouverture qu'il faut congedier devient une corvee des le troisieme tour.",
+    "turnLabel": "תור",
+    "incomeLabel": "הכנסה",
+    "numberFormat": "{0}",
+    "incomeFormat": "+{0}"
+  },
+  "subjectChoice": {
+    "_comment": "Ecran de choix du sujet. Les noms des sujets sont repris de trivia.categories : une seule traduction, au meme endroit.",
+    "title": "בחר נושא",
+    "subtitle": "ככל שהשאלה קשה יותר, כך התגמול גדול יותר",
+    "rewardFormat": "+{0}",
+    "difficulties": [
+      "קל",
+      "בינוני",
+      "קשה",
+      "קשה מאוד"
+    ]
+  },
+  "tankChoice": {
+    "_comment": "Ecran de choix d'un Tank. Les noms des postures sont repris de unit.stances : une seule traduction, au meme endroit.",
+    "createTitle": "בניית טנק",
+    "createSubtitle": "בחר את תפקיד הטנק",
+    "changeTitle": "שינוי טנק",
+    "changeSubtitle": "בחר תפקיד חדש או שדרג את הטנק",
+    "cancel": "ביטול",
+    "free": "חינם",
+    "current": "התפקיד הנוכחי",
+    "evolveName": "שדרוג לרמה 2",
+    "evolveBody": "יותר חיים ויותר נזק. דורש קריסטל בקרבת מקום.",
+    "bodies": [
+      "נשאר ליד הבסיס ותוקף כל אויב שמתקרב. לא יוצא לשדה.",
+      "צועד אל השופרות כדי לסגור אותם. אויב בדרך לא מסיט אותו.",
+      "רודף אחרי אויבים בכל המפה. לא נוגע בשופרות."
+    ]
+  },
+  "advisor": {
+    "_comment": "Le conseiller. Les noms de posture sont repris de unit.stances.",
+    "header": "מה כדאי לעשות עכשיו",
+    "titleCreateTank": "בנה טנק",
+    "titleChangeStance": "שנה תפקיד",
+    "titleEvolve": "שדרג טנק",
+    "titleBunker": "בנה בונקר",
+    "titleCrystal": "שדרג גביש",
+    "titleBuild": "בנה",
+    "reasons": [
+      "המגן של השער נשבר · זה הזמן לסגור אותו",
+      "השער הזה על סף נפילה · מכה אחת תספיק",
+      "אויבים מתקרבים לבסיס · כל אויב שתהרוג מחליש את השער ששלח אותו",
+      "גל מתקרב · חזק את הקו לפני שיגיע",
+      "יש גביש ליד הטנק הזה · שדרוג מכפיל את הנזק שלו",
+      "ההכנסה שלך נמוכה מדי · בלי אנרגיה אין מה לעשות",
+      "אף טנק לא צועד אל השערים · בלי זה אי אפשר לנצח",
+      "השער הזה מתאושש · כל מה שהרווחת עליו נמחק לאט",
+      "המגן נשבר אבל הטנק רחוק מדי · בנה ראש גשר בדרך"
+    ],
+    "titleCommand": "בנה מרכז פיקוד"
+  },
+  "gameOver": {
+    "_comment": "Ecran de fin. Victoire et defaite partagent la meme mise en page : seuls le titre, la couleur et la phrase changent.",
+    "victoryTitle": "ניצחת",
+    "victorySubtitle": "כל השערים נסגרו. יצר הטוב גבר.",
+    "defeatTitle": "הפסדת",
+    "defeatSubtitle": "הבסיס נפל. יצר הרע השתלט.",
+    "replayLabel": "משחק חדש",
+    "statTurns": "תורות",
+    "statPortals": "שערים שנסגרו",
+    "statKills": "אויבים שחוסלו",
+    "portalsFormat": "{0}/{1}"
+  }
+}

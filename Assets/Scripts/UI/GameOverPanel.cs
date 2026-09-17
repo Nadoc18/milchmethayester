@@ -1,0 +1,237 @@
+using System.Collections;
+using UnityEngine;
+using UnityEngine.UI;
+using MNLTHII;
+using MNLTHII.Rules;
+
+namespace MNLTHII.Managers
+{
+    /// <summary>
+    /// L'ecran de fin : victoire ou defaite.
+    ///
+    /// C'est le seul ecran du jeu qui doit CONCLURE. Les autres informent pendant que
+    /// la partie continue ; celui-ci arrive quand tout est joue, et il a deux choses a
+    /// faire, dans cet ordre :
+    ///
+    ///   1. DIRE LE RESULTAT, sans ambiguite et sans attendre. Un fondu lent sur une
+    ///      victoire, c'est une seconde ou le joueur se demande encore s'il a gagne.
+    ///
+    ///   2. DIRE POURQUOI. Une fin sans bilan n'apprend rien : trois chiffres - les
+    ///      tours tenus, les Shofars fermes, les ennemis abattus - transforment "j'ai
+    ///      perdu" en "j'ai perdu au tour 14 avec deux Shofars encore ouverts", et
+    ///      c'est cette phrase-la qui donne envie de rejouer.
+    ///
+    /// La victoire et la defaite partagent la meme mise en page. Seuls changent le
+    /// titre, la couleur et la phrase. Deux ecrans differents auraient coute deux fois
+    /// le travail pour rendre le jeu moins lisible, pas plus.
+    ///
+    /// Le bouton de reprise n'est cable a rien par defaut : rejouer veut dire
+    /// rechargerla scene, et c'est une decision qui appartient au jeu, pas a un
+    /// panneau d'interface. Branche-le sur ce que tu veux depuis l'inspecteur.
+    ///
+    /// Tous les libelles hebreux viennent de l'inspecteur, donc de hud_labels.json.
+    /// Ce fichier .cs reste en pur ASCII.
+    ///
+    /// Note d'optimisation : aucun Update. Une seule coroutine, pour le fondu
+    /// d'entree, et elle ne tourne qu'une fois par partie. Le fondu passe par un
+    /// CanvasGroup - une seule valeur alpha - et non par la couleur de chaque texte,
+    /// ce qui forcerait TextMeshPro a reconstruire son maillage a chaque frame.
+    /// </summary>
+    public class GameOverPanel : MonoBehaviour
+    {
+        public static GameOverPanel Instance;
+
+        // =================================================================
+        //  REFERENCES
+        // =================================================================
+        [Header("Racine")]
+        public GameObject panelRoot;
+        public CanvasGroup group;
+        public Image dimmer;
+
+        [Header("Entete")]
+        public Image accentBar;
+        public TMPro.TextMeshProUGUI titleText;
+        public TMPro.TextMeshProUGUI subtitleText;
+
+        [Header("Bilan")]
+        public TMPro.TextMeshProUGUI[] statLabels = new TMPro.TextMeshProUGUI[3];
+        public TMPro.TextMeshProUGUI[] statValues = new TMPro.TextMeshProUGUI[3];
+
+        [Header("Reprise")]
+        public Button replayButton;
+        public TMPro.TextMeshProUGUI replayText;
+
+        // =================================================================
+        //  LIBELLES
+        // =================================================================
+        [Header("Libelles")]
+        public string victoryTitle = "";
+        public string victorySubtitle = "";
+        public string defeatTitle = "";
+        public string defeatSubtitle = "";
+        public string replayLabel = "";
+
+        public string statTurnsLabel = "";
+        public string statPortalsLabel = "";
+        public string statKillsLabel = "";
+
+        public string portalsFormat = "{0}/{1}";
+
+        // =================================================================
+        //  COULEURS
+        // =================================================================
+        [Header("Couleurs")]
+        public Color victoryColor = new Color(0.24f, 0.88f, 0.82f);
+        public Color defeatColor = new Color(1f, 0.30f, 0.37f);
+
+        [Header("Rythme")]
+        public float fadeInDuration = 0.5f;
+
+        private Coroutine _fade;
+
+        private void Awake()
+        {
+            if (Instance == null) Instance = this;
+
+            if (panelRoot == null)
+                Debug.LogWarning("[GameOver] panelRoot n'est pas renseigne : l'ecran de fin ne s'affichera pas.");
+
+            if (group == null && panelRoot != null) group = panelRoot.GetComponent<CanvasGroup>();
+
+            Hide();
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
+        }
+
+        // =================================================================
+        //  FACADE
+        // =================================================================
+        /// <summary>
+        /// Appele par TurnManager a la fin de la partie. Tout autre etat est ignore :
+        /// l'ecran ne doit s'ouvrir que sur une conclusion.
+        /// </summary>
+        public static void Report(StateOfGame state)
+        {
+            if (Instance == null) return;
+            if (state != StateOfGame.victory && state != StateOfGame.defeat) return;
+
+            Instance.Show(state == StateOfGame.victory);
+        }
+
+        public void Show(bool victory)
+        {
+            if (panelRoot == null) return;
+
+            Color accent = victory ? victoryColor : defeatColor;
+
+            if (accentBar != null) accentBar.color = accent;
+
+            if (titleText != null)
+            {
+                titleText.text = victory ? victoryTitle : defeatTitle;
+                titleText.color = accent;
+            }
+
+            if (subtitleText != null)
+                subtitleText.text = victory ? victorySubtitle : defeatSubtitle;
+
+            FillStats(accent);
+
+            if (replayText != null) replayText.text = replayLabel;
+
+            panelRoot.SetActive(true);
+
+            if (_fade != null) StopCoroutine(_fade);
+            _fade = StartCoroutine(FadeIn());
+        }
+
+        public void Hide()
+        {
+            if (group != null) group.alpha = 0f;
+            if (panelRoot != null && panelRoot.activeSelf) panelRoot.SetActive(false);
+        }
+
+        // =================================================================
+        //  BILAN
+        // =================================================================
+        /// <summary>
+        /// Les trois chiffres qui resument la partie. Ils sont lus a la source au
+        /// moment de l'affichage : rien n'est accumule pendant la partie, donc rien ne
+        /// peut se desynchroniser.
+        /// </summary>
+        private void FillStats(Color accent)
+        {
+            TurnManager turns = TurnManager.Instance;
+            PortalManager portals = PortalManager.Instance;
+
+            int turnCount = (turns != null) ? turns.currentTurn : 0;
+
+            // Shofars fermes = ceux du depart moins ceux qui tiennent encore.
+            int remaining = (portals != null) ? portals.CountPortals() : 0;
+            int total = InteractionRules.PORTAL_COUNT;
+            int closed = total - remaining;
+            if (closed < 0) closed = 0;
+
+            int kills = (portals != null) ? portals.totalEnemiesKilled : 0;
+
+            SetStat(0, statTurnsLabel, turnCount, accent);
+            SetStatFormatted(1, statPortalsLabel, portalsFormat, closed, total, accent);
+            SetStat(2, statKillsLabel, kills, accent);
+        }
+
+        private void SetStat(int index, string label, int value, Color tint)
+        {
+            if (statLabels != null && index < statLabels.Length && statLabels[index] != null)
+                statLabels[index].text = label;
+
+            if (statValues != null && index < statValues.Length && statValues[index] != null)
+            {
+                statValues[index].SetText("{0}", value);
+                statValues[index].color = tint;
+            }
+        }
+
+        private void SetStatFormatted(int index, string label, string format, int a, int b, Color tint)
+        {
+            if (statLabels != null && index < statLabels.Length && statLabels[index] != null)
+                statLabels[index].text = label;
+
+            if (statValues != null && index < statValues.Length && statValues[index] != null)
+            {
+                statValues[index].SetText(format, a, b);
+                statValues[index].color = tint;
+            }
+        }
+
+        // =================================================================
+        //  FONDU
+        // =================================================================
+        private IEnumerator FadeIn()
+        {
+            if (group == null) yield break;
+
+            if (fadeInDuration <= 0f) { group.alpha = 1f; _fade = null; yield break; }
+
+            float elapsed = 0f;
+            group.alpha = 0f;
+
+            while (elapsed < fadeInDuration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+
+                float t = elapsed / fadeInDuration;
+                if (t > 1f) t = 1f;
+
+                group.alpha = t * t * (3f - 2f * t);
+                yield return null;
+            }
+
+            group.alpha = 1f;
+            _fade = null;
+        }
+    }
+}
