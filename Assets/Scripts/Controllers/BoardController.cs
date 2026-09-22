@@ -175,10 +175,208 @@ namespace MNLTHII
         }
 
         /// <summary>
-        /// Un pas vers la cible. Les collines sont des obstacles naturels (GDD 3),
-        /// et les Centres de Commandement repoussent uniquement les ennemis.
+        /// Un pas vers la cible.
+        ///
+        /// Cases interdites (voir InteractionRules.IsHexWalkable) : les collines, la
+        /// Base, les Shofars, et toute case ou un batiment est construit (Gaz, Cristal,
+        /// Centre de Commandement). Les Centres de Commandement repoussent en plus les
+        /// ennemis a 1 ou 2 cases. Une case occupee par un pion est aussi bloquee.
+        ///
+        /// POURQUOI UNE RECHERCHE DE CHEMIN
+        ///
+        /// L'ancien calcul prenait simplement le voisin le plus proche de la cible. Avec
+        /// les batiments devenus infranchissables, une usine posee en travers suffisait
+        /// a coincer un pion, qui faisait alors des allers-retours. On cherche donc le
+        /// plus court chemin (parcours en largeur) jusqu'a une case voisine de la cible,
+        /// et on rend son premier pas. Si la cible est inaccessible, on s'approche au
+        /// plus pres ; si on ne peut pas faire mieux que la case actuelle, on reste
+        /// (null), ce que tous les appelants savent deja traiter.
         /// </summary>
         public HexCoord GetNextStepTowards(HexCoord start, HexCoord end, bool isEnemy = false)
+        {
+            if (start == null || end == null) return null;
+            if (start.CompareHexCoord(end)) return start;
+
+            bool searched;
+            HexCoord step = PathStepTowards(start, end, isEnemy, out searched);
+            if (searched) return step;
+
+            return GreedyStepTowards(start, end, isEnemy);
+        }
+
+        // ---------------------------------------------------------------------
+        //  RECHERCHE DE CHEMIN (sans allocation : grilles membres reutilisees)
+        // ---------------------------------------------------------------------
+        private const int PathR = 24;                 // coordonnees de -24 a +24
+        private const int PathW = PathR * 2 + 1;
+        private const int PathCells = PathW * PathW;
+
+        private readonly int[] _pathStamp = new int[PathCells];    // case presente ce calcul
+        private readonly bool[] _pathOpen = new bool[PathCells];   // on peut s'y poser
+        private readonly int[] _pathSeen = new int[PathCells];     // visitee ce calcul
+        private readonly int[] _pathParent = new int[PathCells];
+        private readonly int[] _pathDepth = new int[PathCells];
+        private readonly int[] _pathQueue = new int[PathCells];
+        private readonly int[] _repelQ = new int[32];
+        private readonly int[] _repelR = new int[32];
+        private readonly int[] _repelS = new int[32];
+        private readonly int[] _repelD = new int[32];
+        private int _pathRun;
+
+        private static bool InPathGrid(int q, int r)
+        {
+            return q >= -PathR && q <= PathR && r >= -PathR && r <= PathR;
+        }
+
+        private static int PathIndex(int q, int r)
+        {
+            return (q + PathR) * PathW + (r + PathR);
+        }
+
+        private HexCoord PathStepTowards(HexCoord start, HexCoord end, bool isEnemy, out bool searched)
+        {
+            searched = false;
+            if (!InPathGrid(start.q, start.r) || !InPathGrid(end.q, end.r)) return null;
+
+            List<Hexagon> hexList = hexagonsInBoard;
+            List<PawnController> pawnList = pawnsInBoard;
+            if (hexList == null) return null;
+
+            _pathRun++;
+            if (_pathRun == int.MaxValue)
+            {
+                _pathRun = 1;
+                System.Array.Clear(_pathStamp, 0, PathCells);
+                System.Array.Clear(_pathSeen, 0, PathCells);
+            }
+            int run = _pathRun;
+
+            // Centres de Commandement qui repoussent les ennemis.
+            int repelCount = 0;
+            if (isEnemy)
+            {
+                for (int i = 0; i < hexList.Count && repelCount < _repelQ.Length; i++)
+                {
+                    Hexagon hex = hexList[i];
+                    if (hex == null || hex.positionInTheBoard == null) continue;
+                    if (hex.type != TypeOfHex.mountain || hex.level < 1 || hex.currentHP <= 0) continue;
+
+                    _repelQ[repelCount] = hex.positionInTheBoard.q;
+                    _repelR[repelCount] = hex.positionInTheBoard.r;
+                    _repelS[repelCount] = hex.positionInTheBoard.s;
+                    _repelD[repelCount] = MNLTHII.Rules.InteractionRules.GetMountainRepel(hex.level);
+                    repelCount++;
+                }
+            }
+
+            // 1. La carte : quelles cases existent, et lesquelles accueillent un pion.
+            for (int i = 0; i < hexList.Count; i++)
+            {
+                Hexagon hex = hexList[i];
+                if (hex == null || hex.positionInTheBoard == null) continue;
+
+                HexCoord c = hex.positionInTheBoard;
+                if (!InPathGrid(c.q, c.r)) return null;   // plateau inattendu : secours
+
+                int idx = PathIndex(c.q, c.r);
+                _pathStamp[idx] = run;
+
+                bool open = MNLTHII.Rules.InteractionRules.IsHexWalkable(hex);
+                for (int m = 0; open && m < repelCount; m++)
+                {
+                    int d = Mathf.Max(Mathf.Abs(c.q - _repelQ[m]),
+                                      Mathf.Max(Mathf.Abs(c.r - _repelR[m]), Mathf.Abs(c.s - _repelS[m])));
+                    if (d <= _repelD[m]) open = false;
+                }
+                _pathOpen[idx] = open;
+            }
+
+            // 2. Les pions occupent leur case.
+            if (pawnList != null)
+            {
+                for (int i = 0; i < pawnList.Count; i++)
+                {
+                    PawnController pawn = pawnList[i];
+                    if (pawn == null || pawn.hexcoord == null) continue;
+                    if (!InPathGrid(pawn.hexcoord.q, pawn.hexcoord.r)) continue;
+
+                    int idx = PathIndex(pawn.hexcoord.q, pawn.hexcoord.r);
+                    if (_pathStamp[idx] == run) _pathOpen[idx] = false;
+                }
+            }
+
+            // 3. Parcours en largeur depuis le depart.
+            int startIdx = PathIndex(start.q, start.r);
+            int head = 0, tail = 0;
+            _pathQueue[tail++] = startIdx;
+            _pathSeen[startIdx] = run;
+            _pathParent[startIdx] = -1;
+            _pathDepth[startIdx] = 0;
+
+            int bestIdx = startIdx;
+            int bestDist = GetHexDistance(start, end);
+            int bestDepth = 0;
+            int goalIdx = -1;
+
+            while (head < tail)
+            {
+                int cur = _pathQueue[head++];
+                int cq = cur / PathW - PathR;
+                int cr = cur % PathW - PathR;
+
+                for (int n = 0; n < 6; n++)
+                {
+                    int nq = cq + NeighbourDQ[n];
+                    int nr = cr + NeighbourDR[n];
+                    if (!InPathGrid(nq, nr)) continue;
+
+                    int ni = PathIndex(nq, nr);
+                    if (_pathSeen[ni] == run) continue;
+                    if (_pathStamp[ni] != run || !_pathOpen[ni]) continue;
+
+                    _pathSeen[ni] = run;
+                    _pathParent[ni] = cur;
+                    _pathDepth[ni] = _pathDepth[cur] + 1;
+
+                    int ns = -nq - nr;
+                    int dist = Mathf.Max(Mathf.Abs(nq - end.q), Mathf.Max(Mathf.Abs(nr - end.r), Mathf.Abs(ns - end.s)));
+
+                    // Arrive au contact (ou sur la cible elle-meme si elle est libre).
+                    if (dist <= 1) { goalIdx = ni; break; }
+
+                    if (dist < bestDist || (dist == bestDist && _pathDepth[ni] < bestDepth))
+                    {
+                        bestDist = dist;
+                        bestDepth = _pathDepth[ni];
+                        bestIdx = ni;
+                    }
+
+                    _pathQueue[tail++] = ni;
+                }
+
+                if (goalIdx >= 0) break;
+            }
+
+            searched = true;
+
+            int target = (goalIdx >= 0) ? goalIdx : bestIdx;
+            if (target == startIdx) return null;     // rien de mieux : on reste
+
+            // Remonte jusqu'au premier pas.
+            int stepIdx = target;
+            while (_pathParent[stepIdx] != startIdx && _pathParent[stepIdx] >= 0)
+                stepIdx = _pathParent[stepIdx];
+
+            int sq = stepIdx / PathW - PathR;
+            int sr = stepIdx % PathW - PathR;
+            return new HexCoord(sq, sr, -sq - sr);
+        }
+
+        /// <summary>
+        /// L'ancien pas "au plus pres" : secours quand la carte sort de la grille de
+        /// recherche (ne devrait jamais arriver sur un plateau de rayon 7).
+        /// </summary>
+        private HexCoord GreedyStepTowards(HexCoord start, HexCoord end, bool isEnemy)
         {
             if (start == null || end == null) return null;
             if (start.CompareHexCoord(end)) return start;
@@ -217,8 +415,8 @@ namespace MNLTHII
                 {
                     Hexagon neighborHex = instance.getHexByCoord(neighbor);
 
-                    // Colline : obstacle naturel des le Niveau 1 du GDD.
-                    if (neighborHex == null || neighborHex.type == TypeOfHex.hill)
+                    // Colline, Base, Shofar, batiment construit : on ne s'y pose pas.
+                    if (!MNLTHII.Rules.InteractionRules.IsHexWalkable(neighborHex))
                     {
                         isBlocked = true;
                     }
@@ -966,12 +1164,23 @@ namespace MNLTHII
         private readonly Dictionary<int, Hexagon> _auraIndex = new Dictionary<int, Hexagon>(256);
 
         [Header("Marqueurs de zone")]
-        [Tooltip("Anneaux colores autour des batiments. Eteints : ils encombraient le plateau.")]
+        [Tooltip("Ancien reglage (tous les anneaux). Laisse eteint : voir showRangeAuras.")]
         public bool showAuras = false;
+
+        [Tooltip("Zone d'effet des Bunkers (portee de tir), des Centres de Commandement "
+               + "(cases interdites aux ennemis) et des Cristaux (soutien). Allume par defaut.")]
+        public bool showRangeAuras = true;
+
+        // Les Cristaux (zone de soutien : soin, +PV max, evolution des Tanks) suivent
+        // le meme reglage showRangeAuras que les Bunkers et les Centres.
 
         private static readonly Color AuraMountain = new Color(1f, 0.3f, 0f);
         private static readonly Color AuraHill = Color.yellow;
         private static readonly Color AuraCrystal = Color.cyan;
+
+        [Tooltip("Opacite de la zone de COMMANDEMENT d'un Centre (Garde + 1 case de mouvement), "
+               + "dessinee plus legere que sa zone infranchissable.")]
+        [Range(0.1f, 1f)] public float commandZoneAlpha = 0.4f;
 
         // Marqueur genere une seule fois si auraHexSprite n'est pas renseigne.
         private static Sprite _proceduralAuraSprite;
@@ -1053,7 +1262,11 @@ namespace MNLTHII
             // Le champ reste la : remets showAuras a vrai dans l'inspecteur si tu veux
             // les revoir. On efface d'abord, pour que basculer le reglage en cours de
             // partie fasse bien disparaitre ce qui etait deja peint.
-            if (!showAuras)
+            bool bunkers = showAuras || showRangeAuras;
+            bool commands = showAuras || showRangeAuras;
+            bool crystals = showAuras || showRangeAuras;
+
+            if (!bunkers && !commands && !crystals)
             {
                 for (int i = 0; i < hexagonsInBoard.Count; i++)
                     if (hexagonsInBoard[i] != null) hexagonsInBoard[i].ClearAura();
@@ -1075,19 +1288,47 @@ namespace MNLTHII
             for (int i = 0; i < hexagonsInBoard.Count; i++)
             {
                 Hexagon hex = hexagonsInBoard[i];
-                if (hex == null || hex.level < 1) continue;
+                if (hex == null || hex.level < 1 || hex.currentHP <= 0) continue;
 
                 int radius;
                 Color auraColor;
 
                 switch (hex.type)
                 {
-                    case TypeOfHex.mountain: auraColor = AuraMountain; radius = (hex.level >= 2) ? 2 : 1; break;
-                    case TypeOfHex.hill: auraColor = AuraHill; radius = 2; break;
+                    // Centre de Commandement : les cases que les ennemis ne peuvent pas traverser.
+                    // Deux zones : pleine = infranchissable pour les ennemis ; legere tout
+                    // autour = rayon de commandement (Garde comme a la Base, +1 case).
+                    case TypeOfHex.mountain:
+                    {
+                        if (!commands) continue;
+                        HexCoord mc = hex.positionInTheBoard;
+                        if (mc == null) continue;
+
+                        int repel = MNLTHII.Rules.InteractionRules.GetMountainRepel(hex.level);
+                        int command = MNLTHII.Rules.InteractionRules.GetMountainCommandRadius(hex.level);
+
+                        PaintAura(mc.q, mc.r, repel, AuraMountain, 0);
+                        if (command > repel)
+                            PaintAura(mc.q, mc.r, command,
+                                      new Color(AuraMountain.r, AuraMountain.g, AuraMountain.b, commandZoneAlpha),
+                                      repel);
+                        continue;
+                    }
+
+                    // Bunker : sa portee de tir.
+                    case TypeOfHex.hill:
+                        if (!bunkers) continue;
+                        auraColor = AuraHill;
+                        radius = MNLTHII.Rules.InteractionRules.BUNKER_RANGE;
+                        break;
                     // Plus d'anneau pour le Gaz : une usine n'a pas de rayon d'effet,
                     // elle produit sur place. Le dessiner etait un mensonge visuel.
                     case TypeOfHex.gas: continue;
-                    case TypeOfHex.crystal: auraColor = AuraCrystal; radius = (hex.level >= 2) ? 2 : 1; break;
+                    case TypeOfHex.crystal:
+                        if (!crystals) continue;
+                        auraColor = AuraCrystal;
+                        radius = MNLTHII.Rules.InteractionRules.GetCrystalRange(hex.level);
+                        break;
                     default: continue;
                 }
 
@@ -1096,12 +1337,16 @@ namespace MNLTHII
                 HexCoord center = hex.positionInTheBoard;
                 if (center == null) continue;
 
-                PaintAura(center.q, center.r, radius, auraColor);
+                PaintAura(center.q, center.r, radius, auraColor, 0);
             }
         }
 
-        /// <summary>Parcours du disque hexagonal centre sur (q, r), le centre exclu.</summary>
-        private void PaintAura(int q, int r, int radius, Color color)
+        /// <summary>
+        /// Parcours du disque hexagonal centre sur (q, r), le centre exclu. Les cases a
+        /// distance &lt;= innerRadius sont sautees : c'est ce qui permet de peindre un
+        /// ANNEAU autour d'une zone deja peinte.
+        /// </summary>
+        private void PaintAura(int q, int r, int radius, Color color, int innerRadius)
         {
             for (int dq = -radius; dq <= radius; dq++)
             {
@@ -1111,6 +1356,10 @@ namespace MNLTHII
                 for (int dr = minDr; dr <= maxDr; dr++)
                 {
                     if (dq == 0 && dr == 0) continue;
+
+                    int ds = -dq - dr;
+                    int dist = Mathf.Max(Mathf.Abs(dq), Mathf.Max(Mathf.Abs(dr), Mathf.Abs(ds)));
+                    if (dist <= innerRadius) continue;
 
                     Hexagon neighbour;
                     if (_auraIndex.TryGetValue(HexKey(q + dq, r + dr), out neighbour) && neighbour != null)

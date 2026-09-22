@@ -89,10 +89,17 @@ namespace MNLTHII.Managers
         public float fadeInDuration = 0.5f;
 
         private Coroutine _fade;
+        private UnityEngine.Events.UnityAction _replayCallback;
 
         private void Awake()
         {
             if (Instance == null) Instance = this;
+
+            // Le bouton "nouvelle partie" est cable ICI, au lancement. Le HudBuilder ne
+            // peut pas le faire : un abonnement pose depuis un script d'editeur n'est
+            // pas enregistre dans la scene - le bouton etait construit, visible, et muet.
+            _replayCallback = Replay;
+            if (replayButton != null) replayButton.onClick.AddListener(_replayCallback);
 
             if (panelRoot == null)
                 Debug.LogWarning("[GameOver] panelRoot n'est pas renseigne : l'ecran de fin ne s'affichera pas.");
@@ -104,7 +111,30 @@ namespace MNLTHII.Managers
 
         private void OnDestroy()
         {
+            if (replayButton != null && _replayCallback != null) replayButton.onClick.RemoveListener(_replayCallback);
             if (Instance == this) Instance = null;
+        }
+
+        /// <summary>
+        /// Nouvelle partie : on recharge la scene courante, exactement comme au
+        /// lancement. La vitesse du jeu est remise a la normale d'abord - une partie
+        /// terminee pendant un ralenti de la camera d'action ne doit pas en heriter.
+        /// </summary>
+        public void Replay()
+        {
+            Time.timeScale = 1f;
+
+            // Le menu principal existe et fait partie du build : on y retourne, pour
+            // pouvoir choisir une autre difficulte. Sinon, comme avant, on relance
+            // directement la partie (avec la meme difficulte).
+            if (Application.CanStreamedLevelBeLoaded(MainMenuController.MenuSceneName))
+            {
+                UnityEngine.SceneManagement.SceneManager.LoadScene(MainMenuController.MenuSceneName);
+                return;
+            }
+
+            UnityEngine.SceneManagement.Scene scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            UnityEngine.SceneManagement.SceneManager.LoadScene(scene.name);
         }
 
         // =================================================================
@@ -144,6 +174,22 @@ namespace MNLTHII.Managers
             if (replayText != null) replayText.text = replayLabel;
 
             panelRoot.SetActive(true);
+
+            // Si la partie s'est terminee pendant une vue immersive, le HUD parent a pu
+            // etre masque (alpha 0, clics bloques) : l'ecran de fin serait alors
+            // invisible ou son bouton inerte. On rend la main a toute la chaine.
+            Transform parent = panelRoot.transform.parent;
+            while (parent != null)
+            {
+                CanvasGroup g = parent.GetComponent<CanvasGroup>();
+                if (g != null)
+                {
+                    g.alpha = 1f;
+                    g.blocksRaycasts = true;
+                    g.interactable = true;
+                }
+                parent = parent.parent;
+            }
 
             if (_fade != null) StopCoroutine(_fade);
             _fade = StartCoroutine(FadeIn());

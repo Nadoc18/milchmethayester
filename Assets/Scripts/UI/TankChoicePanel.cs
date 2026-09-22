@@ -16,7 +16,10 @@ namespace MNLTHII.Managers
         Restance,
 
         /// <summary>Faire passer ce Tank au Niveau 2.</summary>
-        Evolve
+        Evolve,
+
+        /// <summary>Envoyer ce Tank au contact du Cristal le plus proche.</summary>
+        SeekCrystal
     }
 
     /// <summary>
@@ -61,6 +64,13 @@ namespace MNLTHII.Managers
         /// <summary>Trois postures, plus une carte d'evolution eventuelle.</summary>
         public const int MaxOptions = 4;
 
+        /// <summary>
+        /// Index rendu au gestionnaire quand on choisit "rejoindre un Cristal". Cette
+        /// carte occupe la place de l'evolution (4e carte) : les deux ne sont jamais
+        /// proposees ensemble - loin d'un Cristal on y va, a son contact on evolue.
+        /// </summary>
+        public const int CrystalOrderSlot = 4;
+
         // =================================================================
         //  REFERENCES
         // =================================================================
@@ -90,6 +100,12 @@ namespace MNLTHII.Managers
         public Button cancelButton;
         public TMPro.TextMeshProUGUI cancelText;
 
+        [Header("Vue immersive")]
+        [Tooltip("Bouton 'vue depuis le tank'. Visible seulement quand on modifie un Tank deja pose.")]
+        public Button viewButton;
+        public TMPro.TextMeshProUGUI viewText;
+        public string viewLabel = "";
+
         // =================================================================
         //  LIBELLES
         // =================================================================
@@ -103,6 +119,11 @@ namespace MNLTHII.Managers
         public string currentLabel = "";
         public string evolveName = "";
         public string evolveBody = "";
+
+        [Tooltip("Carte 'rejoindre un Cristal'. Vide : repris de tankChoice.crystalName / crystalBody dans hud_labels.json au lancement.")]
+        public string crystalOrderName = "";
+        public string crystalOrderBody = "";
+        public string crystalOrderCurrent = "";
 
         // Garde, Assaut, Chasse - dans l'ordre de l'enum PawnStance.
         public string[] stanceNames = new string[3];
@@ -119,6 +140,7 @@ namespace MNLTHII.Managers
         public Color freeColor = new Color(0.24f, 0.88f, 0.82f);
         public Color currentColor = new Color(0.56f, 0.64f, 0.80f);
         public Color evolveColor = new Color(0.65f, 0.42f, 1f);
+        public Color crystalOrderColor = new Color(0.36f, 0.85f, 1f);
 
         // =================================================================
         //  ETAT INTERNE
@@ -126,13 +148,22 @@ namespace MNLTHII.Managers
         private Action<int> _handler;
         private UnityEngine.Events.UnityAction[] _callbacks;
         private UnityEngine.Events.UnityAction _cancelCallback;
+        private UnityEngine.Events.UnityAction _viewCallback;
+        private PawnController _viewTarget;
         private bool _locked;
+        private bool _slot3IsCrystalOrder;
 
         public bool IsOpen { get { return panelRoot != null && panelRoot.activeSelf; } }
 
         private void Awake()
         {
             if (Instance == null) Instance = this;
+
+            // Libelles ajoutes apres la construction du HUD : si le builder n'a pas
+            // ete relance, on les lit directement dans le JSON.
+            if (string.IsNullOrEmpty(crystalOrderName)) crystalOrderName = UI.HudLabelsRuntime.Get("crystalName");
+            if (string.IsNullOrEmpty(crystalOrderBody)) crystalOrderBody = UI.HudLabelsRuntime.Get("crystalBody");
+            if (string.IsNullOrEmpty(crystalOrderCurrent)) crystalOrderCurrent = UI.HudLabelsRuntime.Get("crystalCurrent");
 
             BindButtons();
             Hide();
@@ -159,6 +190,12 @@ namespace MNLTHII.Managers
                 _cancelCallback = delegate { Choose(-1); };
                 cancelButton.onClick.AddListener(_cancelCallback);
             }
+
+            if (viewButton != null)
+            {
+                _viewCallback = OpenTankView;
+                viewButton.onClick.AddListener(_viewCallback);
+            }
         }
 
         private void OnDestroy()
@@ -174,6 +211,32 @@ namespace MNLTHII.Managers
 
             if (cancelButton != null && _cancelCallback != null)
                 cancelButton.onClick.RemoveListener(_cancelCallback);
+
+            if (viewButton != null && _viewCallback != null)
+                viewButton.onClick.RemoveListener(_viewCallback);
+        }
+
+        /// <summary>
+        /// Le Tank que le bouton de vue immersive montrera. Null a la creation d'un
+        /// Tank : il n'existe pas encore, le bouton est alors masque.
+        /// </summary>
+        public void SetViewTarget(PawnController tank)
+        {
+            _viewTarget = tank;
+        }
+
+        /// <summary>
+        /// On ferme l'ecran comme une annulation - rien n'est facture - puis on
+        /// descend derriere le Tank.
+        /// </summary>
+        private void OpenTankView()
+        {
+            PawnController tank = _viewTarget;
+            _viewTarget = null;
+
+            Choose(-1);
+
+            if (tank != null) ImmersiveCamera.EnterTankView(tank);
         }
 
         // =================================================================
@@ -205,7 +268,21 @@ namespace MNLTHII.Managers
         public void Show(bool creating, int stanceCost, int currentStance,
                          int evolveCost, int availableEnergy)
         {
+            Show(creating, stanceCost, currentStance, evolveCost, availableEnergy, false, false);
+        }
+
+        /// <summary>
+        /// offerCrystalOrder : proposer "rejoindre un Cristal" a la place de
+        /// l'evolution (seulement quand l'evolution n'est pas proposee).
+        /// crystalOrderActive : ce Tank a deja cet ordre - la carte est marquee
+        /// "en cours" et ne se clique pas.
+        /// </summary>
+        public void Show(bool creating, int stanceCost, int currentStance,
+                         int evolveCost, int availableEnergy,
+                         bool offerCrystalOrder, bool crystalOrderActive)
+        {
             _locked = false;
+            _slot3IsCrystalOrder = false;
 
             if (titleText != null) titleText.text = creating ? createTitle : changeTitle;
             if (subtitleText != null) subtitleText.text = creating ? createSubtitle : changeSubtitle;
@@ -225,16 +302,38 @@ namespace MNLTHII.Managers
                          stanceCost, affordable, isCurrent, true);
             }
 
-            // --- la carte d'evolution ---
+            // --- la carte d'evolution, ou a sa place l'ordre de rejoindre un Cristal ---
             bool showEvolve = !creating && evolveCost > 0;
+            bool showCrystal = !creating && !showEvolve && offerCrystalOrder;
 
             if (cardButtons != null && 3 < cardButtons.Length && cardButtons[3] != null)
-                cardButtons[3].gameObject.SetActive(showEvolve);
+                cardButtons[3].gameObject.SetActive(showEvolve || showCrystal);
 
             if (showEvolve)
             {
                 FillCard(3, evolveColor, evolveName, evolveBody,
                          evolveCost, availableEnergy >= evolveCost, false, true);
+            }
+            else if (showCrystal)
+            {
+                _slot3IsCrystalOrder = true;
+
+                // Deja en route : la carte le dit et ne se reclique pas.
+                FillCard(3, crystalOrderColor, crystalOrderName, crystalOrderBody,
+                         0, !crystalOrderActive, crystalOrderActive, true);
+
+                if (crystalOrderActive && cardCosts != null && 3 < cardCosts.Length
+                    && cardCosts[3] != null && !string.IsNullOrEmpty(crystalOrderCurrent))
+                    cardCosts[3].text = crystalOrderCurrent;
+            }
+
+            // Le bouton de vue : seulement pour un Tank qui existe, et si la camera
+            // immersive est installee dans la scene.
+            if (viewButton != null)
+            {
+                bool showView = !creating && _viewTarget != null && ImmersiveCamera.Instance != null;
+                viewButton.gameObject.SetActive(showView);
+                if (showView && viewText != null) viewText.text = viewLabel;
             }
 
             if (panelRoot != null) panelRoot.SetActive(true);
@@ -332,6 +431,10 @@ namespace MNLTHII.Managers
             _locked = true;
 
             Hide();
+
+            // La 4e carte porte l'ordre "rejoindre un Cristal" : on le signale par
+            // son propre index pour que l'appelant ne le confonde pas avec l'evolution.
+            if (slot == 3 && _slot3IsCrystalOrder) slot = CrystalOrderSlot;
 
             if (_handler != null) _handler(slot);
         }

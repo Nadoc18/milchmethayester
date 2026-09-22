@@ -19,6 +19,8 @@
   "subtitleLevelFormat": "רמה {0}",
   "tooltip": {
     "tankCreate": "בניית טנק",
+    "evolutionLevel": "רמה {0}",
+    "evolutionNatural": "טבעי",
     "tankEvolve": "שדרוג טנק",
     "stanceChange": "אפשרויות הטנק",
     "bunker": "בונקר",
@@ -40,6 +42,11 @@
     "commandRadius": "רדיוס פיקוד",
     "moveBonus": "תוספת תנועה",
     "decay": "שחיקה לתור",
+    "repelRadius": "חסימת אויבים",
+    "confirmUpgrade": "אישור · רמה {0}",
+    "confirmCancel": "ביטול",
+    "bunkerEffect": "יורה לבד על כל אויב שמתקרב, בלי לסכן טנק. כל ירייה עולה אנרגיה. נשחק כל תור וכל ירייה · בסוף הוא קורס וצריך לבנות מחדש.",
+    "mountainEffect": "טבעת כתומה מלאה: אויבים לא יכולים לעבור בה. טבעת בהירה סביבה: טנקי שמירה מגנים כאן כמו ליד הבסיס, וכל טנק בתוכה צועד משבצת נוספת. נשחק כל תור · בנה אותו קדימה, לא בבית.",
     "effects": {
       "bunker": "יורה לבד על כל אויב שמתקרב, בלי לסכן טנק. כל ירייה עולה אנרגיה.",
       "gas": "המפעל שלך: כל האנרגיה שלך מגיעה מכאן. האויב יבוא להרוס אותו · שמור עליו.",
@@ -143,6 +150,9 @@
     "current": "התפקיד הנוכחי",
     "evolveName": "שדרוג לרמה 2",
     "evolveBody": "יותר חיים ויותר נזק. דורש קריסטל בקרבת מקום.",
+    "crystalName": "התקרב לקריסטל",
+    "crystalBody": "הטנק נוסע אל הקריסטל הקרוב ונשאר לידו. שם אפשר לשדרג אותו לרמה 2.",
+    "crystalCurrent": "בדרך",
     "bodies": [
       "נשאר ליד הבסיס ותוקף כל אויב שמתקרב. לא יוצא לשדה.",
       "צועד אל השופרות כדי לסגור אותם. אויב בדרך לא מסיט אותו.",
@@ -171,6 +181,18 @@
     ],
     "titleCommand": "בנה מרכז פיקוד"
   },
+  "hexMenu": {
+    "_comment": "Menu ouvert au clic sur une case : voir de pres, ou depenser.",
+    "view": "מבט מקרוב",
+    "use": "השתמש באנרגיה",
+    "details": "פרטים"
+  },
+  "immersive": {
+    "_comment": "Vue depuis le tank (bouton de l'ecran de choix) et bandeau de retour.",
+    "viewButton": "מבט מהטנק",
+    "exit": "חזרה למפה",
+    "hint": "גרור כדי להסתובב · גלגלת לזום · Esc ליציאה"
+  },
   "gameOver": {
     "_comment": "Ecran de fin. Victoire et defaite partagent la meme mise en page : seuls le titre, la couleur et la phrase changent.",
     "victoryTitle": "ניצחת",
@@ -182,5 +204,17 @@
     "statPortals": "שערים שנסגרו",
     "statKills": "אויבים שחוסלו",
     "portalsFormat": "{0}/{1}"
+  },
+  "mainMenu": {
+    "_comment": "Menu principal (scene MainMenu). Cles uniques dans tout le fichier : elles sont aussi lues pendant le jeu.",
+    "menuTitle": "מלחמת היצר",
+    "menuSubtitle": "בחר רמת קושי",
+    "menuEasy": "קל",
+    "menuEasyBody": "יותר אנרגיה בהתחלה, פחות אויבים, והם חלשים יותר.",
+    "menuMedium": "בינוני",
+    "menuMediumBody": "אתגר מאוזן. מתאים למשחק ראשון.",
+    "menuHard": "קשה",
+    "menuHardBody": "הקצב המלא של היצר. לשחקנים מנוסים.",
+    "menuNewGame": "משחק חדש"
   }
 }

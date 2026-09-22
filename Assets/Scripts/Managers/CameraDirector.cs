@@ -68,6 +68,24 @@ namespace MNLTHII.Managers
         [Tooltip("Duree du retour a la position de repos.")]
         public float returnDuration = 0.6f;
 
+        [Header("Projection")]
+        /// <summary>
+        /// VUE DE PLATEAU = ORTHOGRAPHIQUE. VUE RAPPROCHEE = PERSPECTIVE.
+        ///
+        /// En orthographique, s'approcher ne grossit rien : un "zoom" sur un mouvement
+        /// ou sur la menace n'etait qu'un deplacement lateral. Des qu'un cadrage
+        /// rapproche commence, la camera passe donc en perspective ; au retour a la vue
+        /// de plateau, elle redevient orthographique.
+        ///
+        /// Le champ de vision de la perspective est calcule pour que, a la distance de
+        /// repos, l'image soit LA MEME qu'en orthographique : le passage de l'un a
+        /// l'autre ne saute pas, et s'approcher grossit vraiment.
+        /// </summary>
+        public bool perspectiveWhenFocused = true;
+
+        [Tooltip("Champ de vision en perspective pendant les cadrages. 0 = calcule automatiquement pour raccorder avec la vue orthographique.")]
+        public float focusFov = 0f;
+
         [Header("Etat (lecture seule)")]
         public bool isFocused = false;
 
@@ -85,6 +103,37 @@ namespace MNLTHII.Managers
 
         private Coroutine _move;
         private bool _ready;
+
+        // --- Projection (unique responsable : ce composant) ---
+        private Camera _cam;
+        private bool _projSaved;
+        private bool _savedOrthographic;
+        private float _savedNear;
+        private float _savedFov;
+        private float _projT;          // 0 = orthographique, 1 = perspective
+        private float _projTarget;
+        private float _projDuration = 0.5f;
+        private float _currentFov = 50f;
+        private float _targetFov = 50f;
+        private Coroutine _projRoutine;
+
+        // --- Prise de controle par ImmersiveCamera (vue tank, camera d'action) ---
+        // Pendant une prise de controle, la rotation change aussi : on regarde depuis
+        // le sol. On retient donc ou la camera est posee PAR RAPPORT au pivot, pour
+        // pouvoir placer le pivot de sorte que la camera tombe exactement ou on veut.
+        private Transform _cameraTransform;
+        private Vector3 _cameraOffset;
+        private Quaternion _cameraLocalRotation = Quaternion.identity;
+
+        /// <summary>Vrai quand le cadreur est pret a bouger (pivot trouve, pose de repos mesuree).</summary>
+        public bool IsReady { get { return _ready && pivot != null; } }
+
+        /// <summary>
+        /// Vrai pendant une vue immersive. Les demandes de cadrage habituelles (Focus,
+        /// FrameAction, Release) sont alors ignorees : deux maitres pour une camera,
+        /// c'est une camera qui tremble.
+        /// </summary>
+        public bool IsOverridden { get; private set; }
 
         private void Awake()
         {
@@ -120,6 +169,7 @@ namespace MNLTHII.Managers
                 return;
             }
 
+            _cameraTransform = cam.transform;
             pivot = (cam.transform.parent != null) ? cam.transform.parent : cam.transform;
 
             if (cam.transform.parent == null)
@@ -203,7 +253,7 @@ namespace MNLTHII.Managers
         // =================================================================
         public void FocusOn(Vector3 worldPoint, float factor)
         {
-            if (!_ready || pivot == null) return;
+            if (!_ready || pivot == null || IsOverridden) return;
 
             if (factor < 0.05f) factor = 0.05f;
             if (factor > 1f) factor = 1f;
@@ -212,15 +262,77 @@ namespace MNLTHII.Managers
             Vector3 destination = worldPoint - _restForward * (_restDistance * factor);
 
             isFocused = true;
-            StartMove(destination, moveDuration);
+            StartMove(destination, _restRotation, moveDuration);
+
+            if (perspectiveWhenFocused) RequestPerspective(focusFov, moveDuration);
         }
 
         public void Release()
         {
-            if (!_ready || pivot == null) return;
+            if (!_ready || pivot == null || IsOverridden) return;
 
             isFocused = false;
-            StartMove(_restPosition, returnDuration);
+            StartMove(_restPosition, _restRotation, returnDuration);
+
+            // Retour a la vue de plateau : orthographique, pendant le trajet du retour.
+            RequestOrthographic(returnDuration);
+        }
+
+        // =================================================================
+        //  PRISE DE CONTROLE (ImmersiveCamera)
+        // =================================================================
+        /// <summary>
+        /// Une vue immersive prend la main. On arrete tout mouvement en cours et on
+        /// mesure la position de la camera par rapport au pivot.
+        /// </summary>
+        public void BeginOverride()
+        {
+            if (!_ready || pivot == null) return;
+
+            StopMove();
+            IsOverridden = true;
+
+            if (_cameraTransform == null && Camera.main != null) _cameraTransform = Camera.main.transform;
+
+            if (_cameraTransform == null || _cameraTransform == pivot)
+            {
+                _cameraOffset = Vector3.zero;
+                _cameraLocalRotation = Quaternion.identity;
+                return;
+            }
+
+            Quaternion inverse = Quaternion.Inverse(pivot.rotation);
+            _cameraOffset = inverse * (_cameraTransform.position - pivot.position);
+            _cameraLocalRotation = inverse * _cameraTransform.rotation;
+        }
+
+        /// <summary>
+        /// Place la CAMERA (pas le pivot) a cette position, avec cette orientation.
+        /// Le pivot est deplace en consequence. Sans effet hors prise de controle.
+        /// </summary>
+        public void SetCameraPose(Vector3 cameraPosition, Quaternion cameraRotation)
+        {
+            if (!IsOverridden || pivot == null) return;
+
+            Quaternion pivotRotation = cameraRotation * Quaternion.Inverse(_cameraLocalRotation);
+            pivot.rotation = pivotRotation;
+            pivot.position = cameraPosition - pivotRotation * _cameraOffset;
+        }
+
+        /// <summary>
+        /// Fin de la vue immersive : retour a la pose de repos, POSITION ET ROTATION,
+        /// en douceur. Les cadrages habituels reprennent ensuite normalement.
+        /// </summary>
+        public void EndOverride(float duration)
+        {
+            if (!IsOverridden) return;
+
+            IsOverridden = false;
+            isFocused = false;
+
+            if (!_ready || pivot == null) return;
+            StartMove(_restPosition, _restRotation, duration);
+            RequestOrthographic(duration);
         }
 
         /// <summary>Retour immediat, sans transition. Pour les coupures nettes.</summary>
@@ -229,9 +341,151 @@ namespace MNLTHII.Managers
             if (!_ready || pivot == null) return;
 
             StopMove();
+            IsOverridden = false;
             pivot.position = _restPosition;
             pivot.rotation = _restRotation;
             isFocused = false;
+            ForceOrthographic();
+        }
+
+        // =================================================================
+        //  PROJECTION
+        // =================================================================
+        /// <summary>
+        /// Passe en perspective (fondu). fov &lt;= 0 : champ de vision raccorde a la vue
+        /// orthographique de repos. Sans effet si la camera n'etait pas orthographique
+        /// au depart - on ne change jamais une camera qu'on n'a pas mesuree.
+        /// </summary>
+        public void RequestPerspective(float fov, float duration)
+        {
+            if (!SaveProjection()) return;
+
+            _targetFov = (fov > 0.1f) ? fov : MatchedFov();
+
+            // Premier passage : on part du champ raccorde, le fondu ne saute donc pas.
+            if (_projT <= 0f) _currentFov = MatchedFov();
+
+            _projTarget = 1f;
+            _projDuration = Mathf.Max(0.05f, duration);
+            StartProjectionBlend();
+        }
+
+        /// <summary>Retour en orthographique (fondu). La camera retrouve exactement ses reglages.</summary>
+        public void RequestOrthographic(float duration)
+        {
+            if (!_projSaved) return;
+
+            _projTarget = 0f;
+            _targetFov = MatchedFov();
+            _projDuration = Mathf.Max(0.05f, duration);
+            StartProjectionBlend();
+        }
+
+        /// <summary>Retour immediat en orthographique, sans fondu.</summary>
+        public void ForceOrthographic()
+        {
+            if (_projRoutine != null) { StopCoroutine(_projRoutine); _projRoutine = null; }
+            if (!_projSaved || _cam == null) return;
+
+            _cam.ResetProjectionMatrix();
+            _cam.orthographic = _savedOrthographic;
+            _cam.nearClipPlane = _savedNear;
+            _cam.fieldOfView = _savedFov;
+
+            _projT = 0f;
+            _projTarget = 0f;
+            _projSaved = false;
+        }
+
+        private bool SaveProjection()
+        {
+            if (_cam == null) _cam = Camera.main;
+            if (_cam == null) return false;
+
+            if (_projSaved) return true;
+
+            // Deja en perspective (camera reglee ainsi dans la scene) : on n'y touche pas.
+            if (!_cam.orthographic) return false;
+
+            _savedOrthographic = true;
+            _savedNear = _cam.nearClipPlane;
+            _savedFov = _cam.fieldOfView;
+            _projT = 0f;
+            _projSaved = true;
+            return true;
+        }
+
+        /// <summary>
+        /// Le champ de vision qui, a la distance de repos, montre la meme hauteur de
+        /// plateau que la vue orthographique : 2 * atan(taille ortho / distance).
+        /// </summary>
+        private float MatchedFov()
+        {
+            if (_cam == null) return 50f;
+
+            float distance = Mathf.Max(0.5f, _restDistance);
+            float fov = 2f * Mathf.Atan(_cam.orthographicSize / distance) * Mathf.Rad2Deg;
+            return Mathf.Clamp(fov, 10f, 90f);
+        }
+
+        private void StartProjectionBlend()
+        {
+            if (_projRoutine != null) StopCoroutine(_projRoutine);
+            _projRoutine = StartCoroutine(ProjectionBlend());
+        }
+
+        private IEnumerator ProjectionBlend()
+        {
+            float fovSpeed = Mathf.Abs(_targetFov - _currentFov) / _projDuration;
+
+            while (true)
+            {
+                float dt = Time.unscaledDeltaTime;
+                _projT = Mathf.MoveTowards(_projT, _projTarget, dt / _projDuration);
+                _currentFov = Mathf.MoveTowards(_currentFov, _targetFov, Mathf.Max(fovSpeed, 1f) * dt);
+
+                bool done = Mathf.Approximately(_projT, _projTarget)
+                            && Mathf.Approximately(_currentFov, _targetFov);
+
+                ApplyProjection();
+
+                if (done) break;
+                yield return null;
+            }
+
+            _projRoutine = null;
+            if (_projTarget <= 0f) ForceOrthographic();
+        }
+
+        private void ApplyProjection()
+        {
+            if (_cam == null) return;
+
+            float near = Mathf.Max(0.02f, _restDistance * 0.005f);
+
+            if (_projT >= 1f)
+            {
+                // Perspective franche : Unity calcule lui-meme.
+                if (_cam.orthographic) _cam.orthographic = false;
+                _cam.nearClipPlane = near;
+                _cam.fieldOfView = _currentFov;
+                _cam.ResetProjectionMatrix();
+                return;
+            }
+
+            // Fondu : interpolation terme a terme entre les deux matrices.
+            float aspect = _cam.aspect;
+            float far = _cam.farClipPlane;
+            float size = _cam.orthographicSize;
+
+            Matrix4x4 ortho = Matrix4x4.Ortho(-size * aspect, size * aspect, -size, size, _savedNear, far);
+            Matrix4x4 persp = Matrix4x4.Perspective(_currentFov, aspect, near, far);
+
+            float t = _projT * _projT * (3f - 2f * _projT);
+            Matrix4x4 m = new Matrix4x4();
+            for (int i = 0; i < 16; i++) m[i] = ortho[i] + (persp[i] - ortho[i]) * t;
+
+            _cam.projectionMatrix = m;
         }
 
         /// <summary>
@@ -247,10 +501,10 @@ namespace MNLTHII.Managers
             if (holdSeconds > 0f) yield return new WaitForSecondsRealtime(holdSeconds);
         }
 
-        private void StartMove(Vector3 destination, float duration)
+        private void StartMove(Vector3 destination, Quaternion rotation, float duration)
         {
             StopMove();
-            _move = StartCoroutine(MoveTo(destination, duration));
+            _move = StartCoroutine(MoveTo(destination, rotation, duration));
         }
 
         private void StopMove()
@@ -262,16 +516,23 @@ namespace MNLTHII.Managers
             }
         }
 
-        private IEnumerator MoveTo(Vector3 destination, float duration)
+        /// <summary>
+        /// La rotation est interpolee elle aussi. En jeu normal elle vaut deja la
+        /// rotation de repos, donc rien ne change ; elle ne bouge vraiment qu'au retour
+        /// d'une vue immersive.
+        /// </summary>
+        private IEnumerator MoveTo(Vector3 destination, Quaternion rotation, float duration)
         {
             if (duration <= 0f)
             {
                 pivot.position = destination;
+                pivot.rotation = rotation;
                 _move = null;
                 yield break;
             }
 
             Vector3 start = pivot.position;
+            Quaternion startRotation = pivot.rotation;
             float elapsed = 0f;
 
             while (elapsed < duration)
@@ -286,10 +547,12 @@ namespace MNLTHII.Managers
                 t = t * t * (3f - 2f * t);
 
                 pivot.position = Vector3.Lerp(start, destination, t);
+                pivot.rotation = Quaternion.Slerp(startRotation, rotation, t);
                 yield return null;
             }
 
             pivot.position = destination;
+            pivot.rotation = rotation;
             _move = null;
         }
     }

@@ -124,6 +124,10 @@ namespace MNLTHII
             if (!canClickOrHover) return;
             if (!Input.GetMouseButtonDown(0)) return;
 
+            // Vue immersive en cours : on regarde, on ne joue pas. Le clic sert a
+            // tourner la camera, il ne doit pas poser un Tank derriere le dos du joueur.
+            if (Managers.ImmersiveCamera.BlocksBoardInput) return;
+
             if (_mainCamera == null)
             {
                 CacheCamera();

@@ -244,7 +244,9 @@ namespace MNLTHII.Managers
                 new HexCoord(-1, -1, 2)
             };
 
-            for (int i = 0; i < playerSpawns.Length; i++)
+            int tanks = Mathf.Min(MNLTHII.Rules.InteractionRules.INITIAL_PLAYER_TANKS, playerSpawns.Length);
+
+            for (int i = 0; i < tanks; i++)
             {
                 Hexagon hex = board.getHexByCoord(playerSpawns[i]);
                 if (hex != null && hex.type != TypeOfHex.hill) board.SpawnUnitVisual(hex, 1, "unit");

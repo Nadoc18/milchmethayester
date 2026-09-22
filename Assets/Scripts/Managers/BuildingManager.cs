@@ -28,6 +28,17 @@ namespace MNLTHII.Managers
         // seul eclair et on ne compte plus rien.
         private static readonly WaitForSeconds WaitBunkerVolley = new WaitForSeconds(0.8f);
 
+        // Entre deux tirs d'une meme salve : assez pour voir CHAQUE trait partir,
+        // assez court pour que la salve reste une rafale.
+        private static readonly WaitForSeconds WaitBetweenShots = new WaitForSeconds(0.45f);
+
+        // Le temps que la camera arrive sur le duel avant le premier tir : sinon la
+        // salve part hors champ et le joueur ne voit que la fin.
+        private static readonly WaitForSeconds WaitFrameBunker = new WaitForSeconds(0.5f);
+
+        /// <summary>Couleur du trait de tir d'un Bunker (celle du joueur).</summary>
+        private static readonly Color BunkerShotColor = new Color(0.35f, 0.95f, 1f, 1f);
+
         // Coordonnees des hexagones de Base, relevees une fois : elles ne bougent
         // jamais, et l'IA des Tanks les interroge pour chaque cible evaluee.
         private readonly List<HexCoord> _baseCoords = new List<HexCoord>(8);
@@ -84,7 +95,11 @@ namespace MNLTHII.Managers
                         inRange.Add(pawn);
                 }
 
-                if (inRange.Count == 0) continue;
+                if (inRange.Count == 0)
+                {
+                    WearBunker(bunker, 0);
+                    continue;
+                }
 
                 int shots = InteractionRules.GetBunkerTargets(bunker.level);
                 int damage = InteractionRules.GetBunkerDamage(bunker.level);
@@ -93,6 +108,18 @@ namespace MNLTHII.Managers
                 int fired = 0;
                 int spent = 0;
                 int kills = 0;
+
+                // On va voir AVANT de tirer : la camera cadre le Bunker et sa premiere
+                // cible, puis la salve part sous les yeux du joueur.
+                PawnController firstTarget = SelectBunkerTarget(inRange, damage);
+                if (firstTarget != null && CameraDirector.Instance != null
+                    && (energy == null || energy.CanAfford(shotCost)))
+                {
+                    CameraDirector.FrameAction(bunker.transform.position, firstTarget.transform.position);
+                    yield return WaitFrameBunker;
+                }
+
+                Vector3 muzzle = MuzzleOf(bunker);
 
                 for (int s = 0; s < shots; s++)
                 {
@@ -112,8 +139,15 @@ namespace MNLTHII.Managers
                     if (energy != null && !energy.TrySpend(shotCost)) break;
                     spent += shotCost;
 
-                    // Le trait de laser a ete retire : il ne s'affichait pas. Le tir se
-                    // lit desormais a l'impact sur la cible et au chiffre de degats.
+                    // LE TRAIT : du haut du Bunker au corps de la cible. C'est lui qui dit
+                    // "ce Bunker tire sur CET ennemi" - sans lui, on ne voyait qu'un
+                    // impact apparaitre quelque part.
+                    float travel = ShotTracer.Fire(muzzle, CenterOf(victim), BunkerShotColor);
+
+                    // L'impact tombe quand le trait ARRIVE, pas quand il part.
+                    if (travel > 0f) yield return new WaitForSecondsRealtime(travel);
+                    if (victim == null) break;
+
                     if (FXManager.Instance != null)
                         FXManager.Instance.SpawnHitFX(victim.transform.position + Vector3.up);
 
@@ -139,16 +173,14 @@ namespace MNLTHII.Managers
                     // ce qu'il tombe. C'est ce qui en fait un mur plutot qu'une
                     // nuisance, et c'est aussi ce qui alimente l'ebranlement des
                     // Shofars, qui ne compte que les morts.
-                    if (victim.currentHP <= 0) inRange.Remove(victim);
-                    else if (kills == 0 && CameraDirector.Instance != null)
+                    if (victim.currentHP <= 0)
                     {
-                        // Premier tir de la salve : on va voir. Le Bunker tire pendant
-                        // la phase de fin de tour, sans projecteur ni carte d'unite -
-                        // sans camera, le joueur ne saurait jamais qu'il a servi.
-                        CameraDirector.FrameAction(bunker.transform.position, victim.transform.position);
+                        inRange.Remove(victim);
+                        kills++;
                     }
 
-                    if (victim.currentHP <= 0) kills++;
+                    // Chaque tir se voit : un trait, une pause, le suivant.
+                    yield return WaitBetweenShots;
                 }
 
                 if (fired > 0)
@@ -158,9 +190,31 @@ namespace MNLTHII.Managers
                                     fired, damage, kills, spent);
                     yield return WaitBunkerVolley;
                 }
+
+                WearBunker(bunker, fired);
             }
 
             CameraDirector.ReleaseCamera();
+        }
+
+        /// <summary>
+        /// L'usure de fin de tour : un peu chaque tour, plus un point par tir. A zero PV
+        /// le Bunker s'effondre (voir InteractionRules.BUNKER_DECAY_L1).
+        /// </summary>
+        private void WearBunker(Hexagon bunker, int shotsFired)
+        {
+            if (bunker == null || bunker.currentHP <= 0 || bunker.level < 1) return;
+
+            int wear = InteractionRules.GetBunkerDecay(bunker.level)
+                     + shotsFired * InteractionRules.BUNKER_WEAR_PER_SHOT;
+
+            bunker.ApplyDamage(wear);
+
+            if (bunker.currentHP <= 0)
+            {
+                Debug.Log("[Bunker] Use jusqu'au bout, il s'effondre.");
+                InteractionRules.DestroyBuilding(bunker);
+            }
         }
 
         /// <summary>
@@ -182,6 +236,49 @@ namespace MNLTHII.Managers
         /// regle inverse - un tir par ennemi - avait l'air prudente et rendait l'arme
         /// inutile : dix degats sur trente points de vie ne tuent jamais personne.
         /// </summary>
+        // Tampon pour mesurer les modeles (bout du canon, centre de la cible).
+        private readonly List<Renderer> _measure = new List<Renderer>(16);
+
+        /// <summary>Le haut du Bunker : d'ou part le trait.</summary>
+        private Vector3 MuzzleOf(Hexagon bunker)
+        {
+            Vector3 p = bunker.transform.position;
+
+            bunker.GetComponentsInChildren(false, _measure);
+            float top = float.MinValue;
+            for (int i = 0; i < _measure.Count; i++)
+            {
+                Renderer r = _measure[i];
+                if (r == null || r is ParticleSystemRenderer || r is SpriteRenderer) continue;
+                if (r.GetComponentInParent<PawnController>() != null) continue;
+                float y = r.bounds.max.y;
+                if (y > top) top = y;
+            }
+            _measure.Clear();
+
+            p.y = (top > float.MinValue) ? top : p.y + 0.6f;
+            return p;
+        }
+
+        /// <summary>Le centre du modele de la cible : ou arrive le trait.</summary>
+        private Vector3 CenterOf(PawnController pawn)
+        {
+            pawn.GetComponentsInChildren(false, _measure);
+            bool found = false;
+            Bounds b = new Bounds(pawn.transform.position, Vector3.zero);
+            for (int i = 0; i < _measure.Count; i++)
+            {
+                Renderer r = _measure[i];
+                if (r == null || r is ParticleSystemRenderer || r is SpriteRenderer) continue;
+                if (r.GetComponent<ReadabilityDecal>() != null) continue;   // ombre et anneau au sol
+                if (!found) { b = r.bounds; found = true; }
+                else b.Encapsulate(r.bounds);
+            }
+            _measure.Clear();
+
+            return found ? b.center : pawn.transform.position + Vector3.up * 0.5f;
+        }
+
         private PawnController SelectBunkerTarget(List<PawnController> candidates, int damage)
         {
             int bestIndex = -1;

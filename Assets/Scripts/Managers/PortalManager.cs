@@ -468,7 +468,8 @@ namespace MNLTHII.Managers
             // Les vagues se rapprochent avec le temps : laisser le Yetzer Hara
             // tranquille n'est pas un abri, c'est un sursis. C'est ce qui empeche une
             // partie purement defensive de durer indefiniment derriere ses Bunkers.
-            int interval = surgeInterval - (turn / 10);
+            // Facile / Moyen : les vagues arrivent plus espacees (voir GameDifficulty).
+            int interval = surgeInterval + GameDifficulty.Pick(4, 2, 0) - (turn / 10);
             if (interval < 2) interval = 2;
 
             if (turn - _lastSurgeTurn < interval) return;
@@ -809,9 +810,8 @@ namespace MNLTHII.Managers
 
                 Hexagon hex = board.getHexByCoord(n);
                 if (hex == null) continue;
-                if (hex.type == TypeOfHex.hill) continue;      // obstacle naturel
-                if (hex.type == TypeOfHex.portal) continue;
-                if (hex.type == TypeOfHex.Base) continue;
+                // Colline, Base, Shofar, batiment construit : pas de sortie ici.
+                if (!InteractionRules.IsHexWalkable(hex)) continue;
                 if (board.getPawnByCoord(n) != null) continue;
                 return hex;
             }

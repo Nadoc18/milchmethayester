@@ -132,17 +132,23 @@ namespace MNLTHII.Managers
         public GameObject gasIncomeFX;
         public float gasIncomeFXLifetime = 2f;
 
-        /// <summary>Temps entre deux usines. Une a la fois, sinon on ne compte rien.</summary>
-        public float factoryIncomeDelay = 0.85f;
+        /// <summary>
+        /// Temps passe sur chaque usine, APRES que la camera y est arrivee. Nouveau nom
+        /// (l'ancien factoryIncomeDelay valait 0.85, garde dans la scene) : a ce
+        /// rythme on ne voyait rien, la camera repartait avant d'avoir lu le chiffre.
+        /// </summary>
+        public float factoryShowDuration = 1.6f;
 
         /// <summary>Duree de la montee du compteur pour UNE usine.</summary>
-        public float factoryCountDuration = 0.55f;
+        public float factoryCountSeconds = 1.1f;
 
         [Tooltip("La camera va voir chaque usine qui paie.")]
         public bool focusFactories = true;
 
         private WaitForSeconds _waitFactory;
         private float _cachedFactory = -1f;
+        private WaitForSeconds _waitFactoryTravel;
+        private float _cachedFactoryTravel = -1f;
 
         public float focusDelay = 0.95f;
 
@@ -353,7 +359,14 @@ namespace MNLTHII.Managers
                 // On REGARDE l'usine qui paie. C'est ce qui relie le chiffre en haut de
                 // l'ecran a un endroit precis du plateau - et c'est ce qui rendra
                 // evident, le jour ou elle tombera, qu'il manque quelque chose.
-                if (focusFactories) CameraDirector.FocusPoint(spot);
+                if (focusFactories && CameraDirector.Instance != null)
+                {
+                    CameraDirector.FocusPoint(spot);
+
+                    // On attend que la camera soit ARRIVEE : le chiffre qui s'envole
+                    // pendant le trajet, on ne le voyait pas.
+                    yield return _waitFactoryTravel;
+                }
 
                 if (gasIncomeFX != null)
                 {
@@ -372,7 +385,7 @@ namespace MNLTHII.Managers
                 if (wallet != null)
                 {
                     wallet.Add(amount);
-                    if (hud != null) hud.CountEnergyTo(wallet.CurrentEnergy, factoryCountDuration);
+                    if (hud != null) hud.CountEnergyTo(wallet.CurrentEnergy, factoryCountSeconds);
                 }
 
                 yield return _waitFactory;
@@ -383,10 +396,17 @@ namespace MNLTHII.Managers
 
         private void RefreshFactoryWait()
         {
-            if (_cachedFactory == factoryIncomeDelay && _waitFactory != null) return;
+            float travel = (CameraDirector.Instance != null) ? CameraDirector.Instance.moveDuration + 0.1f : 0f;
+            if (_waitFactoryTravel == null || !Mathf.Approximately(_cachedFactoryTravel, travel))
+            {
+                _cachedFactoryTravel = travel;
+                _waitFactoryTravel = new WaitForSeconds(travel);
+            }
 
-            _cachedFactory = factoryIncomeDelay;
-            _waitFactory = new WaitForSeconds(factoryIncomeDelay);
+            if (_cachedFactory == factoryShowDuration && _waitFactory != null) return;
+
+            _cachedFactory = factoryShowDuration;
+            _waitFactory = new WaitForSeconds(factoryShowDuration);
         }
 
         // =================================================================
@@ -431,6 +451,42 @@ namespace MNLTHII.Managers
 
             Hexagon hex = BoardController.instance.getHexByCoord(coord);
             if (hex == null) return TriviaOutcome.EnergyOnly;
+
+            // Le clic OUVRE le menu de la case (voir de pres / utiliser l'energie) ; il
+            // ne depense plus rien directement. Si le menu est deja ouvert et que la
+            // souris est dessus, ce clic est pour un de ses boutons : on ne fait rien.
+            // Sans menu dans la scene (HUD pas reconstruit), l'ancien comportement reste.
+            HexActionMenu menu = HexActionMenu.Instance;
+            if (menu != null)
+            {
+                // Souris sur le menu : ce clic est pour un de ses boutons. Ailleurs, le
+                // menu se deplace simplement sur la nouvelle case.
+                if (menu.IsOpen && menu.PointerInside) return TriviaOutcome.EnergyOnly;
+
+                // Les details ont un voile sombre : le clic sert a les fermer, il ne doit
+                // pas ouvrir en meme temps le menu de la case d'en dessous.
+                HexTooltipController details = HexTooltipController.Instance;
+                if (details != null && (details.DetailsOpen || details.ClosedThisFrame))
+                    return TriviaOutcome.EnergyOnly;
+
+                menu.Open(hex);
+                return TriviaOutcome.EnergyOnly;
+            }
+
+            return ExecuteSpendingAction(hex);
+        }
+
+        /// <summary>
+        /// L'action d'une case, telle qu'elle se faisait avant le menu : construire,
+        /// poser un Tank, ouvrir ses options. Appelee par le bouton "utiliser
+        /// l'energie" du menu - ou directement, s'il n'y a pas de menu.
+        /// </summary>
+        public TriviaOutcome ExecuteSpendingAction(Hexagon hex)
+        {
+            if (!IsSpendingPhase || hex == null) return TriviaOutcome.Blocked_NotPlayerPhase;
+
+            TankChoicePanel choice = TankChoicePanel.Instance;
+            if (choice != null && choice.IsOpen) return TriviaOutcome.EnergyOnly;
 
             // Un clic qui concerne un Tank - en creer un, ou modifier celui qui est
             // deja pose - ouvre l'ecran de choix au lieu d'agir immediatement. Le
@@ -530,8 +586,21 @@ namespace MNLTHII.Managers
 
                 if (_tankChoiceHandler == null) _tankChoiceHandler = ApplyTankChoice;
                 panel.SetChoiceHandler(_tankChoiceHandler);
+
+                // Un Tank deja pose peut etre regarde "de l'interieur" : l'ecran
+                // propose alors le bouton de vue immersive.
+                panel.SetViewTarget(occupant);
+
+                // Loin de tout Cristal mais un Cristal existe : a la place de
+                // l'evolution, l'ordre d'aller le rejoindre. Une fois au contact,
+                // c'est l'evolution qui apparait sur cette carte.
+                bool offerCrystal = evolveCost == 0
+                                    && occupant.level < InteractionRules.MAX_TANK_LEVEL
+                                    && InteractionRules.AnyCrystalBuilding();
+
                 panel.Show(false, InteractionRules.TANK_STANCE_COST,
-                           (int)occupant.stance, evolveCost, energy);
+                           (int)occupant.stance, evolveCost, energy,
+                           offerCrystal, occupant.seekCrystal);
                 return true;
             }
 
@@ -548,6 +617,9 @@ namespace MNLTHII.Managers
 
             if (_tankChoiceHandler == null) _tankChoiceHandler = ApplyTankChoice;
             panel.SetChoiceHandler(_tankChoiceHandler);
+
+            // Pas encore de Tank : rien a regarder.
+            panel.SetViewTarget(null);
 
             // currentStance vaut -1 : a la creation aucune posture n'est encore
             // "celle du Tank", donc aucune carte n'est barree. Le prix affiche est
@@ -579,7 +651,9 @@ namespace MNLTHII.Managers
 
             if (tank != null)
             {
-                if (slot >= UI.StanceStyle.Count)
+                if (slot == TankChoicePanel.CrystalOrderSlot)
+                    outcome = InteractionRules.OrderTankToCrystal(tank);
+                else if (slot >= UI.StanceStyle.Count)
                     outcome = InteractionRules.UpgradeTank(tank);
                 else
                     outcome = InteractionRules.ChangeTankStance(tank, (PawnStance)slot);
@@ -682,6 +756,51 @@ namespace MNLTHII.Managers
                 UnitActionCard.Focus(tank, i + 1);
                 yield return _waitFocus;
 
+                // --- Ordre "rejoindre un Cristal" : tant qu'il n'est pas au contact,
+                // le Tank marche vers le Cristal le plus proche au lieu de suivre sa
+                // posture. Voir InteractionRules.OrderTankToCrystal.
+                if (tank.seekCrystal)
+                {
+                    if (tank.level >= InteractionRules.MAX_TANK_LEVEL)
+                    {
+                        tank.seekCrystal = false;
+                    }
+                    else if (!InteractionRules.HasCrystalSupport(tank.hexcoord))
+                    {
+                        Hexagon crystal = InteractionRules.FindNearestCrystal(tank.hexcoord);
+
+                        if (crystal == null)
+                        {
+                            // Plus aucun Cristal debout : l'ordre tombe, la posture reprend.
+                            tank.seekCrystal = false;
+                        }
+                        else
+                        {
+                            UnitActionCard.Move(tank);
+
+                            int crystalSteps = tank.moveRange > 0 ? tank.moveRange : 1;
+                            if (BuildingManager.Instance != null
+                                && BuildingManager.Instance.HasCommandSupport(tank.hexcoord))
+                                crystalSteps += InteractionRules.MOUNTAIN_MOVE_BONUS;
+
+                            for (int s = 0; s < crystalSteps; s++)
+                            {
+                                if (InteractionRules.HasCrystalSupport(tank.hexcoord)) break;
+
+                                HexCoord step = board.GetNextStepTowards(tank.hexcoord, crystal.positionInTheBoard, false);
+                                if (step == null || step.CompareHexCoord(tank.hexcoord)) break;
+
+                                tank.targetCoord = step;
+                                tank.ApplySequenceAnimation(PawnController.TypeOfPawnInteractions.target);
+                                yield return _waitMove;
+                            }
+
+                            yield return _waitStep;
+                            continue;
+                        }
+                    }
+                }
+
                 // --- Choix de cible pondere, filtre par la posture. Voir SelectTankTarget.
                 PawnController targetPawn;
                 Hexagon targetHex;
@@ -702,7 +821,15 @@ namespace MNLTHII.Managers
                     Vector3 impact = (targetPawn != null)
                                      ? targetPawn.transform.position
                                      : targetHex.transform.position;
-                    CameraDirector.FrameAction(tank.transform.position, impact);
+
+                    // Un coup decisif (ennemi de rang 2+, Shofar acheve, premiere
+                    // victoire) merite un plan au ras du sol, au ralenti. Un par tour
+                    // au plus : voir ImmersiveCamera.
+                    bool actionShot = ImmersiveCamera.WantsActionShot(tank, targetPawn, targetHex, currentTurn);
+
+                    if (actionShot) ImmersiveCamera.BeginActionShot(tank, impact, currentTurn);
+                    else CameraDirector.FrameAction(tank.transform.position, impact);
+
                     tank.attackCoord = targetCoord;
                     tank.ApplySequenceAnimation(PawnController.TypeOfPawnInteractions.attack);
                     yield return _waitAim;
@@ -711,6 +838,13 @@ namespace MNLTHII.Managers
                     else InteractionRules.ResolveCombat(tank, targetHex);
 
                     yield return _waitResolve;
+
+                    if (actionShot) yield return ImmersiveCamera.EndActionShot();
+                }
+                else if (tank.seekCrystal)
+                {
+                    // Au contact de son Cristal, il attend qu'on le fasse evoluer : il
+                    // tire sur ce qui passe a portee, mais ne s'eloigne pas.
                 }
                 else
                 {

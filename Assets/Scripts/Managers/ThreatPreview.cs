@@ -85,8 +85,9 @@ namespace MNLTHII.Managers
         [Tooltip("A l'ouverture de l'apercu, la camera passe une fois sur chaque menace, puis revient.")]
         public bool cameraTour = true;
 
-        [Tooltip("Temps passe sur chaque fantome pendant le tour.")]
-        public float tourHoldPerGhost = 0.85f;
+        [Tooltip("Temps passe sur chaque menace pendant le tour de camera. Nouveau nom : "
+               + "l'ancien (0.85 s) etait trop rapide pour voir ce que faisait chaque ennemi.")]
+        public float tourHoldPerThreat = 2.2f;
 
         [Tooltip("Delai avant le depart du tour : les fantomes doivent etre en place.")]
         public float tourStartDelay = 0.25f;
@@ -268,7 +269,7 @@ namespace MNLTHII.Managers
 
                 CameraDirector.FocusPoint(ghost.transform.position);
 
-                yield return new WaitForSecondsRealtime(tourHoldPerGhost);
+                yield return new WaitForSecondsRealtime(tourHoldPerThreat);
             }
 
             CameraDirector.ReleaseCamera();
@@ -479,7 +480,7 @@ namespace MNLTHII.Managers
         /// </summary>
         private float SequenceDelay(int index)
         {
-            float delay = index * tourHoldPerGhost;
+            float delay = index * tourHoldPerThreat;
 
             if (cameraTour && CameraDirector.Instance != null)
                 delay += tourStartDelay + CameraDirector.Instance.moveDuration;
@@ -917,6 +918,11 @@ namespace MNLTHII.Managers
         /// </summary>
         private static void StripToVisuals(GameObject instance)
         {
+            // D'abord ce que BoardReadability a ajoute a un ennemi vivant (ombre, anneau,
+            // lisere) : un fantome clone n'en veut pas. A faire AVANT la boucle suivante,
+            // qui detruit l'etiquette ReadabilityDecal qui permet de les reconnaitre.
+            BoardReadability.StripDecorations(instance);
+
             // Plusieurs passes : un script marque [RequireComponent] refuse d'etre
             // retire tant que celui qui en depend est encore la. On reessaie, et ce
             // qui resiste est au moins desactive.

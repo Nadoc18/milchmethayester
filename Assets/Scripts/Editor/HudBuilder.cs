@@ -60,6 +60,12 @@ namespace MNLTHII.EditorTools
         private static readonly Color ColLine = new Color32(0x7E, 0xA0, 0xFF, 0x24);
         private static readonly Color ColIdle = new Color32(0x5D, 0x6A, 0x8C, 0xFF);
 
+        /// <summary>Hauteur du bandeau photo de l'info-bulle.</summary>
+        private const float TooltipPhotoHeight = 230f;
+
+        /// <summary>Hauteur de la rangee des evolutions (vignettes + libelles).</summary>
+        private const float TooltipEvolutionHeight = 164f;
+
         // =================================================================
         //  LISIBILITE
         // =================================================================
@@ -121,6 +127,7 @@ namespace MNLTHII.EditorTools
             BuildSubjectChoice(root, canvas, labels);
             BuildTankChoice(root, canvas, labels);
             BuildAdvisor(root, canvas, labels);
+            BuildHexMenu(root, canvas, labels);
             BuildTeaching(root, canvas);
             BuildTurnAnnounce(root, canvas, labels);
             BuildGameOver(root, canvas, labels);
@@ -128,6 +135,8 @@ namespace MNLTHII.EditorTools
             ApplyFormats(hud, labels);
             EnsureCameraDirector();
             EnsurePortalTether();
+            EnsureElementPhotos();
+            BuildImmersive(root, canvas, labels);
 
             EditorUtility.SetDirty(canvas.gameObject);
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(canvas.gameObject.scene);
@@ -139,7 +148,7 @@ namespace MNLTHII.EditorTools
         // =================================================================
         //  LIBELLES
         // =================================================================
-        private static JObject LoadLabels()
+        internal static JObject LoadLabels()
         {
             if (!File.Exists(LabelsPath))
             {
@@ -158,7 +167,7 @@ namespace MNLTHII.EditorTools
             }
         }
 
-        private static string S(JObject o, string key, string fallback = "")
+        internal static string S(JObject o, string key, string fallback = "")
         {
             JToken t = o != null ? o[key] : null;
             return (t != null) ? t.ToString() : fallback;
@@ -174,7 +183,7 @@ namespace MNLTHII.EditorTools
         /// comme police de base rendrait tout le HUD gras, et FontStyles.Bold n'aurait
         /// plus rien a ajouter - les titres cesseraient de se detacher.
         /// </summary>
-        private static TMP_FontAsset FindHebrewFont()
+        internal static TMP_FontAsset FindHebrewFont()
         {
             string[] guids = AssetDatabase.FindAssets("t:TMP_FontAsset");
 
@@ -789,6 +798,12 @@ namespace MNLTHII.EditorTools
         {
             JObject t = labels["tooltip"] as JObject;
 
+            // Voile des details (mode clic) : meme teinte que l'ecran de choix du Tank.
+            Image detailsDim = NewImage("InfoBulle_Voile", root, new Color32(0x03, 0x05, 0x0B, 0xDB));
+            Stretch(detailsDim.rectTransform);
+            detailsDim.raycastTarget = true;
+            detailsDim.gameObject.SetActive(false);
+
             RectTransform panel = NewRect("InfoBulle", root);
             // Plus haut qu'avant : la phrase qui dit ce que le batiment APPORTE occupe
             // deux a trois lignes sous les statistiques.
@@ -803,20 +818,121 @@ namespace MNLTHII.EditorTools
             outline.effectColor = ColLine;
             outline.effectDistance = new Vector2(1f, 1f);
 
-            Image kindIcon = NewImage("Icone", panel, ColText);
+            // --- la photo de l'element (bandeau du haut, masque s'il n'y a pas de photo) ---
+            // Le cadre coupe ce qui depasse ; l'image dedans remplit le cadre sans se
+            // deformer (EnvelopeParent) : une photo carree est recadree, pas ecrasee.
+            RectTransform photoFrame = NewRect("Photo", panel);
+            photoFrame.anchorMin = new Vector2(0f, 1f);
+            photoFrame.anchorMax = new Vector2(1f, 1f);
+            photoFrame.pivot = new Vector2(0.5f, 1f);
+            photoFrame.anchoredPosition = Vector2.zero;
+            photoFrame.sizeDelta = new Vector2(-2f, TooltipPhotoHeight);
+            photoFrame.gameObject.AddComponent<RectMask2D>();
+
+            Image photoBack = photoFrame.gameObject.AddComponent<Image>();
+            photoBack.color = new Color32(0x05, 0x08, 0x12, 0xFF);
+            photoBack.raycastTarget = false;
+
+            Image photo = NewImage("Image", photoFrame, Color.white);
+            photo.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            photo.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            photo.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            photo.rectTransform.anchoredPosition = Vector2.zero;
+            AspectRatioFitter photoFit = photo.gameObject.AddComponent<AspectRatioFitter>();
+            photoFit.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+            photoFit.aspectRatio = 1f;
+
+            Image photoRule = NewImage("Filet", photoFrame, ColLine);
+            photoRule.rectTransform.anchorMin = new Vector2(0f, 0f);
+            photoRule.rectTransform.anchorMax = new Vector2(1f, 0f);
+            photoRule.rectTransform.pivot = new Vector2(0.5f, 0f);
+            photoRule.rectTransform.anchoredPosition = Vector2.zero;
+            photoRule.rectTransform.sizeDelta = new Vector2(0f, 1f);
+
+            photoFrame.gameObject.SetActive(false);
+
+            // --- la rangee des evolutions : un niveau par vignette, de droite a gauche
+            //     (sens de lecture hebreu), le niveau actuel en cyan, le prochain en or ---
+            RectTransform evo = NewRect("Evolutions", panel);
+            evo.anchorMin = new Vector2(0f, 1f);
+            evo.anchorMax = new Vector2(1f, 1f);
+            evo.pivot = new Vector2(0.5f, 1f);
+            evo.anchoredPosition = Vector2.zero;
+            evo.sizeDelta = new Vector2(0f, TooltipEvolutionHeight);
+
+            const float Thumb = 104f;
+            const float SlotGap = 140f;
+
+            GameObject[] evoSlots = new GameObject[3];
+            Image[] evoFrames = new Image[3];
+            UnityEngine.UI.Outline[] evoOutlines = new UnityEngine.UI.Outline[3];
+            Image[] evoThumbs = new Image[3];
+            TextMeshProUGUI[] evoLabels = new TextMeshProUGUI[3];
+
+            for (int i = 0; i < 3; i++)
+            {
+                RectTransform slot = NewRect("Niveau" + i, evo);
+                AnchorTopCenter(slot, new Vector2(SlotGap - i * SlotGap, -14f), new Vector2(Thumb, Thumb + 32f));
+
+                Image frameImg = NewImage("Cadre", slot, new Color(1f, 1f, 1f, 0.05f));
+                AnchorTopCenter(frameImg.rectTransform, Vector2.zero, new Vector2(Thumb, Thumb));
+
+                UnityEngine.UI.Outline edge = frameImg.gameObject.AddComponent<UnityEngine.UI.Outline>();
+                edge.effectColor = ColLine;
+                edge.effectDistance = new Vector2(2f, 2f);
+
+                Image thumb = NewImage("Vignette", frameImg.rectTransform, Color.white);
+                thumb.rectTransform.anchorMin = Vector2.zero;
+                thumb.rectTransform.anchorMax = Vector2.one;
+                thumb.rectTransform.offsetMin = new Vector2(5f, 5f);
+                thumb.rectTransform.offsetMax = new Vector2(-5f, -5f);
+                thumb.preserveAspect = true;
+
+                TextMeshProUGUI label = NewText("Libelle", slot, "", 15f, ColDim,
+                                                TextAlignmentOptions.Center, true);
+                AnchorBottomCenter(label.rectTransform, Vector2.zero, new Vector2(Thumb + 20f, 26f));
+
+                evoSlots[i] = slot.gameObject;
+                evoFrames[i] = frameImg;
+                evoOutlines[i] = edge;
+                evoThumbs[i] = thumb;
+                evoLabels[i] = label;
+
+                // Une fleche entre deux vignettes, pointee dans le sens de la progression.
+                if (i < 2)
+                {
+                    TextMeshProUGUI arrow = NewText("Fleche" + i, evo, "<", 22f, ColDim,
+                                                    TextAlignmentOptions.Center, false);
+                    AnchorTopCenter(arrow.rectTransform,
+                                    new Vector2(SlotGap - i * SlotGap - SlotGap * 0.5f, -14f - Thumb * 0.5f + 14f),
+                                    new Vector2(30f, 28f));
+                }
+            }
+
+            evo.gameObject.SetActive(false);
+
+            // --- le texte, dans un bloc qu'on pousse vers le bas quand la photo est la ---
+            RectTransform content = NewRect("Contenu", panel);
+            content.anchorMin = new Vector2(0f, 1f);
+            content.anchorMax = new Vector2(1f, 1f);
+            content.pivot = new Vector2(0.5f, 1f);
+            content.anchoredPosition = Vector2.zero;
+            content.sizeDelta = new Vector2(0f, 440f);
+
+            Image kindIcon = NewImage("Icone", content, ColText);
             AnchorTopRight(kindIcon.rectTransform, new Vector2(-26f, -24f), new Vector2(34f, 34f));
             kindIcon.preserveAspect = true;
             Bind(kindIcon, MNLTHII.UI.IconKind.Tank);   // remplace a chaque survol
 
-            TextMeshProUGUI title = NewText("Titre", panel, "", 26f, ColText, TextAlignmentOptions.TopRight, true);
+            TextMeshProUGUI title = NewText("Titre", content, "", 26f, ColText, TextAlignmentOptions.TopRight, true);
             AnchorTopRight(title.rectTransform, new Vector2(-70f, -22f), new Vector2(280f, 46f));
             title.fontStyle = FontStyles.Bold;
 
-            TextMeshProUGUI cost = NewText("Cout", panel, "0", 30f, ColGold, TextAlignmentOptions.TopLeft, false);
+            TextMeshProUGUI cost = NewText("Cout", content, "0", 30f, ColGold, TextAlignmentOptions.TopLeft, false);
             AnchorTopLeft(cost.rectTransform, new Vector2(26f, -22f), new Vector2(120f, 50f));
             cost.fontStyle = FontStyles.Bold;
 
-            TextMeshProUGUI subtitle = NewText("SousTitre", panel, "", 19f, ColDim, TextAlignmentOptions.TopRight, true);
+            TextMeshProUGUI subtitle = NewText("SousTitre", content, "", 19f, ColDim, TextAlignmentOptions.TopRight, true);
             AnchorTopRight(subtitle.rectTransform, new Vector2(-26f, -72f), new Vector2(360f, 36f));
 
             // Trois lignes de detail : libelle a droite, valeur a gauche.
@@ -827,11 +943,11 @@ namespace MNLTHII.EditorTools
             {
                 float y = -122f - i * 40f;
 
-                TextMeshProUGUI label = NewText("Detail" + i + "_Libelle", panel, "", 19f, ColDim,
+                TextMeshProUGUI label = NewText("Detail" + i + "_Libelle", content, "", 19f, ColDim,
                                                 TextAlignmentOptions.TopRight, true);
                 AnchorTopRight(label.rectTransform, new Vector2(-26f, y), new Vector2(270f, 36f));
 
-                TextMeshProUGUI value = NewText("Detail" + i + "_Valeur", panel, "", 19f, ColText,
+                TextMeshProUGUI value = NewText("Detail" + i + "_Valeur", content, "", 19f, ColText,
                                                 TextAlignmentOptions.TopLeft, false);
                 AnchorTopLeft(value.rectTransform, new Vector2(26f, y), new Vector2(150f, 36f));
 
@@ -839,21 +955,21 @@ namespace MNLTHII.EditorTools
                 detailValues[i] = value;
             }
 
-            TextMeshProUGUI after = NewText("SoldeApres", panel, "", 19f, new Color32(0x7F, 0xE8, 0xA0, 0xFF),
+            TextMeshProUGUI after = NewText("SoldeApres", content, "", 19f, new Color32(0x7F, 0xE8, 0xA0, 0xFF),
                                             TextAlignmentOptions.TopLeft, false);
             AnchorTopLeft(after.rectTransform, new Vector2(26f, -256f), new Vector2(180f, 36f));
 
-            TextMeshProUGUI afterLabel = NewText("SoldeApres_Libelle", panel, S(t, "afterBalance"), 19f, ColDim,
+            TextMeshProUGUI afterLabel = NewText("SoldeApres_Libelle", content, S(t, "afterBalance"), 19f, ColDim,
                                                  TextAlignmentOptions.TopRight, true);
             AnchorTopRight(afterLabel.rectTransform, new Vector2(-26f, -256f), new Vector2(270f, 36f));
 
-            Image rule = NewImage("Filet", panel, ColLine);
+            Image rule = NewImage("Filet", content, ColLine);
             AnchorTopRight(rule.rectTransform, new Vector2(-26f, -294f), new Vector2(418f, 1f));
 
             // LA PHRASE. Les chiffres au-dessus disent COMBIEN ; celle-ci dit a quoi le
             // batiment sert. Sans elle, un joueur peut finir une partie entiere sans
             // avoir compris la difference entre le Gaz et le Cristal.
-            TextMeshProUGUI effect = NewText("Effet", panel, "", 17f, ColDim,
+            TextMeshProUGUI effect = NewText("Effet", content, "", 17f, ColDim,
                                              TextAlignmentOptions.TopRight, true);
             effect.enableWordWrapping = true;
             effect.lineSpacing = 8f;
@@ -871,6 +987,22 @@ namespace MNLTHII.EditorTools
             tooltip.detailValues = detailValues;
             tooltip.effectText = effect;
             tooltip.kindIcon = kindIcon;
+            tooltip.photoRoot = photoFrame.gameObject;
+            tooltip.photoImage = photo;
+            tooltip.photoFitter = photoFit;
+            tooltip.contentRoot = content;
+            tooltip.photoHeight = TooltipPhotoHeight;
+            tooltip.evolutionRoot = evo;
+            tooltip.evolutionSlots = evoSlots;
+            tooltip.evolutionFrames = evoFrames;
+            tooltip.evolutionOutlines = evoOutlines;
+            tooltip.evolutionThumbs = evoThumbs;
+            tooltip.evolutionLabels = evoLabels;
+            tooltip.evolutionHeight = TooltipEvolutionHeight;
+            tooltip.evolutionLevelFormat = S(t, "evolutionLevel", "{0}");
+            tooltip.evolutionNaturalLabel = S(t, "evolutionNatural");
+            tooltip.followCursor = false;
+            tooltip.detailsDim = detailsDim.gameObject;
 
             tooltip.labelTankCreate = S(t, "tankCreate");
             tooltip.labelTankEvolve = S(t, "tankEvolve");
@@ -1730,6 +1862,32 @@ namespace MNLTHII.EditorTools
                                                  TextAlignmentOptions.Center, true);
             Stretch(cancelText.rectTransform);
 
+            // --- vue depuis le tank (seulement pour un Tank deja pose) ---
+            // Sous "annuler", en cyan : ce n'est pas un choix de posture, c'est une
+            // autre facon de regarder. Le clic est cable par TankChoicePanel au
+            // lancement, jamais ici.
+            JObject im = labels["immersive"] as JObject;
+
+            RectTransform view = NewRect("VueTank", panel);
+            AnchorCenter(view, new Vector2(0f, -346f), new Vector2(340f, 62f));
+
+            Image viewBg = view.gameObject.AddComponent<Image>();
+            viewBg.color = new Color(ColCyan.r, ColCyan.g, ColCyan.b, 0.10f);
+
+            UnityEngine.UI.Outline viewEdge = view.gameObject.AddComponent<UnityEngine.UI.Outline>();
+            viewEdge.effectColor = new Color(ColCyan.r, ColCyan.g, ColCyan.b, 0.55f);
+            viewEdge.effectDistance = new Vector2(1f, 1f);
+
+            Button viewButton = view.gameObject.AddComponent<Button>();
+            viewButton.targetGraphic = viewBg;
+
+            TextMeshProUGUI viewText = NewText("Libelle", view, S(im, "viewButton"), 22f, ColCyan,
+                                               TextAlignmentOptions.Center, true);
+            Stretch(viewText.rectTransform);
+            viewText.fontStyle = FontStyles.Bold;
+
+            view.gameObject.SetActive(false);
+
             // --- cablage ---
             ctrl.panelRoot = panel.gameObject;
             ctrl.titleText = title;
@@ -1743,6 +1901,9 @@ namespace MNLTHII.EditorTools
             ctrl.cardCosts = costs;
             ctrl.cancelButton = cancelButton;
             ctrl.cancelText = cancelText;
+            ctrl.viewButton = viewButton;
+            ctrl.viewText = viewText;
+            ctrl.viewLabel = S(im, "viewButton");
 
             ctrl.createTitle = S(tc, "createTitle");
             ctrl.createSubtitle = S(tc, "createSubtitle");
@@ -1753,6 +1914,9 @@ namespace MNLTHII.EditorTools
             ctrl.currentLabel = S(tc, "current");
             ctrl.evolveName = S(tc, "evolveName");
             ctrl.evolveBody = S(tc, "evolveBody");
+            ctrl.crystalOrderName = S(tc, "crystalName");
+            ctrl.crystalOrderBody = S(tc, "crystalBody");
+            ctrl.crystalOrderCurrent = S(tc, "crystalCurrent");
 
             // Les noms des postures viennent de unit.stances : la carte d'unite et cet
             // ecran doivent dire le meme mot pour la meme chose.
@@ -2143,6 +2307,232 @@ namespace MNLTHII.EditorTools
         /// Pose la boite a pictogrammes s'il manque. C'est la que tu deposeras tes
         /// fichiers : dix champs, une seule fois, et toute l'interface suit.
         /// </summary>
+        /// <summary>
+        /// LE MENU D'UNE CASE : deux boutons empiles, au-dessus du point clique.
+        ///   - voir de pres (cyan)
+        ///   - utiliser l'energie (or), avec son prix a gauche
+        /// Les clics sont cables par HexActionMenu au lancement, jamais ici.
+        /// </summary>
+        private static void BuildHexMenu(RectTransform root, Canvas canvas, JObject labels)
+        {
+            JObject hm = labels["hexMenu"] as JObject;
+
+            const float W = 380f;
+            const float BtnW = 344f;
+            const float BtnH = 58f;
+
+            RectTransform panel = NewRect("MenuCase", root);
+            panel.anchorMin = new Vector2(0f, 0f);
+            panel.anchorMax = new Vector2(0f, 0f);
+            panel.pivot = new Vector2(0.5f, 0f);
+            panel.sizeDelta = new Vector2(W, 3f * BtnH + 72f);
+            panel.anchoredPosition = new Vector2(400f, 400f);
+
+            Image bg = panel.gameObject.AddComponent<Image>();
+            bg.color = ColPanel;
+            bg.raycastTarget = true;
+
+            UnityEngine.UI.Outline frame = panel.gameObject.AddComponent<UnityEngine.UI.Outline>();
+            frame.effectColor = ColLine;
+            frame.effectDistance = new Vector2(1f, 1f);
+
+            // --- voir de pres ---
+            RectTransform view = NewRect("VoirDePres", panel);
+            AnchorTopCenter(view, new Vector2(0f, -18f), new Vector2(BtnW, BtnH));
+
+            Image viewBg = view.gameObject.AddComponent<Image>();
+            viewBg.color = new Color(ColCyan.r, ColCyan.g, ColCyan.b, 0.12f);
+
+            UnityEngine.UI.Outline viewEdge = view.gameObject.AddComponent<UnityEngine.UI.Outline>();
+            viewEdge.effectColor = new Color(ColCyan.r, ColCyan.g, ColCyan.b, 0.55f);
+            viewEdge.effectDistance = new Vector2(1f, 1f);
+
+            Button viewButton = view.gameObject.AddComponent<Button>();
+            viewButton.targetGraphic = viewBg;
+
+            TextMeshProUGUI viewText = NewText("Libelle", view, S(hm, "view"), 22f, ColCyan,
+                                               TextAlignmentOptions.Center, true);
+            viewText.fontStyle = FontStyles.Bold;
+            Stretch(viewText.rectTransform);
+
+            // --- details ---
+            RectTransform details = NewRect("Details", panel);
+            AnchorTopCenter(details, new Vector2(0f, -18f - (BtnH + 18f)), new Vector2(BtnW, BtnH));
+
+            Image detailsBg = details.gameObject.AddComponent<Image>();
+            detailsBg.color = new Color(1f, 1f, 1f, 0.06f);
+
+            UnityEngine.UI.Outline detailsEdge = details.gameObject.AddComponent<UnityEngine.UI.Outline>();
+            detailsEdge.effectColor = ColLine;
+            detailsEdge.effectDistance = new Vector2(1f, 1f);
+
+            Button detailsButton = details.gameObject.AddComponent<Button>();
+            detailsButton.targetGraphic = detailsBg;
+
+            TextMeshProUGUI detailsText = NewText("Libelle", details, S(hm, "details"), 22f, ColText,
+                                                  TextAlignmentOptions.Center, true);
+            detailsText.fontStyle = FontStyles.Bold;
+            Stretch(detailsText.rectTransform);
+
+            // --- utiliser l'energie ---
+            RectTransform use = NewRect("UtiliserEnergie", panel);
+            AnchorTopCenter(use, new Vector2(0f, -18f - 2f * (BtnH + 18f)), new Vector2(BtnW, BtnH));
+
+            Image useBg = use.gameObject.AddComponent<Image>();
+            useBg.color = new Color(ColGold.r, ColGold.g, ColGold.b, 0.14f);
+
+            UnityEngine.UI.Outline useEdge = use.gameObject.AddComponent<UnityEngine.UI.Outline>();
+            useEdge.effectColor = new Color(ColGold.r, ColGold.g, ColGold.b, 0.5f);
+            useEdge.effectDistance = new Vector2(1f, 1f);
+
+            Button useButton = use.gameObject.AddComponent<Button>();
+            useButton.targetGraphic = useBg;
+
+            // Le libelle a droite (hebreu), le prix a gauche (chiffres, non RTL).
+            TextMeshProUGUI useText = NewText("Libelle", use, S(hm, "use"), 22f, ColText,
+                                              TextAlignmentOptions.MidlineRight, true);
+            useText.fontStyle = FontStyles.Bold;
+            useText.rectTransform.anchorMin = new Vector2(0f, 0f);
+            useText.rectTransform.anchorMax = new Vector2(1f, 1f);
+            useText.rectTransform.offsetMin = new Vector2(90f, 0f);
+            useText.rectTransform.offsetMax = new Vector2(-18f, 0f);
+
+            Image energyIcon = NewImage("Icone", use, ColGold);
+            energyIcon.rectTransform.anchorMin = new Vector2(0f, 0.5f);
+            energyIcon.rectTransform.anchorMax = new Vector2(0f, 0.5f);
+            energyIcon.rectTransform.pivot = new Vector2(0f, 0.5f);
+            energyIcon.rectTransform.anchoredPosition = new Vector2(14f, 0f);
+            energyIcon.rectTransform.sizeDelta = new Vector2(24f, 24f);
+            energyIcon.preserveAspect = true;
+            Bind(energyIcon, MNLTHII.UI.IconKind.Energy);
+
+            TextMeshProUGUI cost = NewText("Cout", use, "", 24f, ColGold,
+                                           TextAlignmentOptions.MidlineLeft, false);
+            cost.fontStyle = FontStyles.Bold;
+            cost.rectTransform.anchorMin = new Vector2(0f, 0f);
+            cost.rectTransform.anchorMax = new Vector2(0f, 1f);
+            cost.rectTransform.pivot = new Vector2(0f, 0.5f);
+            cost.rectTransform.anchoredPosition = new Vector2(44f, 0f);
+            cost.rectTransform.sizeDelta = new Vector2(70f, 0f);
+
+            HexActionMenu ctrl = canvas.gameObject.GetComponent<HexActionMenu>();
+            if (ctrl == null) ctrl = canvas.gameObject.AddComponent<HexActionMenu>();
+
+            ctrl.panel = panel;
+            // Le menu reste leger : pas de voile, et il s'ouvre au-dessus du point
+            // clique. Seuls les details sont centres sur fond sombre.
+            ctrl.dim = null;
+            ctrl.centered = false;
+            ctrl.viewButton = viewButton;
+            ctrl.viewText = viewText;
+            ctrl.useButton = useButton;
+            ctrl.useBackground = useBg;
+            ctrl.useText = useText;
+            ctrl.costText = cost;
+            ctrl.viewLabel = S(hm, "view");
+            ctrl.detailsButton = detailsButton;
+            ctrl.detailsText = detailsText;
+            ctrl.detailsLabel = S(hm, "details");
+            ctrl.useLabel = S(hm, "use");
+            ctrl.useIdleColor = new Color(ColGold.r, ColGold.g, ColGold.b, 0.14f);
+
+            panel.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// Pose la boite a photos s'il n'y en a pas, sur l'objet des gestionnaires.
+        /// Une boite deja presente n'est jamais recreee : elle contient tes images.
+        /// </summary>
+        private static void EnsureElementPhotos()
+        {
+            MNLTHII.UI.ElementPhotos existing =
+                Object.FindFirstObjectByType<MNLTHII.UI.ElementPhotos>(FindObjectsInactive.Include);
+            if (existing != null) return;
+
+            LocalGameEngine engine = Object.FindFirstObjectByType<LocalGameEngine>(FindObjectsInactive.Include);
+
+            GameObject host = (engine != null) ? engine.gameObject : new GameObject("Photos");
+            host.AddComponent<MNLTHII.UI.ElementPhotos>();
+
+            EditorUtility.SetDirty(host);
+            Debug.LogFormat("[HudBuilder] Boite a photos posee sur \"{0}\" : glisse tes images dans ElementPhotos.", host.name);
+        }
+
+        /// <summary>
+        /// LA VUE IMMERSIVE : le bandeau "retour a la carte" et le composant qui pilote
+        /// la camera.
+        ///
+        /// Le bandeau est un enfant DIRECT du canevas, pas de la racine du HUD : pendant
+        /// la vue, la racine est masquee en entier (CanvasGroup a 0), et le bouton
+        /// retour doit rester visible. On efface donc l'ancien bandeau a la main, puisque
+        /// la reconstruction du HUD n'efface que la racine.
+        /// </summary>
+        private static void BuildImmersive(RectTransform root, Canvas canvas, JObject labels)
+        {
+            JObject im = labels["immersive"] as JObject;
+
+            const string OverlayName = "VueImmersive";
+            Transform old = canvas.transform.Find(OverlayName);
+            if (old != null) Object.DestroyImmediate(old.gameObject);
+
+            // Le HUD entier s'efface pendant les plans : c'est l'image qui compte.
+            CanvasGroup hudGroup = root.gameObject.GetComponent<CanvasGroup>();
+            if (hudGroup == null) hudGroup = root.gameObject.AddComponent<CanvasGroup>();
+
+            RectTransform bar = NewRect(OverlayName, canvas.transform);
+            AnchorBottomCenter(bar, new Vector2(0f, 40f), new Vector2(820f, 92f));
+
+            Image bg = bar.gameObject.AddComponent<Image>();
+            bg.color = ColPanel;
+            bg.raycastTarget = true;
+
+            UnityEngine.UI.Outline frame = bar.gameObject.AddComponent<UnityEngine.UI.Outline>();
+            frame.effectColor = new Color(ColCyan.r, ColCyan.g, ColCyan.b, 0.35f);
+            frame.effectDistance = new Vector2(1f, 1f);
+
+            // L'aide, a droite (l'hebreu se lit de droite a gauche).
+            TextMeshProUGUI hint = NewText("Aide", bar, S(im, "hint"), 18f, ColDim,
+                                           TextAlignmentOptions.MidlineRight, true);
+            hint.rectTransform.anchorMin = new Vector2(1f, 0.5f);
+            hint.rectTransform.anchorMax = new Vector2(1f, 0.5f);
+            hint.rectTransform.pivot = new Vector2(1f, 0.5f);
+            hint.rectTransform.anchoredPosition = new Vector2(-28f, 0f);
+            hint.rectTransform.sizeDelta = new Vector2(480f, 60f);
+            hint.enableWordWrapping = true;
+
+            // Le bouton retour, a gauche.
+            RectTransform exit = NewRect("Retour", bar);
+            exit.anchorMin = new Vector2(0f, 0.5f);
+            exit.anchorMax = new Vector2(0f, 0.5f);
+            exit.pivot = new Vector2(0f, 0.5f);
+            exit.anchoredPosition = new Vector2(20f, 0f);
+            exit.sizeDelta = new Vector2(270f, 60f);
+
+            Image exitBg = exit.gameObject.AddComponent<Image>();
+            exitBg.color = new Color(ColCyan.r, ColCyan.g, ColCyan.b, 0.14f);
+
+            UnityEngine.UI.Outline exitEdge = exit.gameObject.AddComponent<UnityEngine.UI.Outline>();
+            exitEdge.effectColor = new Color(ColCyan.r, ColCyan.g, ColCyan.b, 0.6f);
+            exitEdge.effectDistance = new Vector2(1f, 1f);
+
+            Button exitButton = exit.gameObject.AddComponent<Button>();
+            exitButton.targetGraphic = exitBg;
+
+            TextMeshProUGUI exitText = NewText("Libelle", exit, S(im, "exit"), 22f, ColCyan,
+                                               TextAlignmentOptions.Center, true);
+            exitText.fontStyle = FontStyles.Bold;
+            Stretch(exitText.rectTransform);
+
+            ImmersiveCamera ctrl = canvas.gameObject.GetComponent<ImmersiveCamera>();
+            if (ctrl == null) ctrl = canvas.gameObject.AddComponent<ImmersiveCamera>();
+
+            ctrl.overlayRoot = bar.gameObject;
+            ctrl.exitButton = exitButton;
+            ctrl.hudGroup = hudGroup;
+
+            bar.gameObject.SetActive(false);
+        }
+
         private static void EnsureIconOverrides()
         {
             MNLTHII.UI.IconOverrides existing =
@@ -2334,7 +2724,7 @@ namespace MNLTHII.EditorTools
             ThreatPreview preview = Object.FindFirstObjectByType<ThreatPreview>(FindObjectsInactive.Include);
             if (preview != null)
             {
-                preview.tourHoldPerGhost = 1.3f;
+                preview.tourHoldPerThreat = 2.2f;
                 EditorUtility.SetDirty(preview);
             }
 
@@ -2557,7 +2947,7 @@ namespace MNLTHII.EditorTools
         /// compile et fonctionne quelle que soit la version installee, au lieu de
         /// casser a la prochaine mise a jour du paquet.
         /// </summary>
-        private static void DisableFontFeatures(TextMeshProUGUI text)
+        internal static void DisableFontFeatures(TextMeshProUGUI text)
         {
             if (text == null) return;
 

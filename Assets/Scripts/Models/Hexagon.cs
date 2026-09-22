@@ -77,6 +77,12 @@ public class Hexagon : MonoBehaviour
     private Color _auraAccum;
     private int _auraCount;
 
+    // Poids total et opacite la plus forte des zones posees sur cette case : une
+    // zone "legere" (alpha < 1, ex. le rayon de commandement) se voit en
+    // transparence, et une zone pleine qui la recouvre garde sa couleur.
+    private float _auraWeight;
+    private float _auraAlpha;
+
     private Coroutine _hitRoutine;
     private MNLTHII.UI.FloatingHealthBar _healthBar;
 
@@ -102,6 +108,16 @@ public class Hexagon : MonoBehaviour
         _transform = transform;
         _meshRenderer = GetComponentInChildren<MeshRenderer>();
         _propertyBlock = new MaterialPropertyBlock();
+    }
+
+    /// <summary>
+    /// Start, et pas Awake : la fabrique ajoute ce composant PUIS renseigne le type et
+    /// le niveau (Init, ou ReplaceWithDestroyedVisual). Au Start, la case sait enfin ce
+    /// qu'elle est - terrain a calmer, ou batiment a souligner.
+    /// </summary>
+    private void Start()
+    {
+        MNLTHII.Managers.BoardReadability.NotifyHexReady(this);
     }
 
     public Hexagon Init(HexagonData p_hexData, GameObject p_prefab)
@@ -305,9 +321,13 @@ public class Hexagon : MonoBehaviour
     {
         if (color.a <= 0f) return;
 
-        _auraAccum.r += color.r;
-        _auraAccum.g += color.g;
-        _auraAccum.b += color.b;
+        float w = color.a > 1f ? 1f : color.a;
+
+        _auraAccum.r += color.r * w;
+        _auraAccum.g += color.g * w;
+        _auraAccum.b += color.b * w;
+        _auraWeight += w;
+        if (w > _auraAlpha) _auraAlpha = w;
         _auraCount++;
 
         ApplyAura();
@@ -319,6 +339,8 @@ public class Hexagon : MonoBehaviour
         if (color.a <= 0f) { ClearAura(); return; }
 
         _auraAccum = new Color(color.r, color.g, color.b, 0f);
+        _auraWeight = 1f;
+        _auraAlpha = 1f;
         _auraCount = 1;
         ApplyAura();
     }
@@ -329,10 +351,10 @@ public class Hexagon : MonoBehaviour
         if (!_auraBuilt) BuildAura();
         if (_auraRenderer == null) return;
 
-        float inv = 1f / _auraCount;
+        float inv = (_auraWeight > 0.0001f) ? 1f / _auraWeight : 1f;
         Color c = new Color(_auraAccum.r * inv, _auraAccum.g * inv, _auraAccum.b * inv, 1f);
 
-        c.a = 1f;
+        c.a = (_auraAlpha > 0f) ? _auraAlpha : 1f;
 
         _auraRenderer.color = c;
         if (!_auraRenderer.enabled) _auraRenderer.enabled = true;
@@ -341,6 +363,8 @@ public class Hexagon : MonoBehaviour
     public void ClearAura()
     {
         _auraAccum = new Color(0f, 0f, 0f, 0f);
+        _auraWeight = 0f;
+        _auraAlpha = 0f;
         _auraCount = 0;
         if (_auraRenderer != null && _auraRenderer.enabled) _auraRenderer.enabled = false;
     }

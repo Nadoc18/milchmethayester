@@ -50,7 +50,11 @@ namespace MNLTHII.Rules
         //  ECONOMIE - revenu
         // =====================================================================
         /// <summary>Solde au premier tour : de quoi poser un batiment d'ouverture.</summary>
-        public const int STARTING_ENERGY = 60;
+        // 110 et plus 60 : la partie commence desormais sans aucun pion. Les trois
+        // Tanks offerts valaient 150 d'Energie ; on en rend une partie pour que le
+        // premier tour permette deux usines de gaz ET un Tank (30 + 30 + 50).
+        /// <remarks>Selon la difficulte (voir GameDifficulty) : 170 / 140 / 110.</remarks>
+        public static int STARTING_ENERGY { get { return GameDifficulty.Pick(170, 140, 110); } }
 
         /// <summary>
         /// LE PLANCHER. Verse en debut de tour quoi qu'il arrive, meme si le joueur a
@@ -63,7 +67,8 @@ namespace MNLTHII.Rules
         /// Volontairement MAIGRE. Dix par tour, c'est un cinquieme d'un Tank : de quoi
         /// survivre et reconstruire une usine, jamais de quoi jouer.
         /// </summary>
-        public const int BASE_INCOME_PER_TURN = 10;
+        /// <remarks>Selon la difficulte : 15 / 12 / 10.</remarks>
+        public static int BASE_INCOME_PER_TURN { get { return GameDifficulty.Pick(15, 12, 10); } }
 
         /// <summary>Bonne reponse au Trivia de debut de tour.</summary>
         public const int TRIVIA_ENERGY_REWARD = 25;
@@ -158,6 +163,28 @@ namespace MNLTHII.Rules
         /// Avec le cout au tir, tenir la ligne se paie exactement a la hauteur de ce
         /// qu'elle arrete.
         /// </summary>
+        /// <summary>
+        /// L'USURE DU BUNKER. Sans elle, un Bunker etait eternel : on couvrait la carte
+        /// de Bunkers rang 2, plus aucun ennemi n'arrivait jusqu'a quoi que ce soit, et
+        /// la partie etait jouee.
+        ///
+        /// Chaque fin de tour il perd BUNKER_DECAY (8 au rang 1, 11 au rang 2), plus
+        /// BUNKER_WEAR_PER_SHOT (2) par tir tire ce tour-ci :
+        ///
+        ///                     tous ses tirs     au calme
+        ///   rang 1 (40 PV)      ~3 tours        5 tours
+        ///   rang 2 (80 PV)      ~4 tours        ~8 tours
+        ///
+        /// C'est un renfort ponctuel, pas un mur : on le pose quand une vague arrive,
+        /// il encaisse, il tombe. A zero il s'effondre, la colline redevient nue et peut
+        /// etre reconstruite.
+        /// </summary>
+        public const int BUNKER_DECAY_L1 = 8;
+        public const int BUNKER_DECAY_L2 = 11;
+        public const int BUNKER_WEAR_PER_SHOT = 2;
+
+        public static int GetBunkerDecay(int level) { return (level >= 2) ? BUNKER_DECAY_L2 : BUNKER_DECAY_L1; }
+
         public const int BUNKER_SHOT_COST_L1 = 4;
         public const int BUNKER_SHOT_COST_L2 = 5;
 
@@ -259,7 +286,8 @@ namespace MNLTHII.Rules
         /// n'evoluent PAS en meme temps : voir PORTAL_EVOLVE_STAGGER. Quand ils le
         /// faisaient, le tour 12 effacait d'un coup tout le travail du joueur.
         /// </summary>
-        public const int PORTAL_EVOLVE_AFTER_TURNS = 12;
+        /// <remarks>Selon la difficulte : 20 / 16 / 12.</remarks>
+        public static int PORTAL_EVOLVE_AFTER_TURNS { get { return GameDifficulty.Pick(20, 16, 12); } }
 
         /// <summary>Decalage, en tours, entre l'evolution de deux portails voisins.</summary>
         public const int PORTAL_EVOLVE_STAGGER = 3;
@@ -294,17 +322,26 @@ namespace MNLTHII.Rules
         /// arrive. L'affaiblir assez pour changer le debut de partie l'aurait rendu
         /// inutile contre les rangs 2 et 3 en fin de partie.
         /// </summary>
-        public const int PORTAL_SPAWN_INTERVAL = 3;
+        /// <remarks>Selon la difficulte : 5 / 4 / 3.</remarks>
+        public static int PORTAL_SPAWN_INTERVAL { get { return GameDifficulty.Pick(5, 4, 3); } }
 
-        /// <summary>Ennemis deja presents sur la carte au premier tour.</summary>
-        public const int INITIAL_ENEMIES = 3;
+        /// <summary>
+        /// Ennemis deja presents sur la carte au premier tour. 0 : le plateau commence
+        /// vide, les premiers ennemis sortent des Portails.
+        /// </summary>
+        public const int INITIAL_ENEMIES = 0;
+
+        /// <summary>Tanks offerts au joueur au debut de la partie. 0 : c'est a lui de les construire.</summary>
+        public const int INITIAL_PLAYER_TANKS = 0;
 
         /// <summary>Distance a laquelle ces premiers ennemis sont poses, en cases.</summary>
         public const int INITIAL_ENEMY_DISTANCE = 5;
         /// <summary>Nombre maximum d'ennemis deployes par tour, tous portails confondus.</summary>
-        public const int MAX_SPAWNS_PER_TURN = 4;
+        /// <remarks>Selon la difficulte : 2 / 3 / 4.</remarks>
+        public static int MAX_SPAWNS_PER_TURN { get { return GameDifficulty.Pick(2, 3, 4); } }
         /// <summary>Plafond d'ennemis simultanement presents sur la carte.</summary>
-        public const int MAX_ACTIVE_ENEMIES = 16;
+        /// <remarks>Selon la difficulte : 8 / 12 / 16.</remarks>
+        public static int MAX_ACTIVE_ENEMIES { get { return GameDifficulty.Pick(8, 12, 16); } }
 
         // ------- Instabilite des Portails (le coeur de l'equilibrage) -------
         /// <summary>
@@ -345,7 +382,8 @@ namespace MNLTHII.Rules
         /// <summary>Tours de calme entre deux points d'instabilite effaces.</summary>
         public const int PORTAL_CALM_PER_INSTABILITY_LOST = 2;
 
-        public const int PORTAL_KILLS_TO_BREAK_SHIELD = 4;
+        /// <remarks>Selon la difficulte : 3 / 4 / 4.</remarks>
+        public static int PORTAL_KILLS_TO_BREAK_SHIELD { get { return GameDifficulty.Pick(3, 4, 4); } }
 
         /// <summary>Duree, en tours, pendant laquelle le bouclier reste tombe.</summary>
         public const int PORTAL_SHIELD_DOWN_TURNS = 4;
@@ -380,6 +418,11 @@ namespace MNLTHII.Rules
                 if (pawn.level <= 1) { pawn.maxHP = 20; pawn.attackDamageMin = 10; pawn.attackRange = 1; }
                 else if (pawn.level == 2) { pawn.maxHP = 40; pawn.attackDamageMin = 15; pawn.attackRange = 2; }
                 else { pawn.maxHP = 80; pawn.attackDamageMin = 30; pawn.attackRange = 3; }
+
+                // Facile et Moyen : des ennemis moins solides et moins durs. En
+                // Difficile les pourcentages valent 100 et rien ne change.
+                pawn.maxHP = GameDifficulty.Scale(pawn.maxHP, GameDifficulty.EnemyHpPercent);
+                pawn.attackDamageMin = GameDifficulty.Scale(pawn.attackDamageMin, GameDifficulty.EnemyDamagePercent);
             }
             else // Tank du joueur - il n'y a plus de classes (GDD V3, 5.1)
             {
@@ -480,6 +523,38 @@ namespace MNLTHII.Rules
         public static int GetMountainCommandRadius(int level)
         {
             return (level >= 2) ? MOUNTAIN_COMMAND_RADIUS_L2 : MOUNTAIN_COMMAND_RADIUS_L1;
+        }
+
+        /// <summary>
+        /// Un pion (Tank ou ennemi) peut-il se POSER sur cette case ?
+        ///
+        /// Non sur : une colline (obstacle naturel, Bunker ou pas), la Base, un Shofar,
+        /// et toute case ou un batiment est construit (Gaz, Cristal, Centre de
+        /// Commandement a partir du niveau interne 1). Un batiment detruit repasse au
+        /// niveau 0 : sa case redevient praticable.
+        ///
+        /// C'est la seule definition : le calcul de chemin, la sortie des ennemis par
+        /// les Shofars et l'apercu des menaces l'appellent tous.
+        /// </summary>
+        public static bool IsHexWalkable(Hexagon hex)
+        {
+            if (hex == null) return false;
+
+            switch (hex.type)
+            {
+                case TypeOfHex.hill:
+                case TypeOfHex.Base:
+                case TypeOfHex.portal:
+                    return false;
+
+                case TypeOfHex.gas:
+                case TypeOfHex.crystal:
+                case TypeOfHex.mountain:
+                    return hex.level < 1;
+
+                default:
+                    return true;
+            }
         }
 
         /// <summary>Un hexagone est occupe des qu'un pion (allie ou ennemi) s'y trouve.</summary>
@@ -592,6 +667,62 @@ namespace MNLTHII.Rules
                 return TriviaOutcome.Blocked_NotEnoughEnergy;
 
             tank.SetStance(stance);
+
+            // Une nouvelle posture remplace l'ordre de rejoindre un Cristal.
+            tank.seekCrystal = false;
+            return TriviaOutcome.StanceChanged;
+        }
+
+        /// <summary>Y a-t-il au moins un Cristal construit et debout sur le plateau ?</summary>
+        public static bool AnyCrystalBuilding()
+        {
+            return FindNearestCrystal(null) != null;
+        }
+
+        /// <summary>
+        /// Le Cristal construit (niveau interne 1+) et debout le plus proche de cette
+        /// case. from null : le premier trouve. Null s'il n'y en a aucun.
+        /// </summary>
+        public static Hexagon FindNearestCrystal(HexCoord from)
+        {
+            if (BoardController.instance == null || BoardController.instance.HexagonsInBoard == null) return null;
+
+            System.Collections.Generic.List<Hexagon> hexes = BoardController.instance.HexagonsInBoard;
+            Hexagon best = null;
+            int bestDistance = int.MaxValue;
+
+            for (int i = 0; i < hexes.Count; i++)
+            {
+                Hexagon hex = hexes[i];
+                if (hex == null || hex.type != TypeOfHex.crystal || hex.level < 1) continue;
+                if (hex.currentHP <= 0 || hex.positionInTheBoard == null) continue;
+
+                if (from == null) return hex;
+
+                int d = BoardController.GetHexDistance(from, hex.positionInTheBoard);
+                if (d < bestDistance)
+                {
+                    bestDistance = d;
+                    best = hex;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// Ordonne a un Tank de rejoindre le Cristal le plus proche. Gratuit : l'ordre
+        /// coute deja des tours de marche. Refuse si le Tank est deja au maximum, deja
+        /// soutenu par un Cristal, ou s'il n'existe aucun Cristal construit.
+        /// </summary>
+        public static TriviaOutcome OrderTankToCrystal(PawnController tank)
+        {
+            if (tank == null || tank.IsEnemy) return TriviaOutcome.EnergyOnly;
+            if (tank.level >= MAX_TANK_LEVEL) return TriviaOutcome.Blocked_MaxLevel;
+            if (!AnyCrystalBuilding()) return TriviaOutcome.Blocked_NoCrystal;
+            if (HasCrystalSupport(tank.hexcoord)) return TriviaOutcome.EnergyOnly;
+
+            tank.seekCrystal = true;
+            Debug.Log("[Rules] Un Tank part rejoindre le Cristal le plus proche.");
             return TriviaOutcome.StanceChanged;
         }
 

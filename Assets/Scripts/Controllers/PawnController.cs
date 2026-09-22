@@ -81,6 +81,14 @@ public class PawnController : MonoBehaviour
     public PawnStance stance = PawnStance.Guard;
 
     /// <summary>
+    /// Ordre "rejoins un Cristal" : pendant la phase des Tanks, ce Tank marche vers
+    /// le Cristal construit le plus proche au lieu de suivre sa posture, puis reste
+    /// a son contact (il tire encore sur ce qui passe a portee) jusqu'a ce qu'on le
+    /// fasse evoluer. Voir TurnManager.ProcessPlayerUnitsSequential.
+    /// </summary>
+    [System.NonSerialized] public bool seekCrystal;
+
+    /// <summary>
     /// Portail qui a deploye cet ennemi. Stocke en deux int plutot qu'en HexCoord :
     /// HexCoord est une classe, et un ennemi sur deux naitrait avec une allocation.
     /// </summary>
@@ -209,6 +217,10 @@ public class PawnController : MonoBehaviour
 
         // Un Tank neuf affiche immediatement sa posture de depart (Garde).
         if (!IsEnemy) ApplyStanceTint();
+
+        // Ombre de contact, anneau d'equipe, lisere, taille : ce qui le fait ressortir
+        // du plateau. Sans effet si BoardReadability est desactive.
+        MNLTHII.Managers.BoardReadability.NotifyPawnReady(this);
     }
 
     private void CacheRenderers()
