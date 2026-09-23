@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using MNLTHII;
@@ -274,6 +275,60 @@ namespace MNLTHII.Managers
         }
 
         // =================================================================
+        //  REPRISE D'UNE PARTIE SAUVEGARDEE
+        // =================================================================
+        //
+        // Rien de tout cela ne se lit sur le plateau : les fissures d'un Shofar, son
+        // bouclier tombe, le nombre de tours ou personne ne l'a frappe. Un chargement
+        // qui les oublierait rendrait au Yetzer Hara tout le terrain deja gagne.
+        //
+        // Le PLAN de deploiement, lui, n'est volontairement pas restaure : il est
+        // retire a chaque tour (voir _planTurn remis a -1 par ResetPortalState), et le
+        // tour repris le retirera comme n'importe quel autre.
+
+        /// <summary>Tour de la derniere vague annoncee. Lu par la sauvegarde.</summary>
+        public int LastSurgeTurn { get { return _lastSurgeTurn; } }
+
+        /// <summary>Remet l'etat d'un Shofar tel qu'il etait au moment de la sauvegarde.</summary>
+        public void RestorePortal(HexCoord coord, int kills, int shieldDown, int calmTurns)
+        {
+            int slot = GetSlot(coord, true);
+            if (slot < 0) return;
+
+            _kills[slot] = (kills > 0) ? kills : 0;
+            _shieldDown[slot] = (shieldDown > 0) ? shieldDown : 0;
+            _calmTurns[slot] = (calmTurns > 0) ? calmTurns : 0;
+        }
+
+        /// <summary>Compteurs globaux de la partie reprise.</summary>
+        public void RestoreTotals(int spawned, int killed)
+        {
+            totalEnemiesSpawned = (spawned > 0) ? spawned : 0;
+            totalEnemiesKilled = (killed > 0) ? killed : 0;
+        }
+
+        /// <summary>
+        /// La vague annoncee pour le tour suivant. Elle etait affichee a l'ecran quand
+        /// le joueur a quitte : la retrouver en reprenant, c'est retrouver la meme
+        /// urgence.
+        /// </summary>
+        public void RestoreSurge(HexCoord coord, int lastSurgeTurn)
+        {
+            _lastSurgeTurn = (lastSurgeTurn > 0) ? lastSurgeTurn : 0;
+
+            if (coord == null) { _surgeIndex = -1; return; }
+
+            _surgeIndex = GetSlot(coord, true);
+            if (_surgeIndex < 0) return;
+
+            // _announcedCoord est une instance unique, jamais reallouee : on reecrit
+            // ses champs au lieu d'en creer une autre.
+            _announcedCoord.q = coord.q;
+            _announcedCoord.r = coord.r;
+            _announcedCoord.s = coord.s;
+        }
+
+        // =================================================================
         //  INSTABILITE : un ennemi meurt, son portail encaisse
         // =================================================================
         /// <summary>
@@ -362,6 +417,74 @@ namespace MNLTHII.Managers
         // =================================================================
         //  TOUR DES PORTAILS
         // =================================================================
+        /// <summary>
+        /// Temps passe sur un Shofar qui deploie, APRES l'arrivee de la camera. Les
+        /// ennemis apparaissaient jusqu'ici en une frame, quelque part sur la carte :
+        /// on decouvrait la vague au tour suivant, deja au contact.
+        /// </summary>
+        [Header("Rythme du deploiement")]
+        public float spawnShowDuration = 1.3f;
+
+        private WaitForSeconds _waitSpawn;
+        private float _cachedSpawn = -1f;
+        private WaitForSeconds _waitSpawnTravel;
+        private float _cachedSpawnTravel = -1f;
+
+        private void RefreshSpawnWaits()
+        {
+            if (_cachedSpawn != spawnShowDuration || _waitSpawn == null)
+            {
+                _cachedSpawn = spawnShowDuration;
+                _waitSpawn = new WaitForSeconds(spawnShowDuration);
+            }
+
+            float travel = (CameraDirector.Instance != null) ? CameraDirector.Instance.moveDuration + 0.1f : 0.1f;
+            if (!Mathf.Approximately(_cachedSpawnTravel, travel) || _waitSpawnTravel == null)
+            {
+                _cachedSpawnTravel = travel;
+                _waitSpawnTravel = new WaitForSeconds(travel);
+            }
+        }
+
+        /// <summary>
+        /// Le tour des Shofars, EN SE MONTRANT : la camera va sur chaque Shofar qui
+        /// deploie, et on voit sortir chaque ennemi. Sans cela, la seule facon de savoir
+        /// ce qui etait arrive etait de le decouvrir au tour suivant.
+        /// </summary>
+        public IEnumerator ProcessPortalsSequential()
+        {
+            RefreshSpawnWaits();
+            _showSpawns = true;
+
+            ProcessPortals();
+
+            // ProcessPortals a rempli la file des deploiements a montrer.
+            for (int i = 0; i < _spawnShow.Count; i++)
+            {
+                PawnController enemy = _spawnShow[i];
+                if (enemy == null || enemy.currentHP <= 0) continue;
+
+                CameraDirector.FocusPoint(enemy.transform.position);
+                yield return _waitSpawnTravel;
+
+                if (FXManager.Instance != null)
+                    FXManager.Instance.SpawnEnemyFX(enemy.transform.position + Vector3.up * 0.4f);
+
+                yield return _waitSpawn;
+            }
+
+            _spawnShow.Clear();
+            _showSpawns = false;
+
+            if (_spawnShownAny) CameraDirector.ReleaseCamera();
+            _spawnShownAny = false;
+        }
+
+        // Les ennemis deployes ce tour-ci, dans l'ordre : on les montre ensuite un par un.
+        private readonly List<PawnController> _spawnShow = new List<PawnController>(8);
+        private bool _showSpawns;
+        private bool _spawnShownAny;
+
         /// <summary>Appele une fois par tour, en fin de tour.</summary>
         public void ProcessPortals()
         {
@@ -443,7 +566,15 @@ namespace MNLTHII.Managers
                     if (spawnedThisTurn >= spawnBudget && !isSurging) break;
                     if (activeEnemies >= InteractionRules.MAX_ACTIVE_ENEMIES) break;
 
-                    if (SpawnEnemyFromPortal(portal, turn, PlannedLevelAt(slot, k)) == null) break;
+                    PawnController spawned = SpawnEnemyFromPortal(portal, turn, PlannedLevelAt(slot, k));
+                    if (spawned == null) break;
+
+                    // La camera ira le voir apres coup (ProcessPortalsSequential).
+                    if (_showSpawns)
+                    {
+                        _spawnShow.Add(spawned);
+                        _spawnShownAny = true;
+                    }
 
                     spawnedThisTurn++;
                     activeEnemies++;

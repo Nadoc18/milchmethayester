@@ -415,9 +415,19 @@ namespace MNLTHII.Rules
 
             if (pawn.typeOfPawn == TypeOfPawn.enemy)
             {
-                if (pawn.level <= 1) { pawn.maxHP = 20; pawn.attackDamageMin = 10; pawn.attackRange = 1; }
-                else if (pawn.level == 2) { pawn.maxHP = 40; pawn.attackDamageMin = 15; pawn.attackRange = 2; }
-                else { pawn.maxHP = 80; pawn.attackDamageMin = 30; pawn.attackRange = 3; }
+                // LE YETZER HARA FRAPPE AU CONTACT, TOUJOURS.
+                //
+                // Les rangs 2 et 3 tiraient a deux et trois cases : ils pilonnaient une
+                // usine ou un Tank sans jamais s'exposer, et il n'existait aucune facon
+                // de les arreter avant qu'ils aient fait leur travail. Ce qui monte avec
+                // le rang, maintenant, c'est la VITESSE : ils arrivent plus vite, mais
+                // ils doivent arriver. Le joueur a donc toujours un tour pour agir, et
+                // la distance redevient une defense.
+                if (pawn.level <= 1) { pawn.maxHP = 20; pawn.attackDamageMin = 10; move = 1; }
+                else if (pawn.level == 2) { pawn.maxHP = 40; pawn.attackDamageMin = 15; move = 2; }
+                else { pawn.maxHP = 80; pawn.attackDamageMin = 30; move = 3; }
+
+                pawn.attackRange = 1;
 
                 // Facile et Moyen : des ennemis moins solides et moins durs. En
                 // Difficile les pourcentages valent 100 et rien ne change.
@@ -668,8 +678,11 @@ namespace MNLTHII.Rules
 
             tank.SetStance(stance);
 
-            // Une nouvelle posture remplace l'ordre de rejoindre un Cristal.
+            // Une nouvelle posture remplace l'ordre de rejoindre un Cristal, et efface
+            // la cible choisie a la main pour l'ancienne posture.
             tank.seekCrystal = false;
+            tank.orderTargetCoord = null;
+            tank.orderTargetPawn = null;
             return TriviaOutcome.StanceChanged;
         }
 
@@ -847,9 +860,14 @@ namespace MNLTHII.Rules
 
             switch (hex.type)
             {
-                // Usines a Tanks
+                // LA PLAINE, ET ELLE SEULE, PORTE UN TANK.
+                //
+                // Le desert ne donne rien. Avant, les deux se valaient : un Tank se
+                // posait n'importe ou, donc le terrain ne voulait rien dire et le
+                // plateau n'etait qu'un decor. Maintenant la moitie du sol est morte -
+                // on la traverse, on ne s'y installe pas - et l'autre moitie devient
+                // une ressource dont la position compte.
                 case TypeOfHex.plain:
-                case TypeOfHex.desert:
                     if (energy == null || !energy.TrySpend(TANK_CREATION_COST))
                         return TriviaOutcome.Blocked_NotEnoughEnergy;
                     if (BoardController.instance != null)

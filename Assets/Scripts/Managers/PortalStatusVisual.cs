@@ -40,7 +40,12 @@ namespace MNLTHII.Managers
         public bool active = true;
 
         [Header("Bulle du bouclier")]
-        public Color shieldColor = new Color(0.55f, 0.70f, 1f, 1f);
+        /// <summary>
+        /// ORANGE, pas bleu. Le bleu clair du depart se confondait avec le ciel et avec
+        /// les effets allies : on ne voyait pas qu'un Shofar etait protege. L'orange est
+        /// la couleur de la menace dans tout le reste du jeu.
+        /// </summary>
+        public Color shieldColor = new Color(1f, 0.58f, 0.18f, 1f);
         [Range(0f, 4f)] public float shieldStrength = 1.4f;
         [Range(0.5f, 8f)] public float shieldPower = 2.2f;
         [Tooltip("Taille de la bulle par rapport au Shofar.")]
@@ -52,7 +57,9 @@ namespace MNLTHII.Managers
         public float pipSize = 0.11f;
         public float pipSpacing = 0.15f;
         public Color pipEmpty = new Color(1f, 1f, 1f, 0.28f);
-        public Color pipCracked = new Color(1f, 0.62f, 0.25f, 1f);
+        // Les fissures passent au jaune : l'orange est maintenant la couleur de la
+        // bulle, et deux oranges cote a cote ne se distinguent plus.
+        public Color pipCracked = new Color(1f, 0.85f, 0.30f, 1f);
         public Color pipBroken = new Color(1f, 0.28f, 0.25f, 1f);
         public float brokenPulseSpeed = 5f;
 

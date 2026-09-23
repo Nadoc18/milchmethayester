@@ -684,7 +684,9 @@ namespace MNLTHII.Rules
             {
                 Hexagon hex = hexes[i];
                 if (hex == null) continue;
-                if (hex.type != TypeOfHex.plain && hex.type != TypeOfHex.desert) continue;
+                // Le conseiller ne propose plus le desert : on ne peut plus y poser
+                // de Tank.
+                if (hex.type != TypeOfHex.plain) continue;
                 if (board.getPawnByCoord(hex.positionInTheBoard) != null) continue;
 
                 int distance = buildings.DistanceToBase(hex.positionInTheBoard);

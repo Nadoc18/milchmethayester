@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using MNLTHII;
@@ -22,6 +23,13 @@ namespace MNLTHII.Managers
 
         [Header("Generation")]
         public bool useProceduralMap = true;
+
+        [Header("Presentation")]
+        [Tooltip("Au debut d'une partie NEUVE, la camera passe sur chaque type de case "
+               + "et explique ce qu'on peut y construire, puis donne les grandes lignes "
+               + "d'une bonne strategie. Echap saute la visite. Reprendre une partie "
+               + "sauvegardee ne la rejoue jamais.")]
+        public bool playIntroTour = true;
 
         private void Awake()
         {
@@ -58,8 +66,23 @@ namespace MNLTHII.Managers
                 return;
             }
 
+            // UNE PARTIE A REPRENDRE ?
+            //
+            // Le menu principal a pose le fichier ici avant de charger la scene. Dans ce
+            // cas le plateau ne vient pas du generateur mais de la sauvegarde : les
+            // Bunkers construits, les usines montees, les Shofars entames y sont deja.
+            MNLTHII.Data.SaveGameFile saved = SaveManager.PendingLoad;
+
             string boardJson;
-            if (!useProceduralMap && !string.IsNullOrEmpty(initialBoardJson))
+
+            if (saved != null)
+            {
+                // La difficulte AVANT tout le reste : elle decide des PV et des degats
+                // des ennemis, donc elle doit etre en place avant le premier pion pose.
+                GameDifficulty.Current = (DifficultyLevel)saved.difficulty;
+                boardJson = SaveManager.BuildBoardJson(saved);
+            }
+            else if (!useProceduralMap && !string.IsNullOrEmpty(initialBoardJson))
                 boardJson = initialBoardJson;
             else
                 boardJson = MapGenerator.GenerateIntelligentBoard();
@@ -71,11 +94,47 @@ namespace MNLTHII.Managers
             }
 
             _boardController.UpdateBoard(boardJson);
-            Invoke(nameof(SetupInitialState), 1.5f);
+
+            if (saved != null) Invoke(nameof(RestoreSavedGame), 1.5f);
+            else Invoke(nameof(SetupInitialState), 1.5f);
+        }
+
+        /// <summary>
+        /// Remet la partie sauvegardee en place, une fois les 169 cases construites.
+        /// Contrairement a SetupInitialState, rien n'est remis a zero : ni l'Energie,
+        /// ni la Base, ni les Shofars - tout vient du fichier.
+        /// </summary>
+        private void RestoreSavedGame()
+        {
+            MNLTHII.Data.SaveGameFile saved = SaveManager.PendingLoad;
+
+            // Consomme : un retour au menu puis une nouvelle partie ne doit pas
+            // recharger celle-ci par surprise.
+            SaveManager.PendingLoad = null;
+
+            if (saved == null) { SetupInitialState(); return; }
+
+            SaveManager.RestoreInto(saved, _boardController);
+
+            if (GameManager.instance != null && GameManager.instance.zonesCoord == null)
+            {
+                GameManager.instance.zonesCoord = new List<List<HexCoord>>();
+                for (int i = 0; i <= 10; i++) GameManager.instance.zonesCoord.Add(new List<HexCoord>());
+            }
+
+            if (GameManager.OnStateOfGameChanged != null)
+                GameManager.OnStateOfGameChanged.Invoke(StateOfGame.inGame);
+
+            if (TurnManager.Instance != null) TurnManager.Instance.ResumeSavedTurn(saved.turn);
         }
 
         private void SetupInitialState()
         {
+            // Une partie neuve : elle recoit son propre fichier de sauvegarde, qui sera
+            // reecrit a chaque tour. Sans cet appel, elle ecraserait celui de la partie
+            // chargee juste avant.
+            SaveManager.BeginNewGame();
+
             MapGenerator.SpawnInitialUnits(_boardController);
 
             // Solde d'ouverture : sans lui, le premier tour ne permettrait aucune action.
@@ -97,15 +156,29 @@ namespace MNLTHII.Managers
             if (GameManager.OnStateOfGameChanged != null)
                 GameManager.OnStateOfGameChanged.Invoke(StateOfGame.inGame);
 
+            int portals = PortalManager.Instance != null ? PortalManager.Instance.CountPortals() : 0;
+            Debug.Log("LocalGameEngine: partie prete. " + portals + " portails a detruire.");
+
+            StartCoroutine(OpenNewGame());
+        }
+
+        /// <summary>
+        /// L'ouverture d'une partie neuve : la visite du plateau, PUIS le premier tour.
+        ///
+        /// La visite passe avant, et pas apres : une fois le premier tour lance, le
+        /// joueur a deja de l'energie a depenser et des decisions a prendre - lui
+        /// expliquer le terrain a ce moment-la, c'est l'interrompre.
+        /// </summary>
+        private IEnumerator OpenNewGame()
+        {
+            if (playIntroTour) yield return StartCoroutine(IntroTour.Play());
+
             if (TurnManager.Instance != null)
             {
                 TurnManager.Instance.gameOver = false;
                 TurnManager.Instance.currentTurn = 1;
                 TurnManager.Instance.StartTurn();
             }
-
-            int portals = PortalManager.Instance != null ? PortalManager.Instance.CountPortals() : 0;
-            Debug.Log("LocalGameEngine: partie prete. " + portals + " portails a detruire.");
         }
 
         private void Update()

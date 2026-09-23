@@ -165,6 +165,51 @@ namespace MNLTHII.Managers
         // =================================================================
         private Mode _mode = Mode.None;
 
+        // =================================================================
+        //  SECOUSSE (le tremblement de l'impact)
+        // =================================================================
+        /// <summary>
+        /// LE TREMBLEMENT DE CAMERA, PENDANT UN PLAN.
+        ///
+        /// Le jeu en a un (EZCameraShake, sur la Main Camera) : il decale la camera par
+        /// rapport a son pivot. Pendant un plan d'action, c'est ce script qui POSE la
+        /// camera a chaque LateUpdate, et la pose repasse par-dessus la secousse. Le
+        /// coup partait donc sans que rien ne tremble - c'est justement le moment ou
+        /// ca compte le plus.
+        ///
+        /// Celle-ci est appliquee APRES le calcul de la pose, donc rien ne peut
+        /// l'ecraser. Elle est coupee net a la fin du plan.
+        /// </summary>
+        [Header("Secousse de l'impact")]
+        [Tooltip("Amplitude du tremblement, en unites monde.")]
+        public float shakeMagnitude = 0.16f;
+        [Tooltip("Inclinaison ajoutee, en degres.")]
+        public float shakeTilt = 1.4f;
+        [Tooltip("Nervosite : nombre d'oscillations par seconde.")]
+        public float shakeRoughness = 14f;
+        [Tooltip("Duree d'une secousse, en secondes reelles.")]
+        public float shakeDuration = 0.45f;
+
+        private float _shake;        // 1 au depart, descend vers 0
+        private float _shakeSeed;
+
+        /// <summary>
+        /// Secoue la camera si un plan est en cours. Appele par FXManager a chaque
+        /// impact : le tremblement reste synchronise avec l'effet et le son.
+        /// </summary>
+        public static void Kick(float strength)
+        {
+            ImmersiveCamera self = Instance;
+            if (self == null || self._mode == Mode.None) return;
+
+            if (strength < 0.1f) strength = 0.1f;
+            if (strength > 1f) strength = 1f;
+
+            // Une secousse deja en cours n'est pas remplacee par une plus faible.
+            if (strength > self._shake) self._shake = strength;
+            self._shakeSeed = Random.value * 100f;
+        }
+
         private Transform _camTransform;
 
         private PawnController _tank;
@@ -648,6 +693,28 @@ namespace MNLTHII.Managers
         {
             CameraDirector director = CameraDirector.Instance;
             if (director == null) return;
+
+            // La secousse s'ajoute a la pose finale, sinon elle serait ecrasee.
+            if (_shake > 0f)
+            {
+                float fade = (shakeDuration > 0.02f) ? dt / shakeDuration : 1f;
+                _shake -= fade;
+                if (_shake < 0f) _shake = 0f;
+
+                float t = Time.unscaledTime * shakeRoughness;
+                float nx = Mathf.PerlinNoise(_shakeSeed, t) * 2f - 1f;
+                float ny = Mathf.PerlinNoise(_shakeSeed + 13.7f, t) * 2f - 1f;
+                float nz = Mathf.PerlinNoise(_shakeSeed + 27.3f, t) * 2f - 1f;
+
+                float amount = _shake * _shake;   // s'eteint en douceur
+
+                Vector3 right = rot * Vector3.right;
+                Vector3 up = rot * Vector3.up;
+                pos += (right * nx + up * ny) * (shakeMagnitude * amount);
+                rot *= Quaternion.Euler(ny * shakeTilt * amount,
+                                        nx * shakeTilt * amount,
+                                        nz * shakeTilt * amount);
+            }
 
             if (_transition < 1f)
             {

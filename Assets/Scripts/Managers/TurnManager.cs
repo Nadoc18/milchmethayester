@@ -93,6 +93,14 @@ namespace MNLTHII.Managers
         [Tooltip("Serialise l'etat complet du plateau a chaque fin de tour. Couteux : reserve au debug.")]
         public bool logStateEachTurn = false;
 
+        // =================================================================
+        //  COULEURS DES BANDEAUX D'ETAPE (voir PhaseBanner)
+        // =================================================================
+        private static readonly Color BannerSpending = new Color(1f, 0.78f, 0.36f);
+        private static readonly Color BannerTanks = new Color(0.37f, 0.66f, 1f);
+        private static readonly Color BannerEnemies = new Color(1f, 0.30f, 0.37f);
+        private static readonly Color BannerBuildings = new Color(1f, 0.62f, 0.30f);
+
         public event Action<int> OnTurnStarted;
         public event Action<int> OnTurnEnded;
 
@@ -258,12 +266,13 @@ namespace MNLTHII.Managers
             // de la Base ; chaque usine verse sa part a son tour, pendant qu'on la
             // regarde. Sans ca le compteur avait deja tout encaisse avant que la
             // premiere usine ne s'allume, et l'animation ne montrait rien du tout.
+            // Le plancher de la Base, et lui seul. LES USINES ONT DEJA PAYE : elles
+            // versent maintenant pendant l'etape des batiments, en fin de tour
+            // precedent, avec les Bunkers et les Cristaux. Une etape "revenu" separee
+            // au debut du tour ne servait plus qu'a rallonger l'attente.
             int passive = InteractionRules.GrantBaseIncome();
-            passive += ShowFactoryIncomeTotal();
 
-            Debug.LogFormat("[Economie] Revenu du tour : +{0} Energie.", passive);
-
-            yield return StartCoroutine(ShowFactoryIncome());
+            Debug.LogFormat("[Economie] Plancher de la Base : +{0} Energie.", passive);
 
             // --- 1. L'ouverture du tour ---
             // Un tour doit COMMENCER quelque part, visiblement. Sans cet ecran la
@@ -379,13 +388,23 @@ namespace MNLTHII.Managers
                 }
 
                 MNLTHII.UI.DamagePopup.Show(spot, amount, MNLTHII.UI.DamageKind.Income);
+                if (FXManager.Instance != null) FXManager.Instance.PlayBuildingSFX();
 
-                // L'Energie est versee MAINTENANT, et le compteur monte jusqu'a sa
-                // nouvelle valeur pendant qu'on regarde cette usine-la.
+                // LE GROS CHIFFRE : il apparait en grand au centre de l'ecran, puis file
+                // vers le compteur d'Energie en retrecissant. On ne peut plus rater d'ou
+                // vient l'argent.
+                yield return StartCoroutine(EnergyGainFlight.Play(amount));
+
+                // Il vient d'arriver sur le compteur : c'est maintenant que le solde monte.
                 if (wallet != null)
                 {
                     wallet.Add(amount);
-                    if (hud != null) hud.CountEnergyTo(wallet.CurrentEnergy, factoryCountSeconds);
+
+                    if (hud != null)
+                    {
+                        hud.ShowEnergyGain(amount);
+                        hud.CountEnergyTo(wallet.CurrentEnergy, factoryCountSeconds);
+                    }
                 }
 
                 yield return _waitFactory;
@@ -416,10 +435,54 @@ namespace MNLTHII.Managers
         public void OpenSpendingPhase()
         {
             if (gameOver) return;
+            StartCoroutine(OpenSpendingRoutine());
+        }
 
+        /// <summary>Le bandeau d'etape, puis la main au joueur.</summary>
+        private IEnumerator OpenSpendingRoutine()
+        {
+            yield return StartCoroutine(PhaseBanner.PlayPhase("bannerSpending", BannerSpending));
+            if (gameOver) yield break;
+
+            BeginSpendingPhase();
+        }
+
+        /// <summary>
+        /// REPRENDRE UNE PARTIE SAUVEGARDEE, pile ou le joueur l'avait laissee.
+        ///
+        /// On ne rappelle pas StartTurn : le debut du tour verse le revenu de la Base
+        /// et joue l'enseignement, et tout cela a DEJA eu lieu avant que le fichier ne
+        /// soit ecrit. Le rejouer donnerait un revenu gratuit a chaque chargement -
+        /// il suffirait de recharger pour s'enrichir. On rentre donc directement dans
+        /// la phase de depense, qui est exactement l'instant sauvegarde.
+        /// </summary>
+        public void ResumeSavedTurn(int turn)
+        {
+            gameOver = false;
+            _gameStarted = true;
+            isPlayerTurn = true;
+            currentTurn = (turn > 0) ? turn : 1;
+
+            if (turnNumberText != null) turnNumberText.SetText("TOUR {0}", currentTurn);
+            if (GameManager.instance != null) GameManager.instance.turn = currentTurn;
+
+            if (OnTurnStarted != null) OnTurnStarted.Invoke(currentTurn);
+
+            OpenSpendingPhase();
+        }
+
+        private void BeginSpendingPhase()
+        {
             phase = TurnPhase.Spending;
             isPlayerTurn = true;
             turnTimer = spendingDuration;
+
+            // LA SAUVEGARDE AUTOMATIQUE.
+            //
+            // Ici, et nulle part ailleurs : c'est le seul moment ou plus rien ne bouge
+            // - aucune coroutine en vol, aucune camera en voyage - et c'est l'instant
+            // ou l'on veut revenir, la main au joueur, le revenu deja verse.
+            SaveManager.AutoSave();
 
             if (GameManager.instance != null) GameManager.instance.canClickOrHover = true;
 
@@ -442,6 +505,9 @@ namespace MNLTHII.Managers
         {
             if (!IsSpendingPhase) return TriviaOutcome.Blocked_NotPlayerPhase;
             if (BoardController.instance == null) return TriviaOutcome.Blocked_NotPlayerPhase;
+
+            // Une selection de cible est en cours : ce clic lui appartient.
+            if (TargetPicker.Active) return TriviaOutcome.EnergyOnly;
 
             // Tant que l'ecran de choix est ouvert, le plateau ne repond plus : sinon
             // un clic a cote creerait un deuxieme Tank pendant qu'on choisit la
@@ -605,7 +671,8 @@ namespace MNLTHII.Managers
             }
 
             // --- une case libre ou l'on peut poser un Tank ---
-            if (hex.type != TypeOfHex.plain && hex.type != TypeOfHex.desert) return false;
+            // Seule la plaine porte un Tank : le desert ne donne rien.
+            if (hex.type != TypeOfHex.plain) return false;
 
             // Hors budget, on n'ouvre rien : un ecran dont les quatre cartes sont
             // eteintes n'apprend rien. L'ancien chemin renvoie Blocked_NotEnoughEnergy,
@@ -649,6 +716,9 @@ namespace MNLTHII.Managers
 
             TriviaOutcome outcome;
 
+            PawnController orderedTank = null;
+            PawnStance orderedStance = PawnStance.Guard;
+
             if (tank != null)
             {
                 if (slot == TankChoicePanel.CrystalOrderSlot)
@@ -656,15 +726,34 @@ namespace MNLTHII.Managers
                 else if (slot >= UI.StanceStyle.Count)
                     outcome = InteractionRules.UpgradeTank(tank);
                 else
+                {
                     outcome = InteractionRules.ChangeTankStance(tank, (PawnStance)slot);
+
+                    if (outcome == TriviaOutcome.StanceChanged)
+                    {
+                        orderedTank = tank;
+                        orderedStance = (PawnStance)slot;
+                    }
+                }
             }
             else if (hex != null && slot < UI.StanceStyle.Count)
             {
                 outcome = InteractionRules.CreateTankWithStance(hex, (PawnStance)slot);
+
+                if (outcome == TriviaOutcome.TankCreated && BoardController.instance != null)
+                {
+                    orderedTank = BoardController.instance.getPawnByCoord(hex.positionInTheBoard);
+                    orderedStance = (PawnStance)slot;
+                }
             }
             else return;
 
             FinishSpendingAction(outcome);
+
+            // Le role dit CE QU'IL FAIT ; il reste a dire SUR QUI. Le plateau passe en
+            // mode selection : les cibles possibles sont marquees, un clic decide.
+            // Sans choix reel (une seule cible, ou aucune), rien ne s'ouvre.
+            if (orderedTank != null) TargetPicker.Begin(orderedTank, orderedStance);
         }
 
         /// <summary>Referme l'ecran de choix s'il etait reste ouvert.</summary>
@@ -706,6 +795,13 @@ namespace MNLTHII.Managers
             // prevision, c'est en train d'arriver.
             if (ThreatPreview.Instance != null) ThreatPreview.Instance.Hide();
 
+            // DEUXIEME ECRITURE DU TOUR : tout ce que le joueur vient d'acheter est
+            // maintenant sur le plateau. Sans elle, quitter pendant la phase des Tanks
+            // ou celle du Yetzer Hara rendrait une partie ou les trois Bunkers payes
+            // n'existent plus. La reprise repartira de la phase de depense de ce
+            // tour-ci, achats compris - rien n'est perdu, rien n'est offert deux fois.
+            SaveManager.AutoSave();
+
             StartCoroutine(PlayerUnitsPhase());
         }
 
@@ -714,12 +810,17 @@ namespace MNLTHII.Managers
 
         private IEnumerator PlayerUnitsPhase()
         {
+            yield return StartCoroutine(PhaseBanner.PlayPhase("bannerTanks", BannerTanks));
+
             yield return StartCoroutine(ProcessPlayerUnitsSequential());
 
             if (gameOver) yield break;
 
             phase = TurnPhase.Enemies;
             if (phaseText != null) phaseText.SetText("YETZER HARA");
+
+            yield return StartCoroutine(PhaseBanner.PlayPhase("bannerEnemies", BannerEnemies));
+            if (gameOver) yield break;
 
             // Passe la main a l'IA (EnemyAI ecoute cet evenement).
             if (OnTurnEnded != null) OnTurnEnded.Invoke(currentTurn);
@@ -903,6 +1004,11 @@ namespace MNLTHII.Managers
 
             PawnStance stance = tank.stance;
 
+            // --- L'ORDRE DU JOUEUR D'ABORD ---
+            // Une cible choisie a la main (voir TargetPicker) n'est pas une preference,
+            // c'est une consigne : tant qu'elle tient debout, le Tank la suit.
+            if (ApplyPlayerOrder(tank, stance, out targetPawn, out targetHex)) return;
+
             int bestScore = int.MinValue;
             int damage = InteractionRules.GetPawnDamage(tank);
             BuildingManager buildings = BuildingManager.Instance;
@@ -951,6 +1057,10 @@ namespace MNLTHII.Managers
             }
 
             // --- Ennemis ---
+            // Le point de garde est releve UNE fois : le chercher pour chaque ennemi
+            // reparcourait la liste des cases a chaque tour de boucle.
+            Hexagon guardAnchor = (stance == PawnStance.Guard) ? GuardAnchor(tank, board) : null;
+
             List<PawnController> pawns = board.PawnsInBoard;
             for (int i = 0; i < pawns.Count; i++)
             {
@@ -961,7 +1071,14 @@ namespace MNLTHII.Managers
                 // Commandement debout. C'est ce qui permet de tenir du terrain ailleurs
                 // que chez soi - avec la seule Base, un garde poste en avant ignorait
                 // l'ennemi plante devant lui.
-                int distanceToBase = (buildings != null)
+                // Avec un point de garde choisi a la main, c'est LUI le centre du
+                // perimetre : le Tank ne se laisse pas rappeler ailleurs.
+                int distanceToBase;
+
+                if (guardAnchor != null)
+                    distanceToBase = BoardController.GetHexDistance(enemy.hexcoord, guardAnchor.positionInTheBoard);
+                else
+                    distanceToBase = (buildings != null)
                                      ? buildings.DistanceToCommandPoint(enemy.hexcoord)
                                      : int.MaxValue;
 
@@ -1003,12 +1120,108 @@ namespace MNLTHII.Managers
                 }
             }
 
-            // Garde sans cible : le Tank rentre se poster pres de la Base.
-            if (targetPawn == null && targetHex == null && stance == PawnStance.Guard && buildings != null)
+            // Garde sans cible : le Tank rentre se poster pres de son point de garde -
+            // celui qu'on lui a donne, ou la Base.
+            if (targetPawn == null && targetHex == null && stance == PawnStance.Guard)
             {
-                if (buildings.DistanceToBase(tank.hexcoord) > guardRadius)
+                Hexagon anchor = GuardAnchor(tank, board);
+
+                if (anchor != null)
+                {
+                    if (BoardController.GetHexDistance(tank.hexcoord, anchor.positionInTheBoard) > 1)
+                        targetHex = anchor;
+                }
+                else if (buildings != null && buildings.DistanceToBase(tank.hexcoord) > guardRadius)
+                {
                     targetHex = FindNearestBaseHex(board, tank.hexcoord);
+                }
             }
+        }
+
+        /// <summary>
+        /// La case que ce Tank garde, s'il en a recu une. Null quand il n'a pas d'ordre
+        /// ou que la case est tombee (un Centre de Commandement s'use et s'ecroule).
+        /// </summary>
+        private Hexagon GuardAnchor(PawnController tank, BoardController board)
+        {
+            if (tank == null || tank.orderTargetCoord == null || board == null) return null;
+
+            Hexagon hex = board.getHexByCoord(tank.orderTargetCoord);
+            if (hex == null || hex.currentHP <= 0) return null;
+
+            bool valid = (hex.type == TypeOfHex.Base)
+                         || (hex.type == TypeOfHex.mountain && hex.level >= 1);
+
+            return valid ? hex : null;
+        }
+
+        /// <summary>
+        /// La consigne donnee a la main. Vrai quand elle decide de la cible du tour.
+        ///
+        ///   Chasse : l'ennemi designe, tant qu'il vit.
+        ///   Assaut : le Shofar designe - sauf si un ennemi est deja a portee, car se
+        ///            faire cribler en tapant une structure n'a jamais ferme un Shofar.
+        ///   Garde  : la consigne n'est pas une cible mais un POINT D'ANCRAGE ; elle est
+        ///            traitee dans le calcul normal, pas ici.
+        /// </summary>
+        private bool ApplyPlayerOrder(PawnController tank, PawnStance stance,
+                                      out PawnController targetPawn, out Hexagon targetHex)
+        {
+            targetPawn = null;
+            targetHex = null;
+
+            BoardController board = BoardController.instance;
+            if (board == null) return false;
+
+            if (stance == PawnStance.Hunt)
+            {
+                PawnController prey = tank.orderTargetPawn;
+                if (prey == null || prey.currentHP <= 0 || prey.hexcoord == null)
+                {
+                    tank.orderTargetPawn = null;   // il est mort : le Tank redevient libre
+                    return false;
+                }
+
+                targetPawn = prey;
+                targetHex = board.getHexByCoord(prey.hexcoord);
+                return true;
+            }
+
+            if (stance != PawnStance.Assault || tank.orderTargetCoord == null) return false;
+
+            Hexagon portal = board.getHexByCoord(tank.orderTargetCoord);
+            if (portal == null || portal.type != TypeOfHex.portal || portal.currentHP <= 0)
+            {
+                tank.orderTargetCoord = null;      // le Shofar est ferme : ordre accompli
+                return false;
+            }
+
+            // Legitime defense : ce qui est deja a portee passe avant la structure.
+            PawnController closest = null;
+            int closestDistance = int.MaxValue;
+
+            List<PawnController> pawns = board.PawnsInBoard;
+            for (int i = 0; i < pawns.Count; i++)
+            {
+                PawnController enemy = pawns[i];
+                if (enemy == null || !enemy.IsEnemy || enemy.currentHP <= 0 || enemy.hexcoord == null) continue;
+
+                int distance = BoardController.GetHexDistance(tank.hexcoord, enemy.hexcoord);
+                if (distance > tank.attackRange || distance >= closestDistance) continue;
+
+                closest = enemy;
+                closestDistance = distance;
+            }
+
+            if (closest != null)
+            {
+                targetPawn = closest;
+                targetHex = board.getHexByCoord(closest.hexcoord);
+                return true;
+            }
+
+            targetHex = portal;
+            return true;
         }
 
         /// <summary>Hexagone de Base le plus proche, pour le repli des Tanks en Garde.</summary>
@@ -1042,13 +1255,27 @@ namespace MNLTHII.Managers
         {
             phase = TurnPhase.EndOfTurn;
 
-            // Effets des batiments : bunkers, gaz, cristaux, montagnes.
+            // --- ETAPE : les batiments. Les usines qui paient, les Bunkers qui tirent,
+            // les Cristaux qui soignent, les Centres de Commandement qui s'usent. On
+            // s'arrete sur chacun.
+            bool somethingToShow = ShowFactoryIncomeTotal() > 0
+                                   || (BuildingManager.Instance != null && BuildingManager.Instance.HasAnythingToShow());
+
+            if (somethingToShow)
+                yield return StartCoroutine(PhaseBanner.PlayPhase("bannerBuildings", BannerBuildings));
+
+            // Les usines d'abord : c'est l'argent du tour suivant.
+            yield return StartCoroutine(ShowFactoryIncome());
+
+            // Effets des batiments : bunkers, cristaux, montagnes.
             if (BuildingManager.Instance != null)
                 yield return StartCoroutine(BuildingManager.Instance.ProcessEndOfTurn());
 
-            // Deploiement, instabilite et annonce de vague.
+            // Deploiement, instabilite et annonce de vague. La camera va voir CHAQUE
+            // ennemi qui sort : avant, la vague apparaissait en une frame et on ne la
+            // decouvrait qu'au tour suivant, deja au contact.
             if (PortalManager.Instance != null)
-                PortalManager.Instance.ProcessPortals();
+                yield return StartCoroutine(PortalManager.Instance.ProcessPortalsSequential());
 
             // Filet de securite : un ennemi arrive par un autre chemin que le
             // deploiement (chargement de partie, script de test) n'aurait pas de
@@ -1092,6 +1319,11 @@ namespace MNLTHII.Managers
             gameOver = true;
             isPlayerTurn = false;
             phase = TurnPhase.Idle;
+
+            // La partie est ACHEVEE : son fichier disparait. Le menu ne propose que des
+            // parties en cours - reprendre une partie deja gagnee ou deja perdue
+            // n'aurait aucun sens, et la liste se remplirait de fantomes.
+            SaveManager.ForgetCurrentGame();
 
             Debug.Log("[TurnManager] Fin de partie : " + state);
 

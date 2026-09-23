@@ -32,6 +32,10 @@ namespace MNLTHII.Managers
         public AudioClip moveSFX;
         public AudioClip explosionSFX;
         public AudioClip buildingSFX;
+
+        [Tooltip("Son joue a chaque changement d'etape (bandeau). Vide : le son de "
+               + "construction, ou celui d'apparition d'un Tank, prend le relais.")]
+        public AudioClip phaseSFX;
         
         private AudioSource _audioSource;
         private GameObject _currentFocusInstance;
@@ -65,6 +69,20 @@ namespace MNLTHII.Managers
                 if (crystalBuffVFX != null) Tools.ObjectPooler.Instance.CreatePool("CrystalBuffFX", crystalBuffVFX, 8);
                 if (buildingUpgradeFX != null) Tools.ObjectPooler.Instance.CreatePool("BuildingUpgradeFX", buildingUpgradeFX, 5);
             }
+        }
+
+        /// <summary>
+        /// Le son qui marque le passage d'une etape a l'autre. Sans clip dedie, on
+        /// reprend un son deja present : mieux vaut un son approchant que le silence,
+        /// qui laisse croire que rien ne s'est passe.
+        /// </summary>
+        public void PlayPhaseSFX()
+        {
+            AudioClip clip = (phaseSFX != null) ? phaseSFX
+                           : ((buildingSFX != null) ? buildingSFX : unitSpawnerSFX);
+
+            if (clip == null || _audioSource == null) return;
+            _audioSource.PlayOneShot(clip);
         }
 
         public void PlayBuildingSFX()
@@ -199,6 +217,11 @@ namespace MNLTHII.Managers
         /// <summary>Secousse courte, pour un coup encaisse (les destructions en ont une plus forte).</summary>
         public void ShakeLight()
         {
+            // Pendant un plan d'action, c'est ImmersiveCamera qui pose la camera a
+            // chaque frame : la secousse d'EZCameraShake serait effacee. On la lui
+            // confie, elle l'ajoute apres sa pose.
+            ImmersiveCamera.Kick(0.8f);
+
             if (EZCameraShake.CameraShaker.Instance == null) return;
             EZCameraShake.CameraShaker.Instance.ShakeOnce(hitShakeMagnitude, hitShakeRoughness, 0.05f, 0.4f);
         }

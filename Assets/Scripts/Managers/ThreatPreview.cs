@@ -361,8 +361,26 @@ namespace MNLTHII.Managers
                 }
                 else
                 {
-                    // Deplacement : le fantome glisse vers la case ou il arrivera.
-                    HexCoord next = board.GetNextStepTowards(enemy.hexcoord, targetCoord, true);
+                    // Deplacement : le fantome glisse vers la case ou il arrivera. Un
+                    // rang 2 avance de deux cases, un rang 3 de trois : on rejoue le
+                    // meme calcul que la phase ennemie, sinon l'apercu annonce un pas
+                    // quand il en fera trois.
+                    HexCoord walker = enemy.hexcoord;
+                    HexCoord next = null;
+
+                    int steps = (enemy.moveRange > 0) ? enemy.moveRange : 1;
+
+                    for (int step = 0; step < steps; step++)
+                    {
+                        if (BoardController.GetHexDistance(walker, targetCoord) <= enemy.attackRange) break;
+
+                        HexCoord candidate = board.GetNextStepTowards(walker, targetCoord, true);
+                        if (candidate == null || candidate.CompareHexCoord(walker)) break;
+
+                        walker = candidate;
+                        next = candidate;
+                    }
+
                     if (next == null || next.CompareHexCoord(enemy.hexcoord)) continue;
 
                     Hexagon destination = board.getHexByCoord(next);

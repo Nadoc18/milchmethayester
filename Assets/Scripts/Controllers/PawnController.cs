@@ -89,6 +89,17 @@ public class PawnController : MonoBehaviour
     [System.NonSerialized] public bool seekCrystal;
 
     /// <summary>
+    /// LA CIBLE CHOISIE A LA MAIN, selon le role (voir TargetPicker) :
+    ///   Garde  : la case autour de laquelle ce Tank monte la garde ;
+    ///   Assaut : le Shofar qu'il attaque.
+    /// Null : le Tank decide seul, comme avant.
+    /// </summary>
+    [System.NonSerialized] public HexCoord orderTargetCoord;
+
+    /// <summary>L'ennemi traque (role Chasse). Null : il choisit sa proie lui-meme.</summary>
+    [System.NonSerialized] public PawnController orderTargetPawn;
+
+    /// <summary>
     /// Portail qui a deploye cet ennemi. Stocke en deux int plutot qu'en HexCoord :
     /// HexCoord est une classe, et un ennemi sur deux naitrait avec une allocation.
     /// </summary>
@@ -221,6 +232,10 @@ public class PawnController : MonoBehaviour
         // Ombre de contact, anneau d'equipe, lisere, taille : ce qui le fait ressortir
         // du plateau. Sans effet si BoardReadability est desactive.
         MNLTHII.Managers.BoardReadability.NotifyPawnReady(this);
+
+        // La pastille qui nomme son role (Garde / Assaut / Chasse) au-dessus de lui.
+        if (!IsEnemy && GetComponent<MNLTHII.UI.StanceMarker>() == null)
+            gameObject.AddComponent<MNLTHII.UI.StanceMarker>();
     }
 
     private void CacheRenderers()
@@ -297,6 +312,9 @@ public class PawnController : MonoBehaviour
 
         if (_healthBar == null) _healthBar = gameObject.AddComponent<MNLTHII.UI.FloatingHealthBar>();
         _healthBar.Init();
+
+        // Elle s'affiche tout de suite pour un Tank, pas seulement au premier coup recu.
+        if (!IsEnemy) RefreshHealthBar();
     }
 
     public void UpdateCoord(HexCoord _newCoord)
@@ -389,7 +407,10 @@ public class PawnController : MonoBehaviour
 
     public void RefreshHealthBar()
     {
-        if (_healthBar != null) _healthBar.ShowAndSetHealth(currentHP, maxHP, IsEnemy);
+        // La barre d'un TANK reste affichee : on doit pouvoir lire l'etat de son
+        // armee sans attendre qu'elle se fasse frapper. Celle d'un ennemi s'efface
+        // apres quelques secondes, sinon le plateau se couvre de barres rouges.
+        if (_healthBar != null) _healthBar.ShowAndSetHealth(currentHP, maxHP, IsEnemy, !IsEnemy);
     }
 
     /// <summary>

@@ -6,13 +6,58 @@ using Newtonsoft.Json;
 namespace MNLTHII.Managers
 {
     /// <summary>
-    /// Generation procedurale du plateau.
+    /// LE PLATEAU. TOUJOURS LE MEME, ET DESSINE A LA MAIN.
     ///
-    /// Disposition : un hexagone de rayon 7 (169 cases).
-    ///   - 6 Portails, un a chacune des six pointes du plateau ;
+    /// POURQUOI ON A ARRETE DE LE TIRER AU HASARD
+    ///
+    /// L'ancienne version melangeait un sac de terrains et les distribuait : chaque
+    /// partie donnait une carte differente, et aucune n'etait jouable de la meme
+    /// facon. Trois consequences, toutes mauvaises :
+    ///
+    ///   - on ne pouvait pas apprendre le terrain, donc pas batir de plan. Le joueur
+    ///     decouvrait a chaque partie si la chance lui avait donne un Cristal pres de
+    ///     la Base ou a l'autre bout ;
+    ///   - les sites se collaient les uns aux autres. Une usine de Gaz coincee entre
+    ///     deux collines est indefendable, et une colline collee a la Base ne couvre
+    ///     rien de ce qui compte ;
+    ///   - le hasard remplacait la strategie. Perdre parce que les Cristaux sont sortis
+    ///     loin n'apprend rien.
+    ///
+    /// UN PLATEAU D'ECHECS. Les pieces sont toujours a la meme place ; ce qui change
+    /// d'une partie a l'autre, c'est CE QU'ON EN FAIT. Le joueur peut etudier la carte,
+    /// preparer des ouvertures, et decouvrir que le meme terrain se joue en defense
+    /// autour des collines, en economie par les usines lointaines, ou en offensive par
+    /// une tete de pont sur un Centre de Commandement.
+    ///
+    /// LA CARTE (rayon 7, 169 cases), a symetrie d'ordre 6 - aucun joueur n'est
+    /// avantage par un cote :
+    ///
+    ///   - 6 Shofars aux six pointes ;
     ///   - la Base au centre, sur 7 cases ;
-    ///   - tout le reste tire dans un sac de terrains melange, avec anti-agregation
-    ///     pour eviter les grosses taches d'un meme type.
+    ///   - 6 collines a 3 cases du centre, UNE PAR AXE, exactement sur le couloir qui
+    ///     va de la Base au Shofar de cet axe. Un Bunker y porte a 2 cases : il couvre
+    ///     donc le couloir depuis le bord de la Base jusqu'a mi-chemin du Shofar ;
+    ///   - 6 collines avancees au bord du plateau, entre deux Shofars : des positions
+    ///     de siege, exposees, pour qui veut pousser ;
+    ///   - 6 usines de Gaz a 4 cases, chacune couverte par une colline interieure :
+    ///     l'economie sure, celle qu'on peut defendre ;
+    ///   - 6 usines de Gaz au bord, a 7 cases : l'economie risquee, sous le nez des
+    ///     Shofars ;
+    ///   - 6 Cristaux a 5 cases, en avant de la ligne des collines : pour faire evoluer
+    ///     un Tank, il faut donc sortir de chez soi ;
+    ///   - 6 Centres de Commandement a 5 cases, jamais colles a la Base (la Base joue
+    ///     deja ce role chez soi) : ce sont des tetes de pont.
+    ///
+    /// REGLE DE VOISINAGE : aucun site (colline, montagne, gaz, cristal, Shofar, Base)
+    /// n'en touche un autre. Chaque site est entoure UNIQUEMENT de desert et de plaine,
+    /// donc de cases ou les Tanks et les ennemis circulent. Sans cette regle, un site
+    /// pouvait naitre injouable - ni defendable, ni attaquable.
+    ///
+    /// Le desert et la plaine sont poses par une regle fixe, elle aussi symetrique :
+    /// deux parties donnent exactement le meme dessin.
+    ///
+    /// Note d'optimisation : plus aucun tirage, plus aucune re-tentative. La carte est
+    /// construite en un seul passage sur les 169 cases.
     /// </summary>
     public static class MapGenerator
     {
@@ -42,196 +87,184 @@ namespace MNLTHII.Managers
             {  0,  1, -1 }
         };
 
-        private static readonly TypeOfHex[] TerrainTypes =
+        /// <summary>
+        /// LES SIX SITES, donnes par UNE case chacun. Les cinq autres copies sont
+        /// obtenues par rotation de 60 degres : la carte est donc forcement symetrique,
+        /// et il n'y a qu'une ligne a changer pour deplacer les six exemplaires d'un
+        /// site.
+        ///
+        /// Ces positions ont ete choisies pour que rien ne se touche et que chaque site
+        /// ait un role clair (voir le commentaire de la classe).
+        /// </summary>
+        private static readonly int[,] SiteSeeds =
         {
-            TypeOfHex.plain,
-            TypeOfHex.desert,
-            TypeOfHex.mountain,
+            { -3,  0,  3 },   // colline interieure : sur le couloir Base -> Shofar
+            { -7,  2,  5 },   // colline avancee : position de siege, au bord
+            { -4,  2,  2 },   // gaz sur : couvert par la colline interieure
+            { -7,  4,  3 },   // gaz expose : au bord, sous le nez des Shofars
+            { -5,  1,  4 },   // cristal : en avant de la ligne des collines
+            { -5,  4,  1 }    // centre de commandement : tete de pont
+        };
+
+        private static readonly TypeOfHex[] SiteTypes =
+        {
+            TypeOfHex.hill,
             TypeOfHex.hill,
             TypeOfHex.gas,
-            TypeOfHex.crystal
+            TypeOfHex.gas,
+            TypeOfHex.crystal,
+            TypeOfHex.mountain
         };
 
         public static string GenerateIntelligentBoard()
         {
             int radius = BoardRadius;
 
-            HashSet<string> portals = BuildCornerSet(radius);
-            HashSet<string> bases = BuildBaseSet();
+            Dictionary<int, TypeOfHex> special = BuildSpecialSites();
 
-            // Toutes les cases du plateau, pour savoir combien de terrains il faut tirer.
-            List<HexCoord> allCoords = new List<HexCoord>(256);
+            List<HexagonData> map = new List<HexagonData>(256);
+
+            int portals = 0, bases = 0;
+
             for (int q = -radius; q <= radius; q++)
             {
                 int r1 = Mathf.Max(-radius, -q - radius);
                 int r2 = Mathf.Min(radius, -q + radius);
+
                 for (int r = r1; r <= r2; r++)
                 {
-                    allCoords.Add(new HexCoord(q, r, -q - r));
+                    int s = -q - r;
+                    HexCoord coord = new HexCoord(q, r, s);
+
+                    TypeOfHex typeID;
+
+                    if (IsCorner(q, r, s, radius)) { typeID = TypeOfHex.portal; portals++; }
+                    else if (IsBase(q, r, s)) { typeID = TypeOfHex.Base; bases++; }
+                    else
+                    {
+                        TypeOfHex site;
+                        typeID = special.TryGetValue(Key(q, r, s), out site) ? site : GroundAt(q, r, s);
+                    }
+
+                    int level = (typeID == TypeOfHex.portal || typeID == TypeOfHex.Base) ? 1 : 0;
+                    int hp = MNLTHII.Rules.InteractionRules.GetBuildingMaxHP(typeID, level);
+
+                    map.Add(new HexagonData
+                    {
+                        from = coord,
+                        to = coord,
+                        type = "hex",
+                        typeID = typeID,
+                        level = level,
+                        energy = hp,
+                        CP = 0,
+                        threshold = 0
+                    });
                 }
             }
 
-            int terrainCount = 0;
-            for (int i = 0; i < allCoords.Count; i++)
-            {
-                string key = Key(allCoords[i]);
-                if (!portals.Contains(key) && !bases.Contains(key)) terrainCount++;
-            }
-
-            List<TypeOfHex> terrainBag = BuildShuffledBag(terrainCount);
-
-            Dictionary<string, TypeOfHex> assignedTypes = new Dictionary<string, TypeOfHex>(256);
-            List<HexagonData> map = new List<HexagonData>(allCoords.Count);
-
-            for (int i = 0; i < allCoords.Count; i++)
-            {
-                HexCoord coord = allCoords[i];
-                string key = Key(coord);
-
-                TypeOfHex typeID;
-
-                if (portals.Contains(key)) typeID = TypeOfHex.portal;
-                else if (bases.Contains(key)) typeID = TypeOfHex.Base;
-                else typeID = DrawTerrain(terrainBag, assignedTypes, coord);
-
-                assignedTypes[key] = typeID;
-
-                int level = (typeID == TypeOfHex.portal || typeID == TypeOfHex.Base) ? 1 : 0;
-                int hp = MNLTHII.Rules.InteractionRules.GetBuildingMaxHP(typeID, level);
-
-                map.Add(new HexagonData
-                {
-                    from = coord,
-                    to = coord,
-                    type = "hex",
-                    typeID = typeID,
-                    level = level,
-                    energy = hp,
-                    CP = 0,
-                    threshold = 0
-                });
-            }
-
-            Debug.LogFormat("[MapGenerator] Plateau genere : {0} cases, {1} portails aux pointes, {2} cases de Base.",
-                            map.Count, portals.Count, bases.Count);
+            Debug.LogFormat("[MapGenerator] Plateau fixe : {0} cases, {1} Shofars, {2} cases de Base, "
+                          + "{3} sites (collines, gaz, cristaux, centres).",
+                            map.Count, portals, bases, special.Count);
 
             return JsonConvert.SerializeObject(map);
         }
 
-        /// <summary>Les six pointes du plateau : (N,0,-N), (N,-N,0), (0,-N,N), etc.</summary>
-        private static HashSet<string> BuildCornerSet(int radius)
+        // =================================================================
+        //  LES SITES
+        // =================================================================
+        /// <summary>
+        /// Chaque graine, tournee cinq fois de 60 degres. La rotation cubique d'un
+        /// soixantieme de tour est (q, r, s) -> (-r, -s, -q) : elle garde la distance au
+        /// centre, donc les six copies sont a la meme distance de la Base.
+        /// </summary>
+        private static Dictionary<int, TypeOfHex> BuildSpecialSites()
         {
-            HashSet<string> set = new HashSet<string>();
+            Dictionary<int, TypeOfHex> sites = new Dictionary<int, TypeOfHex>(64);
 
-            for (int i = 0; i < 6; i++)
+            for (int i = 0; i < SiteSeeds.GetLength(0); i++)
             {
-                int q = Directions[i, 0] * radius;
-                int r = Directions[i, 1] * radius;
-                int s = Directions[i, 2] * radius;
-                set.Add(string.Format("{0},{1},{2}", q, r, s));
+                int q = SiteSeeds[i, 0];
+                int r = SiteSeeds[i, 1];
+                int s = SiteSeeds[i, 2];
+
+                for (int turn = 0; turn < 6; turn++)
+                {
+                    sites[Key(q, r, s)] = SiteTypes[i];
+
+                    int nq = -r, nr = -s, ns = -q;
+                    q = nq; r = nr; s = ns;
+                }
             }
-            return set;
+
+            return sites;
         }
 
-        private static HashSet<string> BuildBaseSet()
+        // =================================================================
+        //  LE SOL : desert ou plaine, toujours pareil
+        // =================================================================
+        /// <summary>
+        /// Le dessin du sol. Il ne change rien au jeu - desert et plaine se jouent
+        /// exactement de la meme facon - mais il doit etre STABLE (le joueur reconnait
+        /// sa carte) et SYMETRIQUE (aucun secteur ne doit avoir l'air different).
+        ///
+        /// On calcule donc le motif sur le REPRESENTANT de la famille de rotation : les
+        /// six cases qui se correspondent d'un secteur a l'autre recoivent forcement le
+        /// meme terrain.
+        /// </summary>
+        private static TypeOfHex GroundAt(int q, int r, int s)
         {
-            HashSet<string> set = new HashSet<string>();
+            int rq = q, rr = r;
 
+            // Le representant : la plus petite des six rotations, dans l'ordre q puis r.
+            int cq = q, cr = r, cs = s;
+            for (int turn = 0; turn < 5; turn++)
+            {
+                int nq = -cr, nr = -cs, ns = -cq;
+                cq = nq; cr = nr; cs = ns;
+
+                if (cq < rq || (cq == rq && cr < rr)) { rq = cq; rr = cr; }
+            }
+
+            int ring = Mathf.Max(Mathf.Abs(q), Mathf.Max(Mathf.Abs(r), Mathf.Abs(s)));
+            int hash = Mathf.Abs(rq * 7 + rr * 13 + ring * 5) % 5;
+
+            return (hash < 2) ? TypeOfHex.desert : TypeOfHex.plain;
+        }
+
+        private static bool IsCorner(int q, int r, int s, int radius)
+        {
+            for (int i = 0; i < 6; i++)
+            {
+                if (q == Directions[i, 0] * radius
+                    && r == Directions[i, 1] * radius
+                    && s == Directions[i, 2] * radius) return true;
+            }
+            return false;
+        }
+
+        private static bool IsBase(int q, int r, int s)
+        {
             for (int i = 0; i < BaseOffsets.GetLength(0); i++)
             {
-                set.Add(string.Format("{0},{1},{2}", BaseOffsets[i, 0], BaseOffsets[i, 1], BaseOffsets[i, 2]));
+                if (q == BaseOffsets[i, 0] && r == BaseOffsets[i, 1] && s == BaseOffsets[i, 2]) return true;
             }
-            return set;
+            return false;
         }
 
+        /// <summary>Cle entiere compacte d'une case : |q| et |r| restent bien sous 256.</summary>
+        private static int Key(int q, int r, int s)
+        {
+            return ((q + 256) << 9) | (r + 256);
+        }
+
+        // =================================================================
+        //  DEPLOIEMENT DE DEPART
+        // =================================================================
         /// <summary>
-        /// Sac de terrains equilibre puis melange. La taille est calculee a partir du
-        /// nombre reel de cases libres : pas de sac vide en fin de generation.
-        /// </summary>
-        private static List<TypeOfHex> BuildShuffledBag(int needed)
-        {
-            int perType = Mathf.CeilToInt(needed / (float)TerrainTypes.Length);
-
-            List<TypeOfHex> bag = new List<TypeOfHex>(perType * TerrainTypes.Length);
-            for (int i = 0; i < perType; i++)
-            {
-                for (int t = 0; t < TerrainTypes.Length; t++) bag.Add(TerrainTypes[t]);
-            }
-
-            for (int i = 0; i < bag.Count; i++)
-            {
-                int j = Random.Range(i, bag.Count);
-                TypeOfHex tmp = bag[i];
-                bag[i] = bag[j];
-                bag[j] = tmp;
-            }
-            return bag;
-        }
-
-        /// <summary>
-        /// Tire un terrain en evitant de coller deux cases identiques. Dix essais, puis
-        /// on accepte le dernier candidat : cela suffit a casser les grosses taches sans
-        /// jamais bloquer la generation.
-        /// </summary>
-        private static TypeOfHex DrawTerrain(List<TypeOfHex> bag, Dictionary<string, TypeOfHex> assigned, HexCoord coord)
-        {
-            if (bag.Count == 0) return TypeOfHex.plain;
-
-            int chosenIndex = -1;
-
-            for (int attempt = 0; attempt < 10; attempt++)
-            {
-                int testIndex = Random.Range(0, bag.Count);
-                TypeOfHex testType = bag[testIndex];
-
-                if (attempt == 9 || CountSameNeighbours(assigned, coord, testType) == 0)
-                {
-                    chosenIndex = testIndex;
-                    break;
-                }
-            }
-
-            if (chosenIndex < 0) chosenIndex = 0;
-
-            TypeOfHex result = bag[chosenIndex];
-            bag.RemoveAt(chosenIndex);
-            return result;
-        }
-
-        private static int CountSameNeighbours(Dictionary<string, TypeOfHex> assigned, HexCoord coord, TypeOfHex type)
-        {
-            int count = 0;
-
-            for (int i = 0; i < 6; i++)
-            {
-                int nq = coord.q + Directions[i, 0];
-                int nr = coord.r + Directions[i, 1];
-                int ns = coord.s + Directions[i, 2];
-
-                TypeOfHex neighbourType;
-                if (assigned.TryGetValue(string.Format("{0},{1},{2}", nq, nr, ns), out neighbourType)
-                    && neighbourType == type)
-                {
-                    count++;
-                }
-            }
-            return count;
-        }
-
-        private static string Key(HexCoord c)
-        {
-            return string.Format("{0},{1},{2}", c.q, c.r, c.s);
-        }
-
-        /// <summary>
-        /// Deploiement de depart : les trois Tanks du joueur autour de la Base, et une
-        /// premiere menace deja en marche.
-        ///
-        /// Pourquoi des ennemis des le tour 1 : les Portails ne deploient qu'en fin de
-        /// tour, si bien que le plateau restait desesperement vide au debut. Le joueur
-        /// cliquait, terminait son tour, et rien ne se passait - au point de croire que
-        /// le jeu ne fonctionnait pas. Trois ennemis deja en route a cinq cases donnent
-        /// une menace lisible immediatement, sans rien enlever au temps d'installation.
+        /// Deploiement de depart. Les deux compteurs sont a zero (voir
+        /// InteractionRules.INITIAL_PLAYER_TANKS et INITIAL_ENEMIES) : la partie commence
+        /// sur un plateau vide, et tout ce qui s'y trouvera ensuite aura ete decide.
         /// </summary>
         public static void SpawnInitialUnits(BoardController board)
         {
@@ -249,7 +282,7 @@ namespace MNLTHII.Managers
             for (int i = 0; i < tanks; i++)
             {
                 Hexagon hex = board.getHexByCoord(playerSpawns[i]);
-                if (hex != null && hex.type != TypeOfHex.hill) board.SpawnUnitVisual(hex, 1, "unit");
+                if (MNLTHII.Rules.InteractionRules.IsHexWalkable(hex)) board.SpawnUnitVisual(hex, 1, "unit");
             }
 
             SpawnInitialEnemies(board);
@@ -299,9 +332,8 @@ namespace MNLTHII.Managers
         }
 
         /// <summary>
-        /// La case voulue, ou sa premiere voisine libre. Les collines sont des obstacles
-        /// naturels et une case occupee refuserait le deploiement : sans ce repli, un
-        /// tirage de terrain malchanceux supprimait silencieusement un ennemi de depart.
+        /// La case voulue, ou sa premiere voisine libre : les sites (collines, usines...)
+        /// ne se marchent pas, et une case occupee refuserait le deploiement.
         /// </summary>
         private static Hexagon FindFreeSpawnHex(BoardController board, HexCoord wanted)
         {
@@ -322,10 +354,7 @@ namespace MNLTHII.Managers
 
         private static bool IsFreeForEnemy(BoardController board, Hexagon hex)
         {
-            if (hex == null) return false;
-            if (hex.type == TypeOfHex.hill) return false;      // obstacle naturel
-            if (hex.type == TypeOfHex.portal) return false;
-            if (hex.type == TypeOfHex.Base) return false;
+            if (!MNLTHII.Rules.InteractionRules.IsHexWalkable(hex)) return false;
             return board.getPawnByCoord(hex.positionInTheBoard) == null;
         }
     }

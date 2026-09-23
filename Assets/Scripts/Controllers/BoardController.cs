@@ -131,6 +131,9 @@ namespace MNLTHII
             fx.PlayExplosionSFX();
             fx.SpawnDestructionFX(destroyed.transform.position);
         }
+        // Pendant un plan d'action, la pose de la camera est refaite a chaque
+        // frame : la secousse passe par ImmersiveCamera, sinon elle est effacee.
+        MNLTHII.Managers.ImmersiveCamera.Kick(1f);
         if (CameraShaker.Instance != null) CameraShaker.Instance.ShakeOnce(4f, 4f, 0.1f, 0.9f);
 
         Destroy(oldHex.gameObject);
@@ -1566,6 +1569,9 @@ namespace MNLTHII
                 PawnController _pawnToKeep = p_hexagon.GetComponentInChildren<PawnController>();
                 if (_pawnToKeep) _pawnToKeep.transform.parent = null;
 
+                // Pendant un plan d'action, la pose de la camera est refaite a chaque
+                // frame : la secousse passe par ImmersiveCamera, sinon elle est effacee.
+                MNLTHII.Managers.ImmersiveCamera.Kick(1f);
                 if (CameraShaker.Instance != null) CameraShaker.Instance.ShakeOnce(3f, 3f, 0.1f, 0.8f);
                 AudioSource _audioSource = GetComponent<AudioSource>();
                 if (MNLTHII.Managers.FXManager.Instance != null) MNLTHII.Managers.FXManager.Instance.PlayExplosionSFX(); {
@@ -1611,6 +1617,9 @@ namespace MNLTHII
                 {
                     GameObject _pawnPrefab = Instantiate(m_HexagonPrefabs[_pawnPrefabsPath[levelIndex]], p_pawn.transform.position, Quaternion.Euler(0, 90, 0));
                     
+                    // Pendant un plan d'action, la pose de la camera est refaite a chaque
+                    // frame : la secousse passe par ImmersiveCamera, sinon elle est effacee.
+                    MNLTHII.Managers.ImmersiveCamera.Kick(1f);
                     if (CameraShaker.Instance != null) CameraShaker.Instance.ShakeOnce(3f, 3f, 0.1f, 0.8f);
                     if (MNLTHII.Managers.FXManager.Instance != null) MNLTHII.Managers.FXManager.Instance.SpawnDestructionFX(_pawnPrefab.transform.position);
 

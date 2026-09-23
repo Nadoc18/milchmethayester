@@ -39,6 +39,56 @@ namespace MNLTHII.Managers
         /// <summary>Couleur du trait de tir d'un Bunker (celle du joueur).</summary>
         private static readonly Color BunkerShotColor = new Color(0.35f, 0.95f, 1f, 1f);
 
+        // =================================================================
+        //  L'ETAPE DES BATIMENTS SE REGARDE
+        // =================================================================
+        /// <summary>
+        /// Avant, Cristaux et Centres de Commandement agissaient en une frame, sans que
+        /// la camera bouge : le joueur voyait des PV changer quelque part et ne savait
+        /// pas pourquoi. Maintenant on s'arrete sur CHAQUE batiment, le temps de lire ce
+        /// qu'il fait.
+        /// </summary>
+        [Header("Rythme de l'etape des batiments")]
+        [Tooltip("Temps passe sur chaque Cristal ou Centre de Commandement, apres l'arrivee de la camera.")]
+        public float buildingShowDuration = 1.5f;
+
+        private WaitForSeconds _waitBuilding;
+        private float _cachedBuilding = -1f;
+        private WaitForSeconds _waitTravel;
+        private float _cachedTravel = -1f;
+
+        private void RefreshBuildingWaits()
+        {
+            if (_cachedBuilding != buildingShowDuration || _waitBuilding == null)
+            {
+                _cachedBuilding = buildingShowDuration;
+                _waitBuilding = new WaitForSeconds(buildingShowDuration);
+            }
+
+            float travel = (CameraDirector.Instance != null) ? CameraDirector.Instance.moveDuration + 0.1f : 0.1f;
+            if (!Mathf.Approximately(_cachedTravel, travel) || _waitTravel == null)
+            {
+                _cachedTravel = travel;
+                _waitTravel = new WaitForSeconds(travel);
+            }
+        }
+
+        /// <summary>Y a-t-il seulement quelque chose a montrer cette fin de tour ?</summary>
+        public bool HasAnythingToShow()
+        {
+            if (BoardController.instance == null || BoardController.instance.HexagonsInBoard == null) return false;
+
+            List<Hexagon> hexes = BoardController.instance.HexagonsInBoard;
+            for (int i = 0; i < hexes.Count; i++)
+            {
+                Hexagon hex = hexes[i];
+                if (hex == null || hex.level < 1 || hex.currentHP <= 0) continue;
+                if (hex.type == TypeOfHex.hill || hex.type == TypeOfHex.crystal || hex.type == TypeOfHex.mountain)
+                    return true;
+            }
+            return false;
+        }
+
         // Coordonnees des hexagones de Base, relevees une fois : elles ne bougent
         // jamais, et l'IA des Tanks les interroge pour chaque cible evaluee.
         private readonly List<HexCoord> _baseCoords = new List<HexCoord>(8);
@@ -53,9 +103,13 @@ namespace MNLTHII.Managers
         {
             if (BoardController.instance == null || BoardController.instance.HexagonsInBoard == null) yield break;
 
+            RefreshBuildingWaits();
+
             yield return StartCoroutine(ProcessBunkers());
-            ProcessCrystals();
-            ProcessMountains();
+            yield return StartCoroutine(ProcessCrystalsSequential());
+            yield return StartCoroutine(ProcessMountainsSequential());
+
+            CameraDirector.ReleaseCamera();
 
             // Plus de ProcessGas : le Gaz est devenu une usine. Il ne fait plus rien en
             // fin de tour - il produit en DEBUT de tour, dans GrantPassiveIncome, la ou
@@ -321,7 +375,7 @@ namespace MNLTHII.Managers
         /// le soin en plus aurait refait de lui le batiment qui fait tout, et la
         /// question "c'est quoi la difference avec le Cristal" serait revenue intacte.
         /// </summary>
-        private void HealAroundCrystals()
+        private IEnumerator HealAroundCrystals()
         {
             List<Hexagon> hexes = BoardController.instance.HexagonsInBoard;
             List<PawnController> pawns = BoardController.instance.PawnsInBoard;
@@ -335,6 +389,19 @@ namespace MNLTHII.Managers
                 int heal = InteractionRules.GetCrystalHeal(hex.level);
                 int range = InteractionRules.GetCrystalRange(hex.level);
 
+                // On va VOIR le Cristal travailler : sans cela, des PV remontaient
+                // quelque part sur la carte sans que rien ne dise d'ou ca venait.
+                CameraDirector.FocusPoint(hex.transform.position);
+                yield return _waitTravel;
+
+                if (FXManager.Instance != null)
+                {
+                    FXManager.Instance.SpawnCrystalBuffFX(hex.transform.position);
+                    FXManager.Instance.PlayBuildingSFX();
+                }
+
+                bool healedSomeone = false;
+
                 for (int i = 0; i < pawns.Count; i++)
                 {
                     PawnController pawn = pawns[i];
@@ -342,18 +409,39 @@ namespace MNLTHII.Managers
                     if (pawn.currentHP >= pawn.maxHP) continue;
                     if (BoardController.GetHexDistance(hex.positionInTheBoard, pawn.hexcoord) > range) continue;
 
+                    int before = pawn.currentHP;
                     pawn.Heal(heal);
+
+                    int given = pawn.currentHP - before;
+                    if (given > 0)
+                    {
+                        MNLTHII.UI.DamagePopup.Show(pawn.transform.position + Vector3.up * 0.4f,
+                                                    given, MNLTHII.UI.DamageKind.Healed);
+                        healedSomeone = true;
+                    }
+
                     if (FXManager.Instance != null) FXManager.Instance.SpawnEnergyBuffFX(pawn.transform.position);
                 }
+
+                if (!healedSomeone)
+                {
+                    // Personne a soigner : on le montre quand meme une demi-seconde,
+                    // le joueur comprend que le Cristal est la et qu'il ne sert a rien
+                    // ce tour-ci.
+                    yield return new WaitForSeconds(0.45f);
+                    continue;
+                }
+
+                yield return _waitBuilding;
             }
         }
 
         // ---------------------------------------------------------------
         //  CRISTAL : +20 PV Max aux allies a portee, recalcule sans cumul
         // ---------------------------------------------------------------
-        private void ProcessCrystals()
+        private IEnumerator ProcessCrystalsSequential()
         {
-            HealAroundCrystals();
+            yield return StartCoroutine(HealAroundCrystals());
 
             List<PawnController> pawns = BoardController.instance.PawnsInBoard;
 
@@ -374,7 +462,7 @@ namespace MNLTHII.Managers
         // ---------------------------------------------------------------
         //  MONTAGNE : Centre de Commandement, -10 PV par tour
         // ---------------------------------------------------------------
-        private void ProcessMountains()
+        private IEnumerator ProcessMountainsSequential()
         {
             List<Hexagon> hexes = BoardController.instance.HexagonsInBoard;
 
@@ -390,6 +478,13 @@ namespace MNLTHII.Managers
                 Hexagon mountain = _mountainBuffer[i];
                 if (mountain == null) continue;
 
+                // L'usure d'un Centre est une information, pas un detail : c'est elle
+                // qui dit au joueur qu'il a quelques tours pour en profiter.
+                CameraDirector.FocusPoint(mountain.transform.position);
+                yield return _waitTravel;
+
+                if (FXManager.Instance != null) FXManager.Instance.PlayBuildingSFX();
+
                 mountain.ApplyDamage(InteractionRules.MOUNTAIN_DECAY_PER_TURN);
 
                 if (mountain.currentHP <= 0)
@@ -397,6 +492,8 @@ namespace MNLTHII.Managers
                     Debug.Log("[Montagne] Centre de Commandement epuise, il s'effondre.");
                     InteractionRules.DestroyBuilding(mountain);
                 }
+
+                yield return _waitBuilding;
             }
         }
 
@@ -429,6 +526,21 @@ namespace MNLTHII.Managers
                 }
             }
 
+            SyncBaseHexes();
+        }
+
+        /// <summary>
+        /// Remet les PV de la Base a leur valeur sauvegardee.
+        ///
+        /// InitializeBase remplit toujours le reservoir : c'est ce qu'il faut pour une
+        /// partie neuve. En reprenant une partie, la Base a deja encaisse - et une Base
+        /// qui repart a 200 PV effacerait toute la pression accumulee.
+        /// </summary>
+        public void RestoreBaseHP(int hp)
+        {
+            if (!baseInitialized) InitializeBase();
+
+            baseHP = Mathf.Clamp(hp, 0, InteractionRules.BASE_HP);
             SyncBaseHexes();
         }
 

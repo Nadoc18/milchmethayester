@@ -117,8 +117,8 @@ namespace MNLTHII.Managers
             {
                 switch (hex.type)
                 {
+                    // Le desert ne donne rien : aucune action, aucune evolution.
                     case TypeOfHex.plain:
-                    case TypeOfHex.desert:
                         result.kind = HexActionKind.TankCreate;
                         result.cost = InteractionRules.TANK_CREATION_COST;
                         result.targetLevel = 1;

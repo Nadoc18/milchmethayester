@@ -181,9 +181,18 @@ public class EnemyAI : MonoBehaviour
                 // en tient compte quand isEnemy vaut true.
                 UnitActionCard.Move(enemy);
 
-                HexCoord nextCoord = board.GetNextStepTowards(enemy.hexcoord, targetCoord, true);
-                if (nextCoord != null && !nextCoord.CompareHexCoord(enemy.hexcoord))
+                // Un rang 2 avance de deux cases, un rang 3 de trois. C'est la
+                // contrepartie de leur portee ramenee a une case : ils ne pilonnent plus
+                // de loin, ils FONCENT. La boucle s'arrete des qu'ils sont au contact.
+                int steps = (enemy.moveRange > 0) ? enemy.moveRange : 1;
+
+                for (int s = 0; s < steps; s++)
                 {
+                    if (BoardController.GetHexDistance(enemy.hexcoord, targetCoord) <= enemy.attackRange) break;
+
+                    HexCoord nextCoord = board.GetNextStepTowards(enemy.hexcoord, targetCoord, true);
+                    if (nextCoord == null || nextCoord.CompareHexCoord(enemy.hexcoord)) break;
+
                     enemy.targetCoord = nextCoord;
                     enemy.ApplySequenceAnimation(PawnController.TypeOfPawnInteractions.target);
                     yield return _waitMove;
