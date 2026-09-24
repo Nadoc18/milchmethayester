@@ -56,6 +56,17 @@ namespace MNLTHII.Factories
             newHexagon.energymax = hex.energymax;
             newHexagon.turnsAlive = hex.turnsAlive;
             newHexagon.buildingType = hex.buildingType;
+
+            // LA BULLE D'UN CENTRE DE COMMANDEMENT FAIT PARTIE DE CET ETAT.
+            //
+            // Changer de modele detruit l'ancien hexagone et en fabrique un neuf. Tout
+            // ce qui n'est pas recopie ici est donc PERDU - et la bulle ne l'etait pas.
+            // Consequence vue en jeu : on batissait un Centre, il n'avait aucune bulle,
+            // et elle n'apparaissait qu'a l'etape des batiments, trois phases plus
+            // tard, quand le filet de securite de BuildingManager la reposait. Entre
+            // les deux, le Centre ne repoussait rien et n'etait protege par rien.
+            newHexagon.shieldHP = hex.shieldHP;
+            newHexagon.shieldMax = hex.shieldMax;
             newHexagon.transform.parent = parentTransform;
             newHexagon.gameObject.AddComponent<AudioSource>();
             return newHexagon;

@@ -10,7 +10,11 @@ public static class PrefabsPath
     public static readonly int[] Hill = new int[] {  2, 3 ,4};
     public static readonly int[] Enemy = new int[] { 22, 23,24};
     public static readonly int[] Attacker = new int[] {  20, 21 };
-    public static readonly int[] Destroyed = new int[] { 10, 11 };
+    // La ruine d'un Shofar. Niveau 0 : l'epave (le meme modele que celui pose au
+    // moment de la destruction). Niveau 1 : le Shofar RETOURNE - on reprend le modele
+    // du Cristal au rang 3, la seule structure lumineuse du jeu, faute d'un modele
+    // dedie. Change l'indice ici le jour ou tu en modelises un.
+    public static readonly int[] Destroyed = new int[] { 39, 17 };
    
     public static int[] GetHexagonPrefabs(TypeOfHex state)
     {

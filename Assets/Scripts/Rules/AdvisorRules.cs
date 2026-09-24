@@ -386,6 +386,10 @@ namespace MNLTHII.Rules
                 if (hex == null || hex.type != TypeOfHex.mountain) continue;
                 if (hex.level >= InteractionRules.MAX_TERRAIN_LEVEL) continue;
 
+                // Un conseil qu'on ne peut pas suivre est pire que pas de conseil :
+                // le conseiller ne propose que ce qui est a portee de construction.
+                if (!InteractionRules.CanBuildAt(hex.positionInTheBoard)) continue;
+
                 int price = InteractionRules.GetBuildCost(TypeOfHex.mountain, hex.level + 1);
                 if (price > energy) continue;
 
@@ -529,6 +533,7 @@ namespace MNLTHII.Rules
                 Hexagon hex = hexes[i];
                 if (hex == null || hex.type != TypeOfHex.gas) continue;
                 if (hex.level >= InteractionRules.MAX_TERRAIN_LEVEL) continue;
+                if (!InteractionRules.CanBuildAt(hex.positionInTheBoard)) continue;
 
                 int cost = InteractionRules.GetBuildCost(TypeOfHex.gas, hex.level + 1);
                 if (cost > energy || cost >= bestCost) continue;
@@ -688,6 +693,7 @@ namespace MNLTHII.Rules
                 // de Tank.
                 if (hex.type != TypeOfHex.plain) continue;
                 if (board.getPawnByCoord(hex.positionInTheBoard) != null) continue;
+                if (!InteractionRules.CanBuildAt(hex.positionInTheBoard)) continue;
 
                 int distance = buildings.DistanceToBase(hex.positionInTheBoard);
 
@@ -716,6 +722,7 @@ namespace MNLTHII.Rules
                 Hexagon hex = hexes[i];
                 if (hex == null || hex.type != TypeOfHex.hill) continue;
                 if (hex.level >= InteractionRules.MAX_TERRAIN_LEVEL) continue;
+                if (!InteractionRules.CanBuildAt(hex.positionInTheBoard)) continue;
 
                 int distance = buildings.DistanceToBase(hex.positionInTheBoard);
                 if (distance > 4 || distance >= bestDistance) continue;

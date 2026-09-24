@@ -74,7 +74,7 @@ namespace MNLTHII.Managers
         private bool _built;
         private bool _skipped;
         private int _step;
-        private int _stepCount = 10;
+        private int _stepCount = 12;
 
         // =================================================================
         //  ENTREE
@@ -125,16 +125,27 @@ namespace MNLTHII.Managers
 
             yield return Stop(TypeOfHex.plain, "Photos/Plain", "introGroundTitle", "introGroundBody");
 
+            // La portee de construction vient tot : c'est la regle qui decide de TOUT
+            // ce qui suit. Savoir ce que coute un Bunker ne sert a rien tant qu'on ne
+            // sait pas ou on a le droit d'en poser un.
+            yield return Stop(null, "Photos/tank_1", "introRangeTitle", "introRangeBody",
+                              InteractionRules.BUILD_RANGE_FROM_BASE);
+
             yield return Stop(TypeOfHex.gas, "Photos/gas_1", "introGasTitle", "introGasBody",
                               InteractionRules.COST_GAS_L1, InteractionRules.GAS_INCOME_L1,
-                              InteractionRules.COST_GAS_L2, InteractionRules.GAS_INCOME_L2);
+                              InteractionRules.COST_GAS_L2, InteractionRules.GAS_INCOME_L2,
+                              InteractionRules.SPAWN_ACCEL_PER_INCOME);
 
             yield return Stop(TypeOfHex.hill, "Photos/Bunker1", "introBunkerTitle", "introBunkerBody",
                               InteractionRules.COST_BUNKER_L1, InteractionRules.BUNKER_DAMAGE_L1,
                               InteractionRules.BUNKER_TARGETS_L1, InteractionRules.BUNKER_RANGE,
                               InteractionRules.COST_BUNKER_L2, InteractionRules.BUNKER_DAMAGE_L2,
                               InteractionRules.BUNKER_TARGETS_L2,
-                              InteractionRules.BUNKER_DECAY_L1, InteractionRules.BUNKER_WEAR_PER_SHOT);
+                              // {7} l'usure par tir, {8} les PV du rang 1 : ensemble,
+                              // ils disent combien de salves il a dans le ventre. La
+                              // decroissance passive n'est plus annoncee parce qu'elle
+                              // n'existe plus.
+                              InteractionRules.BUNKER_WEAR_PER_SHOT, InteractionRules.BUNKER_HP_L1);
 
             yield return Stop(TypeOfHex.crystal, "Photos/Crystal_1", "introCrystalTitle", "introCrystalBody",
                               InteractionRules.COST_CRYSTAL_L1, InteractionRules.CRYSTAL_HEAL_L1,
@@ -146,7 +157,11 @@ namespace MNLTHII.Managers
                               InteractionRules.MOUNTAIN_COMMAND_RADIUS_L1,
                               InteractionRules.COST_MOUNTAIN_L2, InteractionRules.MOUNTAIN_REPEL_L2,
                               InteractionRules.MOUNTAIN_COMMAND_RADIUS_L2,
-                              InteractionRules.MOUNTAIN_DECAY_PER_TURN);
+                              // {6} la bulle, {7} ce qu'elle reprend par tour de calme.
+                              // Le Centre ne fond plus tout seul : on vient le lui
+                              // prendre, et il faut d'abord percer.
+                              InteractionRules.MOUNTAIN_SHIELD_L1,
+                              InteractionRules.MOUNTAIN_SHIELD_REGEN);
 
             yield return Stop(TypeOfHex.portal, "Photos/Portal", "introPortalTitle", "introPortalBody",
                               InteractionRules.PORTAL_COUNT,
@@ -155,6 +170,12 @@ namespace MNLTHII.Managers
                               InteractionRules.PORTAL_EVOLVE_AFTER_TURNS,
                               InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD,
                               InteractionRules.PORTAL_SHIELD_DOWN_TURNS);
+
+            // Les deux etapes du Tanya. Elle vient APRES le Shofar : on ne peut
+            // parler de retourner un Shofar qu'a qui vient d'apprendre ce que c'est.
+            yield return Stop(null, "Photos/Portal2", "introTurnTitle", "introTurnBody",
+                              InteractionRules.COST_TURN_PORTAL,
+                              InteractionRules.TURNED_PORTAL_INCOME);
 
             yield return Stop(null, "Photos/tank_2", "introTankTitle", "introTankBody",
                               InteractionRules.TANK_CREATION_COST, 30, 10,

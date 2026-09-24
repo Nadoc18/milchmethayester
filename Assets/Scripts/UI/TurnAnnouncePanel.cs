@@ -61,15 +61,15 @@ namespace MNLTHII.Managers
         // =================================================================
         //  RYTHME
         // =================================================================
-        [Header("Rythme")]
-        [Tooltip("Duree du fondu d'entree.")]
+        // OBSOLETES : voir PhasePace.TurnAnnounce*. L'annonce d'ouverture suit
+        // l'allure choisie comme le reste, mais elle n'est PAS sautable : elle
+        // n'appartient pas a une phase automatique, c'est le debut du tour du joueur.
+        [Header("Rythme (OBSOLETE - voir PhasePace)")]
         public float fadeInDuration = 0.28f;
-
-        [Tooltip("Temps d'affichage plein, entre les deux fondus.")]
         public float holdDuration = 0.95f;
-
-        [Tooltip("Duree du fondu de sortie.")]
         public float fadeOutDuration = 0.32f;
+
+        private readonly MNLTHII.Managers.PaceWait _pace = new MNLTHII.Managers.PaceWait();
 
         private void Awake()
         {
@@ -115,9 +115,9 @@ namespace MNLTHII.Managers
 
             panelRoot.SetActive(true);
 
-            yield return Fade(0f, 1f, fadeInDuration);
-            yield return new WaitForSecondsRealtime(holdDuration);
-            yield return Fade(1f, 0f, fadeOutDuration);
+            yield return Fade(0f, 1f, MNLTHII.Managers.PhasePace.Seconds(MNLTHII.Managers.PhasePace.TurnAnnounceFadeIn));
+            yield return _pace.For(MNLTHII.Managers.PhasePace.TurnAnnounceHold);
+            yield return Fade(1f, 0f, MNLTHII.Managers.PhasePace.Seconds(MNLTHII.Managers.PhasePace.TurnAnnounceFadeOut));
 
             Hide();
         }

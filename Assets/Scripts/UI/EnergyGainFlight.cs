@@ -24,12 +24,14 @@ namespace MNLTHII.Managers
     {
         public static EnergyGainFlight Instance;
 
-        [Header("Rythme")]
-        [Tooltip("Temps d'affichage en grand au centre, avant le depart.")]
+        // OBSOLETES : voir PhasePace.EnergyPop / EnergyHold / EnergyFlight. Six
+        // usines par tour, c'etait huit secondes de gros chiffres qui volent : la
+        // ceremonie represente a elle seule un cinquieme du temps d'un tour.
+        [Header("Rythme (OBSOLETE - voir PhasePace)")]
         public float holdDuration = 0.55f;
-
-        [Tooltip("Duree du vol vers le compteur.")]
         public float flightDuration = 0.65f;
+
+        private readonly MNLTHII.Managers.PaceWait _pace = new MNLTHII.Managers.PaceWait();
 
         [Header("Taille")]
         public float bigFontSize = 190f;
@@ -158,11 +160,13 @@ namespace MNLTHII.Managers
             _group.alpha = 0f;
 
             // 1. Il grossit en apparaissant, au centre.
+            float pause = MNLTHII.Managers.PhasePace.Seconds(MNLTHII.Managers.PhasePace.EnergyPop);
             float t = 0f;
-            while (t < 0.18f)
+            while (t < pause)
             {
+                if (MNLTHII.Managers.PhasePace.AnySkip) break;
                 t += Time.unscaledDeltaTime;
-                float k = Mathf.Clamp01(t / 0.18f);
+                float k = Mathf.Clamp01(t / pause);
                 _group.alpha = k;
                 float pop = Mathf.Lerp(0.6f, 1.08f, k);
                 _numberRect.localScale = new Vector3(pop, pop, 1f);
@@ -172,16 +176,18 @@ namespace MNLTHII.Managers
             _group.alpha = 1f;
             _numberRect.localScale = Vector3.one;
 
-            yield return new WaitForSecondsRealtime(holdDuration);
+            yield return _pace.For(MNLTHII.Managers.PhasePace.EnergyHold);
 
             // 2. Il file vers le compteur en retrecissant.
             Vector2 from = Vector2.zero;
             Vector2 to = CounterPosition();
-            float duration = (flightDuration > 0.05f) ? flightDuration : 0.05f;
+            float duration = MNLTHII.Managers.PhasePace.Seconds(MNLTHII.Managers.PhasePace.EnergyFlight);
+            if (duration < 0.05f) duration = 0.05f;
 
             t = 0f;
             while (t < duration)
             {
+                if (MNLTHII.Managers.PhasePace.AnySkip) break;
                 t += Time.unscaledDeltaTime;
                 float k = Mathf.Clamp01(t / duration);
                 float ease = k * k;                     // lent au depart, rapide a l'arrivee

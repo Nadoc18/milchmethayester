@@ -140,63 +140,45 @@ namespace MNLTHII.Managers
         public GameObject gasIncomeFX;
         public float gasIncomeFXLifetime = 2f;
 
-        /// <summary>
-        /// Temps passe sur chaque usine, APRES que la camera y est arrivee. Nouveau nom
-        /// (l'ancien factoryIncomeDelay valait 0.85, garde dans la scene) : a ce
-        /// rythme on ne voyait rien, la camera repartait avant d'avoir lu le chiffre.
-        /// </summary>
+        [Tooltip("OBSOLETE - regle dans PhasePace.FactoryShow.")]
         public float factoryShowDuration = 1.6f;
 
-        /// <summary>Duree de la montee du compteur pour UNE usine.</summary>
+        [Tooltip("OBSOLETE - regle dans PhasePace.FactoryCount.")]
         public float factoryCountSeconds = 1.1f;
 
         [Tooltip("La camera va voir chaque usine qui paie.")]
         public bool focusFactories = true;
 
-        private WaitForSeconds _waitFactory;
-        private float _cachedFactory = -1f;
-        private WaitForSeconds _waitFactoryTravel;
-        private float _cachedFactoryTravel = -1f;
+        // =================================================================
+        //  LES ATTENTES
+        // =================================================================
+        //
+        // Les cinq champs ci-dessous ne sont PLUS LUS. Les durees vivent maintenant
+        // dans MNLTHII.Managers.PhasePace, toutes ensemble, pour deux raisons
+        // expliquees en detail la-bas : elles ne se reglent qu'en se comparant les
+        // unes aux autres, et une valeur deja serialisee dans la scene gagnait
+        // contre la valeur du code. Ils sont conserves pour ne pas salir la scene.
+        //
+        // Deux instances d'attente et non une seule : la ceremonie du revenu et la
+        // phase des Tanks sont deux coroutines distinctes, et une PaceWait partagee
+        // verrait l'une reecrire l'echeance de l'autre.
+        private readonly PaceWait _pace = new PaceWait();
+        private readonly PaceWait _paceIncome = new PaceWait();
 
+        [Tooltip("OBSOLETE - regle dans PhasePace.UnitFocus.")]
         public float focusDelay = 0.95f;
 
-        [Tooltip("Temps de visee, entre l'orientation et le coup.")]
+        [Tooltip("OBSOLETE - regle dans PhasePace.UnitAim.")]
         public float aimDelay = 0.35f;
 
-        [Tooltip("Temps apres le coup. Doit couvrir la vie du chiffre de degats.")]
+        [Tooltip("OBSOLETE - regle dans PhasePace.UnitResolve.")]
         public float resolveDelay = 1.05f;
 
-        [Tooltip("Duree d'un pas de deplacement.")]
+        [Tooltip("OBSOLETE - regle dans PhasePace.UnitMove.")]
         public float moveDelay = 0.85f;
 
-        [Tooltip("Respiration entre deux unites.")]
+        [Tooltip("OBSOLETE - regle dans PhasePace.UnitStep.")]
         public float stepDelay = 0.55f;
-
-        // Instances reconstruites quand un reglage change : WaitForSeconds est
-        // immuable, et en allouer une a chaque yield ferait travailler le
-        // ramasse-miettes au milieu de l'action.
-        private WaitForSeconds _waitFocus, _waitAim, _waitResolve, _waitMove, _waitStep;
-        private float _cachedFocus = -1f, _cachedAim = -1f, _cachedResolve = -1f;
-        private float _cachedMove = -1f, _cachedStep = -1f;
-
-        private void RefreshPhaseWaits()
-        {
-            if (!Mathf.Approximately(_cachedFocus, focusDelay))
-            { _cachedFocus = focusDelay; _waitFocus = new WaitForSeconds(focusDelay); }
-
-            if (!Mathf.Approximately(_cachedAim, aimDelay))
-            { _cachedAim = aimDelay; _waitAim = new WaitForSeconds(aimDelay); }
-
-            if (!Mathf.Approximately(_cachedResolve, resolveDelay))
-            { _cachedResolve = resolveDelay; _waitResolve = new WaitForSeconds(resolveDelay); }
-
-            if (!Mathf.Approximately(_cachedMove, moveDelay))
-            { _cachedMove = moveDelay; _waitMove = new WaitForSeconds(moveDelay); }
-
-            if (!Mathf.Approximately(_cachedStep, stepDelay))
-            { _cachedStep = stepDelay; _waitStep = new WaitForSeconds(stepDelay); }
-        }
-
 
         public bool IsSpendingPhase { get { return phase == TurnPhase.Spending && !gameOver; } }
 
@@ -320,7 +302,7 @@ namespace MNLTHII.Managers
         /// toute la difference entre une economie et un chiffre.
         ///
         /// Note d'optimisation : aucune liste n'est construite, on parcourt celle du
-        /// plateau. Les attentes sont mises en cache dans _waitFactory.
+        /// plateau, et l'attente est une PaceWait reutilisee.
         /// </summary>
         /// <summary>Total que les usines vont verser, pour le journal et l'annonce.</summary>
         private int ShowFactoryIncomeTotal()
@@ -333,10 +315,8 @@ namespace MNLTHII.Managers
             int total = 0;
             for (int i = 0; i < hexes.Count; i++)
             {
-                Hexagon hex = hexes[i];
-                if (hex == null || hex.type != TypeOfHex.gas) continue;
-                if (hex.level < 1 || hex.currentHP <= 0) continue;
-                total += InteractionRules.GetGasIncome(hex.level);
+                // Les usines ET les Shofars retournes : GetHexIncome connait les deux.
+                total += InteractionRules.GetHexIncome(hexes[i]);
             }
             return total;
         }
@@ -348,8 +328,6 @@ namespace MNLTHII.Managers
             List<Hexagon> hexes = BoardController.instance.HexagonsInBoard;
             if (hexes == null) yield break;
 
-            RefreshFactoryWait();
-
             FXManager fx = FXManager.Instance;
             EnergyManager wallet = EnergyManager.Instance;
             HudController hud = HudController.Instance;
@@ -357,11 +335,16 @@ namespace MNLTHII.Managers
             for (int i = 0; i < hexes.Count; i++)
             {
                 Hexagon hex = hexes[i];
-                if (hex == null || hex.type != TypeOfHex.gas) continue;
-                if (hex.level < 1 || hex.currentHP <= 0) continue;
+                if (hex == null) continue;
 
-                int amount = InteractionRules.GetGasIncome(hex.level);
+                // Une usine de Gaz, ou un Shofar retourne : les deux paient, et les
+                // deux meritent qu'on s'arrete dessus.
+                int amount = InteractionRules.GetHexIncome(hex);
                 if (amount <= 0) continue;
+
+                // Chaque usine est un "element" : le bouton "suivant" passe de l'une
+                // a l'autre, exactement comme il passe d'un Tank au Tank d'apres.
+                PhasePace.BeginUnit();
 
                 Vector3 spot = hex.transform.position;
 
@@ -374,7 +357,7 @@ namespace MNLTHII.Managers
 
                     // On attend que la camera soit ARRIVEE : le chiffre qui s'envole
                     // pendant le trajet, on ne le voyait pas.
-                    yield return _waitFactoryTravel;
+                    yield return _paceIncome.For(CameraDirector.RawTravel + PhasePace.CameraMargin);
                 }
 
                 if (gasIncomeFX != null)
@@ -403,29 +386,14 @@ namespace MNLTHII.Managers
                     if (hud != null)
                     {
                         hud.ShowEnergyGain(amount);
-                        hud.CountEnergyTo(wallet.CurrentEnergy, factoryCountSeconds);
+                        hud.CountEnergyTo(wallet.CurrentEnergy, PhasePace.Seconds(PhasePace.FactoryCount));
                     }
                 }
 
-                yield return _waitFactory;
+                yield return _paceIncome.For(PhasePace.FactoryShow);
             }
 
             if (focusFactories) CameraDirector.ReleaseCamera();
-        }
-
-        private void RefreshFactoryWait()
-        {
-            float travel = (CameraDirector.Instance != null) ? CameraDirector.Instance.moveDuration + 0.1f : 0f;
-            if (_waitFactoryTravel == null || !Mathf.Approximately(_cachedFactoryTravel, travel))
-            {
-                _cachedFactoryTravel = travel;
-                _waitFactoryTravel = new WaitForSeconds(travel);
-            }
-
-            if (_cachedFactory == factoryShowDuration && _waitFactory != null) return;
-
-            _cachedFactory = factoryShowDuration;
-            _waitFactory = new WaitForSeconds(factoryShowDuration);
         }
 
         // =================================================================
@@ -476,6 +444,12 @@ namespace MNLTHII.Managers
             phase = TurnPhase.Spending;
             isPlayerTurn = true;
             turnTimer = spendingDuration;
+
+            // Filet de securite : si une phase automatique s'est terminee par un
+            // chemin inhabituel, la barre disparait au plus tard ici. Espace et
+            // Entree redeviennent "terminer le tour", et une seule chose a la fois
+            // peut les lire.
+            PhasePace.EndPhase();
 
             // LA SAUVEGARDE AUTOMATIQUE.
             //
@@ -674,6 +648,11 @@ namespace MNLTHII.Managers
             // Seule la plaine porte un Tank : le desert ne donne rien.
             if (hex.type != TypeOfHex.plain) return false;
 
+            // Hors de portee, on n'ouvre pas l'ecran : il proposerait quatre postures
+            // pour un Tank qui ne peut pas naitre la. L'ancien chemin prend le relais
+            // et renvoie Blocked_OutOfRange, qui est le message utile.
+            if (!InteractionRules.CanBuildAt(hex.positionInTheBoard)) return false;
+
             // Hors budget, on n'ouvre rien : un ecran dont les quatre cartes sont
             // eteintes n'apprend rien. L'ancien chemin renvoie Blocked_NotEnoughEnergy,
             // et c'est ce message-la qui est utile.
@@ -810,17 +789,26 @@ namespace MNLTHII.Managers
 
         private IEnumerator PlayerUnitsPhase()
         {
+            // LA BARRE DE CONTROLE S'OUVRE ICI. A partir de maintenant le joueur ne
+            // decide plus rien : il doit au moins pouvoir decider a quelle vitesse il
+            // regarde. Chaque phase repart avec les drapeaux a zero - un "tout
+            // passer" demande pendant les Tanks ne doit pas manger la phase du Yetzer
+            // Hara, qui est celle qu'il a le plus besoin de voir.
+            PhasePace.BeginPhase();
+
             yield return StartCoroutine(PhaseBanner.PlayPhase("bannerTanks", BannerTanks));
 
             yield return StartCoroutine(ProcessPlayerUnitsSequential());
 
-            if (gameOver) yield break;
+            if (gameOver) { PhasePace.EndPhase(); yield break; }
 
             phase = TurnPhase.Enemies;
             if (phaseText != null) phaseText.SetText("YETZER HARA");
 
+            PhasePace.BeginPhase();
+
             yield return StartCoroutine(PhaseBanner.PlayPhase("bannerEnemies", BannerEnemies));
-            if (gameOver) yield break;
+            if (gameOver) { PhasePace.EndPhase(); yield break; }
 
             // Passe la main a l'IA (EnemyAI ecoute cet evenement).
             if (OnTurnEnded != null) OnTurnEnded.Invoke(currentTurn);
@@ -829,8 +817,6 @@ namespace MNLTHII.Managers
 
         private IEnumerator ProcessPlayerUnitsSequential()
         {
-            RefreshPhaseWaits();
-
             BoardController board = BoardController.instance;
             if (board == null || board.PawnsInBoard == null) yield break;
 
@@ -849,13 +835,17 @@ namespace MNLTHII.Managers
                 PawnController tank = _tankBuffer[i];
                 if (tank == null || tank.currentHP <= 0) continue;
 
+                // Un nouveau Tank prend la main : le "suivant" demande sur le
+                // precedent est oublie.
+                PhasePace.BeginUnit();
+
                 if (FXManager.Instance != null) FXManager.Instance.SetUnitFocus(tank.transform);
 
                 // La carte d'unite nomme qui agit. Sans elle, la phase automatique
                 // n'est qu'une suite de mouvements que le joueur subit : c'est ici
                 // que la posture qu'il a choisie se montre en train d'operer.
                 UnitActionCard.Focus(tank, i + 1);
-                yield return _waitFocus;
+                yield return _pace.For(PhasePace.UnitFocus);
 
                 // --- Ordre "rejoindre un Cristal" : tant qu'il n'est pas au contact,
                 // le Tank marche vers le Cristal le plus proche au lieu de suivre sa
@@ -893,10 +883,10 @@ namespace MNLTHII.Managers
 
                                 tank.targetCoord = step;
                                 tank.ApplySequenceAnimation(PawnController.TypeOfPawnInteractions.target);
-                                yield return _waitMove;
+                                yield return _pace.For(PhasePace.UnitMove);
                             }
 
-                            yield return _waitStep;
+                            yield return _pace.For(PhasePace.UnitStep);
                             continue;
                         }
                     }
@@ -933,12 +923,12 @@ namespace MNLTHII.Managers
 
                     tank.attackCoord = targetCoord;
                     tank.ApplySequenceAnimation(PawnController.TypeOfPawnInteractions.attack);
-                    yield return _waitAim;
+                    yield return _pace.For(PhasePace.UnitAim);
 
                     if (targetPawn != null) InteractionRules.ResolveCombat(tank, targetPawn);
                     else InteractionRules.ResolveCombat(tank, targetHex);
 
-                    yield return _waitResolve;
+                    yield return _pace.For(PhasePace.UnitResolve);
 
                     if (actionShot) yield return ImmersiveCamera.EndActionShot();
                 }
@@ -972,11 +962,11 @@ namespace MNLTHII.Managers
 
                         tank.targetCoord = nextCoord;
                         tank.ApplySequenceAnimation(PawnController.TypeOfPawnInteractions.target);
-                        yield return _waitMove;
+                        yield return _pace.For(PhasePace.UnitMove);
                     }
                 }
 
-                yield return _waitStep;
+                yield return _pace.For(PhasePace.UnitStep);
             }
 
             if (FXManager.Instance != null) FXManager.Instance.SetUnitFocus(null);
@@ -1255,6 +1245,11 @@ namespace MNLTHII.Managers
         {
             phase = TurnPhase.EndOfTurn;
 
+            // Troisieme et derniere phase automatique du tour, et la plus longue des
+            // trois : usines, Bunkers, Cristaux, Centres, deploiements, floraison.
+            // C'est celle ou le bouton "tout passer" sert le plus.
+            PhasePace.BeginPhase();
+
             // --- ETAPE : les batiments. Les usines qui paient, les Bunkers qui tirent,
             // les Cristaux qui soignent, les Centres de Commandement qui s'usent. On
             // s'arrete sur chacun.
@@ -1288,7 +1283,17 @@ namespace MNLTHII.Managers
                 BoardController.instance.RefreshStructureHealthBars();
             }
 
+            // LA TERRE REFLEURIT. Apres les batiments et apres le deploiement : ce qui
+            // est rendu ici l'est pour le tour suivant, et le joueur le decouvre juste
+            // avant de reprendre la main.
+            if (LandBloom.Instance != null)
+                yield return StartCoroutine(LandBloom.Instance.ProcessBlooms());
+
             SerializeGameState();
+
+            // La barre de controle se retire : ce qui suit - l'annonce du tour, les
+            // enseignements - avance deja au rythme du joueur, qui clique pour passer.
+            PhasePace.EndPhase();
 
             if (CheckEndOfGame()) yield break;
 
@@ -1319,6 +1324,10 @@ namespace MNLTHII.Managers
             gameOver = true;
             isPlayerTurn = false;
             phase = TurnPhase.Idle;
+
+            // Plus aucune phase n'est en cours : la barre de controle ne doit pas
+            // rester par-dessus l'ecran de fin.
+            PhasePace.EndPhase();
 
             // La partie est ACHEVEE : son fichier disparait. Le menu ne propose que des
             // parties en cours - reprendre une partie deja gagnee ou deja perdue

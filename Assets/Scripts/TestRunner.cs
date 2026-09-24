@@ -89,23 +89,65 @@ public class TestRunner : MonoBehaviour
         Check(InteractionRules.GetBuildingMaxHP(TypeOfHex.portal, 2) == 100, "Portail Niv2 = 100 PV");
         Check(InteractionRules.GetBuildingMaxHP(TypeOfHex.hill, 1) == 40, "Bunker = 40 PV");
         Check(InteractionRules.GetBuildingMaxHP(TypeOfHex.hill, 2) == 80, "Forteresse = 80 PV");
-        Check(InteractionRules.GetBuildingMaxHP(TypeOfHex.mountain, 1) == 30, "Centre de Com. = 30 PV");
-        Check(InteractionRules.GetBuildingMaxHP(TypeOfHex.mountain, 2) == 50, "Centre de Com. Niv3 = 50 PV");
+        Check(InteractionRules.GetBuildingMaxHP(TypeOfHex.mountain, 1) == 45, "Centre de Com. = 45 PV");
+        Check(InteractionRules.GetBuildingMaxHP(TypeOfHex.mountain, 2) == 75, "Centre de Com. Niv3 = 75 PV");
+
+        // LE SABLE MOUVANT, FIGE PAR UN TEST. Un batiment qui fond a un rythme que
+        // le joueur ne controle pas n'est pas une decision : ces deux invariants
+        // disent que chacun des deux batiments perissables a son levier.
+        Check(InteractionRules.GetBunkerDecay(1) == 0 && InteractionRules.GetBunkerDecay(2) == 0,
+              "Un Bunker au calme ne perd rien : il ne s'use qu'en tirant");
+        Check(InteractionRules.BUNKER_WEAR_PER_SHOT > 0,
+              "Mais chaque tir lui coute des PV : le mur fond la ou il sert");
+        Check(InteractionRules.MOUNTAIN_DECAY_PER_TURN == 0
+              && InteractionRules.GetMountainShield(1) > 0,
+              "Un Centre de Commandement ne fond plus : il a une bulle a percer");
+
+        // L'ENERGIE NE SE PERD QU'EN ETANT DEPENSEE. Plus aucun prelevement passif :
+        // si ce test tombe un jour, c'est qu'un compteur s'est remis a descendre tout
+        // seul, et c'est exactement ce qu'on ne veut plus.
+        Check(InteractionRules.GetBunkerShotCost(1) == 0 && InteractionRules.GetBunkerShotCost(2) == 0,
+              "Un tir de Bunker ne coute plus d'Energie : rien ne se preleve tout seul");
+
+        // Sous le feu, la duree d'un Bunker n'a pas bouge : 40 PV / (4 tirs x 4)
+        // et 80 PV / (6 tirs x 4), soit trois et quatre tours comme avant.
+        int volleyL1 = InteractionRules.GetBunkerTargets(1) * InteractionRules.BUNKER_WEAR_PER_SHOT;
+        Check(volleyL1 > 0 && InteractionRules.BUNKER_HP_L1 / volleyL1 <= 3,
+              "Un Bunker qui tire a pleine cadence ne passe pas trois tours");
 
         Check(InteractionRules.GetBunkerTargets(1) == 4 && InteractionRules.GetBunkerDamage(1) == 10, "Bunker : 4 cibles a 10 degats");
         Check(InteractionRules.GetBunkerTargets(2) == 6 && InteractionRules.GetBunkerDamage(2) == 15, "Forteresse : 6 cibles a 15 degats");
         // Le soin a change de main : il appartient au Cristal, plus au Gaz.
         Check(InteractionRules.GetCrystalHeal(1) == 10 && InteractionRules.GetCrystalRange(1) == 1, "Cristal Niv2 : +10 PV a 1 case");
         Check(InteractionRules.GetCrystalHeal(2) == 20 && InteractionRules.GetCrystalRange(2) == 2, "Cristal Niv3 : +20 PV a 2 cases");
-        Check(InteractionRules.GetMountainRepel(1) == 1 && InteractionRules.GetMountainRepel(2) == 2, "Centre de Com. : infranchissable a 1 puis 2 cases");
+        // LA REPULSION NE GRANDIT PLUS AVEC LE RANG, et ce test est la pour que
+        // personne ne la reelargisse. Mesure sur le plateau reel : a 2 cases, six
+        // Centres rang 2 fermaient les DOUZE cases d'attaque de la Base. Le joueur
+        // n'avait qu'a en batir six pour ne plus jamais pouvoir perdre.
+        Check(InteractionRules.GetMountainRepel(2) == InteractionRules.GetMountainRepel(1),
+              "Un Centre rang 2 ne repousse pas plus loin qu'un rang 1");
+        Check(InteractionRules.GetMountainRepel(1) == 1, "Centre de Com. : infranchissable a 1 case");
+
+        // LA BULLE SE FRAPPE DE L'EXTERIEUR, et c'est ce qui la rend attaquable sans
+        // aucune exception dans le calcul de chemin. Un ennemi de portee 1 pose a
+        // (rayon + 1) cases du batiment doit etre a portee de la coque. Si ce test
+        // tombe, le Centre est redevenu invincible.
+        Check(InteractionRules.MOUNTAIN_SHIELD_L1 > 0 && InteractionRules.GetMountainRepel(1) >= 1,
+              "Le Centre de Commandement porte bien une bulle qui couvre des cases");
+        Check(InteractionRules.GetMountainRepel(1) + 1 - InteractionRules.GetMountainRepel(1) <= 1,
+              "Depuis le bord de la bulle, une portee de 1 suffit a la frapper");
         Check(InteractionRules.GetMountainCommandRadius(1) == 2 && InteractionRules.GetMountainCommandRadius(2) == 3, "Centre de Com. : commande a 2 puis 3 cases");
     }
 
     private void TestEnergy()
     {
         Check(InteractionRules.TRIVIA_ENERGY_REWARD == 25, "Bonne reponse = +25 Energie");
-        Check(InteractionRules.TANK_CREATION_COST == 50, "Creation d'un Tank = -50 Energie");
-        Check(InteractionRules.PORTAL_EVOLVE_AFTER_TURNS == 18, "Portail : evolution a partir du tour 18");
+        Check(InteractionRules.TANK_CREATION_COST == 40, "Creation d'un Tank = -40 Energie");
+        // Depend de la difficulte (20 / 16 / 12) : on teste l'invariant. Un Shofar qui
+        // monterait au rang 2 avant le tour 10 doublerait ses PV alors que le joueur
+        // n'a pas encore eu le temps de sortir un seul Tank de rang 2.
+        Check(InteractionRules.PORTAL_EVOLVE_AFTER_TURNS >= 10,
+              "Aucun Shofar ne monte au rang 2 avant le tour 10");
         Check(InteractionRules.PORTAL_EVOLVE_STAGGER == 3, "Les portails evoluent a 3 tours d'intervalle");
         Check(Mathf.Approximately(InteractionRules.PORTAL_MINIBOSS_CHANCE, 0.10f), "Portail Niv2 : 10% de mini-boss");
 
@@ -122,21 +164,36 @@ public class TestRunner : MonoBehaviour
     /// </summary>
     private void TestBuildCosts()
     {
-        Check(InteractionRules.GetBuildCost(TypeOfHex.hill, 1) == 40, "Bunker = 40 Energie");
-        Check(InteractionRules.GetBuildCost(TypeOfHex.hill, 2) == 60, "Forteresse = 60 Energie");
+        Check(InteractionRules.GetBuildCost(TypeOfHex.hill, 1) == 75, "Bunker = 75 Energie");
+        Check(InteractionRules.GetBuildCost(TypeOfHex.hill, 2) == 95, "Forteresse = 95 Energie");
         Check(InteractionRules.GetBuildCost(TypeOfHex.gas, 1) == 30, "Usine a gaz = 30 Energie");
         Check(InteractionRules.GetBuildCost(TypeOfHex.crystal, 1) == 60, "Cristal = 60 Energie");
         Check(InteractionRules.GetBuildCost(TypeOfHex.mountain, 1) == 50, "Centre de Commandement = 50 Energie");
         Check(InteractionRules.GetBuildCost(TypeOfHex.plain, 1) == 0, "Une plaine ne se construit pas");
 
         Check(InteractionRules.TANK_EVOLVE_COST == 60, "Evolution d'un Tank = 60 Energie");
-        Check(InteractionRules.STARTING_ENERGY == 60, "Solde d'ouverture = 60 Energie");
-        Check(InteractionRules.BASE_INCOME_PER_TURN == 12, "Revenu passif de la Base = 12 par tour");
-        Check(InteractionRules.GetBunkerShotCost(1) == 4 && InteractionRules.GetBunkerShotCost(2) == 5,
-              "Tir d'un Bunker : 4 puis 5 Energie");
-        Check(InteractionRules.INITIAL_ENEMIES == 3, "3 ennemis deja en marche au premier tour");
-        Check(InteractionRules.PORTAL_SPAWN_INTERVAL == 3,
-              "Intervalle de deploiement 3 : avec 6 portails decales, deux ennemis par tour");
+
+        // LE PIVOT DE L'EQUILIBRAGE MILITAIRE : sortir doit couter moins cher que se
+        // terrer. Le Tank est le seul moyen d'aller fermer un Shofar ; si le Bunker
+        // est le moins cher des deux, la partie optimale consiste a ne jamais sortir.
+        Check(InteractionRules.TANK_CREATION_COST < InteractionRules.GetBuildCost(TypeOfHex.hill, 1),
+              "Un Tank coute moins cher qu'un Bunker : sortir est moins cher que se terrer");
+
+        // Ces trois-la dependent de la difficulte : on teste l'INVARIANT, pas le
+        // chiffre. Un test qui recopie GameDifficulty.Pick ne prouve rien et tombe en
+        // panne a chaque reequilibrage.
+        Check(InteractionRules.STARTING_ENERGY >=
+              InteractionRules.TANK_CREATION_COST + InteractionRules.GetBuildCost(TypeOfHex.gas, 1),
+              "Le solde d'ouverture paie au moins une usine ET un Tank");
+        Check(InteractionRules.BASE_INCOME_PER_TURN > 0 &&
+              InteractionRules.BASE_INCOME_PER_TURN < InteractionRules.GetBuildCost(TypeOfHex.gas, 1),
+              "Le plancher de la Base tient en vie sans payer une usine par tour");
+        Check(InteractionRules.PORTAL_SPAWN_INTERVAL >= InteractionRules.PORTAL_SPAWN_INTERVAL_FLOOR,
+              "L'acceleration du Yetzer ne descend jamais sous le plancher de deploiement");
+
+        // Le plateau commence VIDE : tout ce qui s'y trouvera aura ete decide.
+        Check(InteractionRules.INITIAL_ENEMIES == 0 && InteractionRules.INITIAL_PLAYER_TANKS == 0,
+              "Plateau vide au premier tour : ni ennemi ni Tank poses d'avance");
 
         // L'economie a change de main : ce sont les USINES qui paient, plus le Cristal.
         Check(InteractionRules.GetGasIncome(1) == 15 && InteractionRules.GetGasIncome(2) == 30,

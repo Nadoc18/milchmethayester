@@ -14,7 +14,14 @@ namespace MNLTHII.Managers
         StanceChange,  // un Tank allie qui ne peut pas evoluer : on change sa posture
         Build,         // colline, gaz, cristal, montagne
         MaxLevel,      // deja au niveau maximum
-        Occupied       // un ennemi occupe la case
+        Occupied,      // un ennemi occupe la case
+
+        /// <summary>
+        /// Le desert. Ni action, ni evolution, jamais - c'est la seule case du plateau
+        /// dont la reponse est "rien", et il faut le DIRE. Sans ce cas, le panneau se
+        /// fermait sans un mot et le joueur croyait a une case qui ne repond pas.
+        /// </summary>
+        Barren
     }
 
     /// <summary>
@@ -27,6 +34,27 @@ namespace MNLTHII.Managers
         public int cost;
         public int targetLevel;
         public bool affordable;
+
+        /// <summary>
+        /// Case hors de portee de construction : trop loin de la Base, d'un Tank a
+        /// nous et de tout Centre de Commandement.
+        ///
+        /// Un champ a part, et non un "kind" de plus : l'action reste ce qu'elle est
+        /// (poser un Tank, batir une usine), c'est seulement le DROIT de la faire ici
+        /// qui manque. L'info-bulle continue donc d'expliquer ce que la case donnerait,
+        /// et ajoute pourquoi c'est refuse - ce qui vaut mieux qu'un panneau muet.
+        /// </summary>
+        public bool outOfRange;
+
+        /// <summary>
+        /// Refus du a l'ombre d'un Shofar encore debout, et non a la distance.
+        ///
+        /// Deux refus qui se reparent differemment ne peuvent pas porter le meme mot :
+        /// celui de la portee se repare en amenant un Tank, celui de l'ombre en fermant
+        /// le Shofar. Un joueur qui lit "hors de portee" au pied d'un Shofar ferait
+        /// venir un Tank pour rien.
+        /// </summary>
+        public bool portalShadow;
 
         /// <summary>
         /// Posture que le clic donnera, quand kind vaut StanceChange. Sans elle
@@ -124,6 +152,18 @@ namespace MNLTHII.Managers
                         result.targetLevel = 1;
                         break;
 
+                    // AT'HAPKHA : la ruine d'un Shofar se retourne, une fois.
+                    case TypeOfHex.Destroyed:
+                        if (hex.level >= 1)
+                        {
+                            result.kind = HexActionKind.MaxLevel;
+                            return result;
+                        }
+                        result.kind = HexActionKind.Build;
+                        result.targetLevel = 1;
+                        result.cost = InteractionRules.COST_TURN_PORTAL;
+                        break;
+
                     case TypeOfHex.hill:
                     case TypeOfHex.gas:
                     case TypeOfHex.crystal:
@@ -138,8 +178,32 @@ namespace MNLTHII.Managers
                         result.cost = InteractionRules.GetBuildCost(hex.type, result.targetLevel);
                         break;
 
+                    // LE DESERT. On ne le laisse pas tomber dans "rien a faire" :
+                    // il a une reponse, et c'est justement qu'il n'en a pas.
+                    case TypeOfHex.desert:
+                        result.kind = HexActionKind.Barren;
+                        return result;
+
                     default:
                         return result;
+                }
+            }
+
+            // La portee ne concerne que ce qu'on POSE : un Tank sur une plaine, un
+            // batiment sur un site. Changer la posture d'un Tank deja la, ou le faire
+            // evoluer pres d'un Cristal, n'a jamais rien a voir avec la distance.
+            if (result.kind == HexActionKind.TankCreate || result.kind == HexActionKind.Build)
+            {
+                result.portalShadow = InteractionRules.IsInPortalShadow(hex.positionInTheBoard);
+                result.outOfRange = result.portalShadow
+                                    || !InteractionRules.CanBuildAt(hex.positionInTheBoard);
+                if (result.outOfRange)
+                {
+                    // Le bouton s'eteint comme pour un prix trop eleve : tous les
+                    // ecrans qui testent deja "affordable" refusent sans rien savoir
+                    // de la nouvelle regle.
+                    result.affordable = false;
+                    return result;
                 }
             }
 
@@ -503,7 +567,16 @@ namespace MNLTHII.Managers
 
             if (titleText != null) titleText.text = TitleFor(hex, action.kind);
 
-            if (subtitleText != null)
+            if (subtitleText != null && action.outOfRange)
+            {
+                // Hors de portee : la raison passe AVANT le niveau vise. Savoir qu'on
+                // viserait le rang 2 ne sert a rien tant qu'on n'a pas le droit de
+                // batir ici.
+                subtitleText.gameObject.SetActive(true);
+                subtitleText.text = MNLTHII.UI.HudLabelsRuntime.Get(
+                    action.portalShadow ? "portalShadowWhy" : "outOfRangeWhy");
+            }
+            else if (subtitleText != null)
             {
                 bool showLevel = (action.kind == HexActionKind.Build || action.kind == HexActionKind.TankEvolve);
                 bool showStance = (action.kind == HexActionKind.StanceChange);
@@ -867,6 +940,10 @@ namespace MNLTHII.Managers
                         case TypeOfHex.gas: kind = MNLTHII.UI.IconKind.Factory; tint = iconGas; break;
                         case TypeOfHex.crystal: kind = MNLTHII.UI.IconKind.Crystal; tint = iconCrystal; break;
                         case TypeOfHex.mountain: kind = MNLTHII.UI.IconKind.Command; tint = iconCommand; break;
+
+                        // Le Shofar retourne garde SON symbole, en couleur alliee :
+                        // c'est le meme objet, passe de l'autre cote.
+                        case TypeOfHex.Destroyed: kind = MNLTHII.UI.IconKind.Portal; tint = iconGas; break;
                     }
                     break;
 
@@ -874,6 +951,9 @@ namespace MNLTHII.Managers
                     kind = MNLTHII.UI.IconKind.Enemy;
                     tint = iconDanger;
                     break;
+
+                // Le desert ne porte aucun pictogramme : il n'y a rien a symboliser.
+                // C'est coherent avec ce que le panneau dit - ici, rien.
             }
 
             bool show = (kind != MNLTHII.UI.IconKind.None);
@@ -922,6 +1002,7 @@ namespace MNLTHII.Managers
 
                 case HexActionKind.TankCreate: phrase = effectTankCreate; break;
                 case HexActionKind.TankEvolve: phrase = effectTankEvolve; break;
+                case HexActionKind.Barren: phrase = MNLTHII.UI.HudLabelsRuntime.Get("barrenBody"); break;
             }
 
             bool show = !string.IsNullOrEmpty(phrase);
@@ -970,10 +1051,16 @@ namespace MNLTHII.Managers
                 case HexActionKind.MaxLevel:
                     switch (hex.type)
                     {
+                        // LE BUNKER : ce qu'il tire, jusqu'ou, et CE QUE CHAQUE TIR LUI
+                        // COUTE. La troisieme ligne disait le prix en Energie ; elle dit
+                        // maintenant le prix en PV, parce que c'est desormais la seule
+                        // usure qui existe - et c'est la ligne qui explique pourquoi un
+                        // Bunker place au bon endroit dure, et un autre non.
                         case TypeOfHex.hill:
                             SetDetail(0, labelShotsPerTurn, InteractionRules.GetBunkerTargets(level));
                             SetDetail(1, labelRange, InteractionRules.BUNKER_RANGE);
-                            SetDetail(2, labelShotCost, InteractionRules.GetBunkerShotCost(level));
+                            SetDetail(2, MNLTHII.UI.HudLabelsRuntime.Get("wearPerShot", labelDecay),
+                                      InteractionRules.BUNKER_WEAR_PER_SHOT);
                             break;
 
                         // L'USINE : tout son interet tient en un nombre, son revenu.
@@ -998,7 +1085,17 @@ namespace MNLTHII.Managers
                             SetDetail(0, MNLTHII.UI.HudLabelsRuntime.Get("repelRadius", labelMoveBonus),
                                       InteractionRules.GetMountainRepel(level));
                             SetDetail(1, labelCommandRadius, InteractionRules.GetMountainCommandRadius(level));
-                            SetDetail(2, labelDecay, InteractionRules.MOUNTAIN_DECAY_PER_TURN);
+
+                            // LA BULLE. Sur un Centre deja pose, son etat reel - c'est
+                            // le chiffre qui dit s'il faut aller le defendre. Sur une
+                            // montagne nue, ce qu'on achetera. La ligne ne parle plus
+                            // d'usure : il n'y en a plus.
+                            string shieldLabel = MNLTHII.UI.HudLabelsRuntime.Get("shieldLabel", labelHitPoints);
+
+                            if (hex.level >= 1)
+                                SetDetailValue(2, shieldLabel, hex.shieldHP, hex.shieldMax);
+                            else
+                                SetDetail(2, shieldLabel, InteractionRules.GetMountainShield(level));
                             break;
                     }
                     break;
@@ -1034,6 +1131,34 @@ namespace MNLTHII.Managers
             }
         }
 
+        /// <summary>
+        /// Une ligne de detail dont la valeur est un RAPPORT : l'etat actuel sur le
+        /// maximum, comme la bulle d'un Centre de Commandement.
+        ///
+        /// Un seul chiffre ne suffirait pas : "32" ne dit rien, "32/40" dit qu'on a
+        /// encaisse et qu'il reste de la marge. C'est la difference entre une donnee et
+        /// une information.
+        ///
+        /// SetText avec deux arguments ecrit dans le tampon interne de TMP : aucune
+        /// chaine intermediaire n'est allouee, contrairement a un string.Format.
+        /// </summary>
+        private void SetDetailValue(int index, string label, int current, int max)
+        {
+            if (string.IsNullOrEmpty(label)) return;
+            if (detailLabels == null || index >= detailLabels.Length) return;
+
+            if (detailLabels[index] != null)
+            {
+                detailLabels[index].gameObject.SetActive(true);
+                detailLabels[index].text = label;
+            }
+            if (detailValues != null && index < detailValues.Length && detailValues[index] != null)
+            {
+                detailValues[index].gameObject.SetActive(true);
+                detailValues[index].SetText("{0}/{1}", current, max);
+            }
+        }
+
         private void ClearDetails()
         {
             if (detailLabels != null)
@@ -1054,6 +1179,7 @@ namespace MNLTHII.Managers
                 case HexActionKind.StanceChange: return labelStanceChange;
                 case HexActionKind.MaxLevel: return labelMaxLevel;
                 case HexActionKind.Occupied: return labelOccupied;
+                case HexActionKind.Barren: return MNLTHII.UI.HudLabelsRuntime.Get("barrenTitle");
 
                 case HexActionKind.Build:
                     switch (hex.type)
@@ -1062,6 +1188,8 @@ namespace MNLTHII.Managers
                         case TypeOfHex.gas: return labelGas;
                         case TypeOfHex.crystal: return labelCrystal;
                         case TypeOfHex.mountain: return labelMountain;
+                        case TypeOfHex.Destroyed:
+                            return MNLTHII.UI.HudLabelsRuntime.Get("turnPortal", labelGas);
                     }
                     return string.Empty;
             }

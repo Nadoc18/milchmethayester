@@ -23,6 +23,14 @@ namespace MNLTHII.Data
         /// <summary>PV courants de la structure.</summary>
         public int hp;
 
+        /// <summary>
+        /// La bulle d'un Centre de Commandement. Nouveau champ : un fichier ecrit avant
+        /// son existence le relit a zero, et ProcessMountainsSequential lui rend alors
+        /// une bulle pleine plutot que de laisser le Centre nu. Le format reste en
+        /// version 1 - ajouter un champ ne casse aucune partie en cours.
+        /// </summary>
+        public int sh;
+
         /// <summary>Tours ecoules depuis la creation (Shofars).</summary>
         public int ta;
 

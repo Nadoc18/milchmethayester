@@ -174,6 +174,7 @@ namespace MNLTHII.Managers
                 saved.l = hex.level;
                 saved.hp = hex.currentHP;
                 saved.ta = hex.turnsAlive;
+                saved.sh = hex.shieldHP;
                 saved.dead = dead;
                 file.hexes.Add(saved);
 
@@ -372,7 +373,12 @@ namespace MNLTHII.Managers
                     // Exactement ce que fait BoardController.ReplaceWithDestroyedVisual :
                     // la case n'est plus un Shofar, elle ne compte plus pour la victoire.
                     hex.type = TypeOfHex.Destroyed;
-                    hex.level = 0;
+
+                    // Le niveau distingue la RUINE (0) du Shofar RETOURNE (1). Le
+                    // forcer a zero effacerait un retournement paye 120 - et avec lui
+                    // le rang de fin de partie, qui se compte sur ces cases-la.
+                    hex.level = (saved.l >= 1) ? 1 : 0;
+
                     hex.currentHP = 0;
                     hex.maxHP = 0;
                     hex.energy = 0;
@@ -383,6 +389,9 @@ namespace MNLTHII.Managers
                     // son vrai type, on la fait recalmer comme un terrain : sans cela, une
                     // epave garderait l'eclat d'un Shofar debout.
                     BoardReadability.NotifyHexReady(hex);
+
+                    // Retourne : il lui faut son modele lumineux, pas l'epave.
+                    if (hex.level >= 1) board.UpgradeHexVisual(hex);
                     continue;
                 }
 
@@ -393,6 +402,20 @@ namespace MNLTHII.Managers
                     int hp = (saved.hp > hex.maxHP) ? hex.maxHP : saved.hp;
                     hex.currentHP = hp;
                     hex.energy = hp;
+                }
+
+                // LA BULLE D'UN CENTRE DE COMMANDEMENT.
+                //
+                // ResetShield d'abord, pour retrouver le maximum du rang ; la valeur
+                // sauvegardee ensuite. Un fichier ecrit avant que la bulle existe porte
+                // zero - on lui rend alors une bulle pleine plutot que de rendre au
+                // joueur une tete de pont a nu qu'il croyait protegee.
+                if (hex.type == TypeOfHex.mountain && hex.level >= 1)
+                {
+                    MNLTHII.Rules.InteractionRules.ResetShield(hex);
+
+                    if (saved.sh > 0)
+                        hex.shieldHP = (saved.sh > hex.shieldMax) ? hex.shieldMax : saved.sh;
                 }
             }
         }

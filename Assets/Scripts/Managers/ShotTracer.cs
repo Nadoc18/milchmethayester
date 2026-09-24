@@ -75,7 +75,12 @@ namespace MNLTHII.Managers
             }
 
             _instance.Shoot(start, end, color);
-            return _instance.travelTime;
+
+            // La duree RENDUE est deja a l'allure choisie : l'appelant attend ce
+            // delai exact pour faire tomber l'impact. Le trait lui-meme voyage a la
+            // meme vitesse (voir _activeTravel), donc le coup porte toujours quand la
+            // tete du trait touche la cible, en Normal comme en Eclair.
+            return _instance._activeTravel;
         }
 
         private bool Build()
@@ -123,9 +128,14 @@ namespace MNLTHII.Managers
             return true;
         }
 
+        /// <summary>Duree de vol du trait, a l'allure en cours au moment du tir.</summary>
+        private float _activeTravel = 0.3f;
+
         private void Shoot(Vector3 start, Vector3 end, Color color)
         {
             if (_lines == null) return;
+
+            _activeTravel = Mathf.Max(0.02f, MNLTHII.Managers.PhasePace.Seconds(travelTime));
 
             LineRenderer line = _lines[_next];
             _bornAt[_next] = Time.unscaledTime;
@@ -150,8 +160,9 @@ namespace MNLTHII.Managers
 
             bool any = false;
             float now = Time.unscaledTime;
-            float travel = Mathf.Max(0.01f, travelTime);
-            float fade = Mathf.Max(0.01f, fadeTime);
+            float travel = _activeTravel;
+            float hold = MNLTHII.Managers.PhasePace.Seconds(holdTime);
+            float fade = Mathf.Max(0.01f, MNLTHII.Managers.PhasePace.Seconds(fadeTime));
 
             for (int i = 0; i < PoolSize; i++)
             {
@@ -168,7 +179,7 @@ namespace MNLTHII.Managers
                     line.SetPosition(1, Vector3.Lerp(_starts[i], _ends[i], k));
                     ApplyColor(line, _colors[i], 1f);
                 }
-                else if (age < travel + holdTime)
+                else if (age < travel + hold)
                 {
                     // 2. Il relie le canon a la cible, pleinement allume.
                     line.SetPosition(1, _ends[i]);
@@ -177,7 +188,7 @@ namespace MNLTHII.Managers
                 else
                 {
                     // 3. Il s'eteint.
-                    float t = (age - travel - holdTime) / fade;
+                    float t = (age - travel - hold) / fade;
                     if (t >= 1f)
                     {
                         line.enabled = false;

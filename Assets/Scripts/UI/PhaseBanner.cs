@@ -29,18 +29,14 @@ namespace MNLTHII.Managers
     {
         public static PhaseBanner Instance;
 
-        [Header("Rythme")]
-        [Tooltip("Duree du fondu d'entree.")]
+        // OBSOLETES : le rythme du bandeau se regle dans PhasePace, avec celui de
+        // toutes les autres mises en scene (BannerFadeIn, BannerHold, BannerFadeOut,
+        // BannerMinBeforeSkip). Conserves pour ne rien casser dans une scene qui
+        // porterait deja un PhaseBanner.
+        [Header("Rythme (OBSOLETE - voir PhasePace)")]
         public float fadeInDuration = 0.25f;
-
-        [Tooltip("Temps d'affichage plein. Il faut pouvoir LIRE les deux lignes sans se "
-               + "depecher : deux secondes et demie, pas une.")]
         public float holdDuration = 2.5f;
-
-        [Tooltip("Duree du fondu de sortie.")]
         public float fadeOutDuration = 0.35f;
-
-        [Tooltip("Temps minimum avant qu'un clic ou une touche puisse abreger le bandeau.")]
         public float minimumBeforeSkip = 0.5f;
 
         private CanvasGroup _group;
@@ -234,9 +230,9 @@ namespace MNLTHII.Managers
             // meme que l'oeil ait lu le titre.
             if (FXManager.Instance != null) FXManager.Instance.PlayPhaseSFX();
 
-            yield return Fade(0f, 1f, fadeInDuration);
+            yield return Fade(0f, 1f, MNLTHII.Managers.PhasePace.Seconds(MNLTHII.Managers.PhasePace.BannerFadeIn));
             yield return Hold();
-            yield return Fade(1f, 0f, fadeOutDuration);
+            yield return Fade(1f, 0f, MNLTHII.Managers.PhasePace.Seconds(MNLTHII.Managers.PhasePace.BannerFadeOut));
 
             canvasGo.SetActive(false);
         }
@@ -245,16 +241,28 @@ namespace MNLTHII.Managers
         /// Le temps de lecture. Un clic, Espace ou Entree passent au suivant - apres un
         /// court delai, pour qu'un clic destine au plateau n'efface pas le bandeau
         /// avant qu'il soit apparu.
+        ///
+        /// Le temps d'affichage est passe de 2,5 s a 1,2 s, et c'est le reglage qui
+        /// rapporte le plus pour le moins de risque : cinq bandeaux par tour, c'etait
+        /// quinze secondes a lire cinq mots qu'on connait par coeur au troisieme tour.
+        /// Ceux qui decouvrent le jeu ont la premiere partie pour les lire ; ceux qui
+        /// le connaissent n'ont plus a les subir.
         /// </summary>
         private IEnumerator Hold()
         {
             float waited = 0f;
+            float duration = MNLTHII.Managers.PhasePace.Seconds(MNLTHII.Managers.PhasePace.BannerHold);
+            float minimum = MNLTHII.Managers.PhasePace.Seconds(MNLTHII.Managers.PhasePace.BannerMinBeforeSkip);
 
-            while (waited < holdDuration)
+            while (waited < duration)
             {
+                // "Tout passer" emporte aussi le bandeau : sinon la commande la plus
+                // radicale du jeu s'arretait poliment devant chaque annonce d'etape.
+                if (MNLTHII.Managers.PhasePace.AnySkip) yield break;
+
                 waited += Time.unscaledDeltaTime;
 
-                if (waited >= minimumBeforeSkip
+                if (waited >= minimum
                     && (Input.GetMouseButtonDown(0)
                         || Input.GetKeyDown(KeyCode.Space)
                         || Input.GetKeyDown(KeyCode.Return)

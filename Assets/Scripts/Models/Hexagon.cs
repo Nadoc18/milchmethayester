@@ -47,6 +47,21 @@ public class Hexagon : MonoBehaviour
     [Header("Portail : nombre de tours ecoules depuis sa creation")]
     public int turnsAlive = 0;
 
+    /// <summary>
+    /// LA BULLE D'UN CENTRE DE COMMANDEMENT. Les degats ennemis y passent d'abord ;
+    /// tant qu'elle tient, le batiment ne prend rien. Voir
+    /// InteractionRules.FilterMountainDamage.
+    ///
+    /// Porte ici, sur l'hexagone, et non dans un gestionnaire a part comme l'etat des
+    /// Shofars : un Centre ne survit pas a sa propre destruction - sa case redevient
+    /// une montagne nue - donc il n'y a rien a conserver apres lui. Le bouclier d'un
+    /// Shofar, lui, doit survivre au remplacement de l'objet par son epave, et c'est
+    /// pour cela seulement qu'il vit dans PortalManager.
+    /// </summary>
+    [Header("Centre de Commandement : sa bulle")]
+    public int shieldHP = 0;
+    public int shieldMax = 0;
+
     public HexCoord positionInTheBoard;
     public HexCoord attackCoord;
     public Transform transformToAttack;

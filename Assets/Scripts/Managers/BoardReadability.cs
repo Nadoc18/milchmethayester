@@ -86,6 +86,51 @@ namespace MNLTHII.Managers
             new TerrainTuning { type = TypeOfHex.mountain, brightness = 1.35f, heightScale = 0.7f },
         };
 
+        // =================================================================
+        //  1 bis. LA COULEUR DES PLAINES
+        // =================================================================
+        /// <summary>
+        /// LA PLAINE TIRE VERS LA TERRE CUITE, LA COLLINE RESTE VERTE.
+        ///
+        /// La plaine est le seul terrain qui porte un Tank, et depuis que tout
+        /// l'interieur du plateau en est devenu une, c'est l'information de sol la plus
+        /// consultee de la partie. Elle etait pourtant du meme vert eteint que la
+        /// colline : deux terrains qui se jouent de facons opposees - l'un se batit, on
+        /// ne marche pas sur l'autre - et qui se ressemblaient de loin.
+        ///
+        /// Le calme du plateau aggravait le probleme : en desaturant, il rapprochait
+        /// justement les verts.
+        ///
+        /// Une teinte chaude separe les deux sans crier. Ce n'est pas un rouge vif -
+        /// la montagne est deja rouge, et le plateau doit rester en retrait derriere
+        /// les pions. C'est une terre seche : verte contre ocre, la difference se lit
+        /// d'un coup d'oeil meme en pleine desaturation.
+        ///
+        /// Elle MULTIPLIE l'albedo au lieu de le remplacer : le relief, les ombres et
+        /// les details du modele restent visibles, la case est seulement rechauffee.
+        /// </summary>
+        [Header("1 bis. Couleur des plaines")]
+        [Tooltip("Decoche : les plaines gardent la couleur de leur modele.")]
+        public bool tintPlains = true;
+
+        /// <summary>
+        /// POUSSEE PLUS LOIN QU'ON NE LA CHOISIRAIT A L'OEIL NU, et c'est voulu.
+        ///
+        /// Le shader calme desature de 45 % APRES avoir multiplie par cette couleur :
+        /// pres de la moitie de la teinte est donc mangee avant d'arriver a l'ecran.
+        /// Mesure sur des verts de terrain representatifs, ecart colline / plaine une
+        /// fois le plateau calme :
+        ///
+        ///   sans teinte            0,07   les deux se confondent
+        ///   (1 / 0,70 / 0,60)      0,17
+        ///   (1 / 0,55 / 0,42)      0,27   lisible sans crier
+        ///
+        /// Si elle te parait trop forte dans l'editeur AVANT de lancer, c'est normal -
+        /// regarde-la en jeu.
+        /// </summary>
+        [Tooltip("Multiplie la couleur des plaines. Blanc = inchange.")]
+        public Color plainTint = new Color(1f, 0.55f, 0.42f, 1f);
+
         [Header("2. Couleurs d'equipe")]
         public Color playerColor = new Color(0.25f, 0.85f, 1f, 1f);
         public Color enemyColor = new Color(1f, 0.32f, 0.2f, 1f);
@@ -178,6 +223,13 @@ namespace MNLTHII.Managers
         private Dictionary<Material, Material>[] _calmCache;
         private readonly List<Material> _calmMaterials = new List<Material>();
         private readonly List<float> _calmTypeBrightness = new List<float>();
+
+        // La couleur d'origine de chaque copie calme, et la teinte a lui appliquer.
+        // Deux listes paralleles plutot qu'une structure : ApplyCalmParams est rejouee
+        // a chaud quand un reglage change, et multiplier la couleur en place la ferait
+        // foncer un peu plus a chaque passage.
+        private readonly List<Color> _calmBaseColor = new List<Color>();
+        private readonly List<Color> _calmTint = new List<Color>();
 
         private static Mesh _quad;
         private static Texture2D _shadowTex;
@@ -273,6 +325,8 @@ namespace MNLTHII.Managers
             for (int i = 0; i < _calmMaterials.Count; i++) DestroyMaterial(_calmMaterials[i]);
             _calmMaterials.Clear();
             _calmTypeBrightness.Clear();
+            _calmBaseColor.Clear();
+            _calmTint.Clear();
         }
 
         private static void DestroyMaterial(Material m)
@@ -370,13 +424,25 @@ namespace MNLTHII.Managers
             if (calmBoard && _calmShader != null && typeIndex >= 0 && typeIndex < _calmCache.Length)
             {
                 float typeBrightness = (tuning != null) ? tuning.brightness : 1f;
+                Color typeTint = TintFor(hex.type);
 
                 for (int i = 0; i < _renderers.Count; i++)
-                    SwapToCalm(_renderers[i], typeIndex, typeBrightness);
+                    SwapToCalm(_renderers[i], typeIndex, typeBrightness, typeTint);
             }
 
             if (tuning != null && tuning.heightScale < 0.999f)
                 Flatten(hex.transform, tuning.heightScale);
+        }
+
+        /// <summary>
+        /// La teinte a appliquer a ce terrain. Blanc partout sauf sur la plaine : c'est
+        /// le seul terrain dont la lecture change une decision, donc le seul qui merite
+        /// de se distinguer de son voisin.
+        /// </summary>
+        private Color TintFor(TypeOfHex type)
+        {
+            if (tintPlains && type == TypeOfHex.plain) return plainTint;
+            return Color.white;
         }
 
         private TerrainTuning FindTuning(TypeOfHex type)
@@ -389,7 +455,7 @@ namespace MNLTHII.Managers
             return null;
         }
 
-        private void SwapToCalm(Renderer r, int typeIndex, float typeBrightness)
+        private void SwapToCalm(Renderer r, int typeIndex, float typeBrightness, Color typeTint)
         {
             if (r == null) return;
 
@@ -398,7 +464,7 @@ namespace MNLTHII.Managers
 
             for (int m = 0; m < mats.Length; m++)
             {
-                Material calm = GetCalm(mats[m], typeIndex, typeBrightness);
+                Material calm = GetCalm(mats[m], typeIndex, typeBrightness, typeTint);
                 if (calm == null) continue;
 
                 mats[m] = calm;
@@ -413,7 +479,7 @@ namespace MNLTHII.Managers
         /// transparents, shaders maison) est laisse tel quel : on ne sait pas le refaire
         /// fidelement, donc on n'y touche pas.
         /// </summary>
-        private Material GetCalm(Material src, int typeIndex, float typeBrightness)
+        private Material GetCalm(Material src, int typeIndex, float typeBrightness, Color typeTint)
         {
             if (src == null || src.shader == null) return null;
             if (src.shader.name != "Standard") return null;
@@ -437,16 +503,29 @@ namespace MNLTHII.Managers
             // Le shader calme n'a pas de variante instanciee : on ne la demande pas.
             calm.enableInstancing = false;
 
-            ApplyCalmParams(calm, typeBrightness);
+            // La couleur d'origine est relevee AVANT toute teinte : c'est elle qu'on
+            // remultipliera a chaque reglage rejoue a chaud.
+            Color baseColor = src.HasProperty(ColorId) ? src.GetColor(ColorId) : Color.white;
+
+            ApplyCalmParams(calm, typeBrightness, baseColor, typeTint);
 
             cache.Add(src, calm);
             _calmMaterials.Add(calm);
             _calmTypeBrightness.Add(typeBrightness);
+            _calmBaseColor.Add(baseColor);
+            _calmTint.Add(typeTint);
             return calm;
         }
 
-        private void ApplyCalmParams(Material calm, float typeBrightness)
+        private void ApplyCalmParams(Material calm, float typeBrightness, Color baseColor, Color tint)
         {
+            // La teinte MULTIPLIE : le relief et les details du modele restent lisibles,
+            // la case est seulement rechauffee. L'alpha d'origine est preserve - un
+            // terrain opaque doit le rester.
+            Color tinted = new Color(baseColor.r * tint.r, baseColor.g * tint.g,
+                                     baseColor.b * tint.b, baseColor.a);
+            calm.SetColor(ColorId, tinted);
+
             calm.SetFloat(CalmDesaturateId, desaturation);
             calm.SetFloat(CalmContrastId, contrast);
             calm.SetFloat(CalmPivotId, contrastPivot);
@@ -811,7 +890,9 @@ namespace MNLTHII.Managers
             if (_ringEnemy != null) _ringEnemy.SetColor(ColorId, RingColor(enemyColor));
 
             for (int i = 0; i < _calmMaterials.Count; i++)
-                if (_calmMaterials[i] != null) ApplyCalmParams(_calmMaterials[i], _calmTypeBrightness[i]);
+                if (_calmMaterials[i] != null)
+                    ApplyCalmParams(_calmMaterials[i], _calmTypeBrightness[i],
+                                    _calmBaseColor[i], _calmTint[i]);
         }
 
         private void SetRim(Material mat, Color color, float strength)

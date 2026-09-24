@@ -227,7 +227,22 @@ namespace MNLTHII.Managers
 
         public static void FocusPoint(Vector3 worldPoint)
         {
+            // "Tout passer" : la camera cesse de courir apres chaque evenement. Sans
+            // ce garde-fou elle enchainait trente cadrages en quelques frames et
+            // finissait le saut n'importe ou sur le plateau.
+            if (PhasePace.SkipPhaseRequested) return;
+
             if (Instance != null) Instance.FocusOn(worldPoint, Instance.closeUpFactor);
+        }
+
+        /// <summary>
+        /// La duree du trajet de la camera AVANT l'allure : c'est ce qu'on donne a une
+        /// PaceWait, qui applique l'allure elle-meme. Les phases s'en servent pour
+        /// attendre que la camera soit arrivee avant de resoudre quoi que ce soit.
+        /// </summary>
+        public static float RawTravel
+        {
+            get { return (Instance != null) ? Instance.moveDuration : 0.45f; }
         }
 
         /// <summary>
@@ -238,6 +253,7 @@ namespace MNLTHII.Managers
         public static void FrameAction(Vector3 from, Vector3 to)
         {
             if (Instance == null) return;
+            if (PhasePace.SkipPhaseRequested) return;
 
             Vector3 middle = (from + to) * 0.5f;
             Instance.FocusOn(middle, Instance.actionFactor);
@@ -261,10 +277,16 @@ namespace MNLTHII.Managers
             // Meme axe, meme angle, distance reduite : le plateau ne bascule pas.
             Vector3 destination = worldPoint - _restForward * (_restDistance * factor);
 
-            isFocused = true;
-            StartMove(destination, _restRotation, moveDuration);
+            // LE TRAJET SUIT L'ALLURE. Accelerer les attentes sans accelerer la
+            // camera revenait a resoudre l'action pendant qu'elle voyageait encore :
+            // le joueur arrivait apres le coup. Le plancher evite une camera qui se
+            // teleporte, ce qui est illisible meme en Eclair.
+            float travel = Mathf.Max(0.08f, moveDuration * PhasePace.Scale);
 
-            if (perspectiveWhenFocused) RequestPerspective(focusFov, moveDuration);
+            isFocused = true;
+            StartMove(destination, _restRotation, travel);
+
+            if (perspectiveWhenFocused) RequestPerspective(focusFov, travel);
         }
 
         public void Release()

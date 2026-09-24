@@ -422,29 +422,10 @@ namespace MNLTHII.Managers
         /// ennemis apparaissaient jusqu'ici en une frame, quelque part sur la carte :
         /// on decouvrait la vague au tour suivant, deja au contact.
         /// </summary>
-        [Header("Rythme du deploiement")]
+        [Header("Rythme (OBSOLETE - voir PhasePace.SpawnShow)")]
         public float spawnShowDuration = 1.3f;
 
-        private WaitForSeconds _waitSpawn;
-        private float _cachedSpawn = -1f;
-        private WaitForSeconds _waitSpawnTravel;
-        private float _cachedSpawnTravel = -1f;
-
-        private void RefreshSpawnWaits()
-        {
-            if (_cachedSpawn != spawnShowDuration || _waitSpawn == null)
-            {
-                _cachedSpawn = spawnShowDuration;
-                _waitSpawn = new WaitForSeconds(spawnShowDuration);
-            }
-
-            float travel = (CameraDirector.Instance != null) ? CameraDirector.Instance.moveDuration + 0.1f : 0.1f;
-            if (!Mathf.Approximately(_cachedSpawnTravel, travel) || _waitSpawnTravel == null)
-            {
-                _cachedSpawnTravel = travel;
-                _waitSpawnTravel = new WaitForSeconds(travel);
-            }
-        }
+        private readonly PaceWait _pace = new PaceWait();
 
         /// <summary>
         /// Le tour des Shofars, EN SE MONTRANT : la camera va sur chaque Shofar qui
@@ -453,7 +434,6 @@ namespace MNLTHII.Managers
         /// </summary>
         public IEnumerator ProcessPortalsSequential()
         {
-            RefreshSpawnWaits();
             _showSpawns = true;
 
             ProcessPortals();
@@ -464,13 +444,16 @@ namespace MNLTHII.Managers
                 PawnController enemy = _spawnShow[i];
                 if (enemy == null || enemy.currentHP <= 0) continue;
 
+                // Chaque sortie est un "element" a part entiere.
+                PhasePace.BeginUnit();
+
                 CameraDirector.FocusPoint(enemy.transform.position);
-                yield return _waitSpawnTravel;
+                yield return _pace.For(CameraDirector.RawTravel + PhasePace.CameraMargin);
 
                 if (FXManager.Instance != null)
                     FXManager.Instance.SpawnEnemyFX(enemy.transform.position + Vector3.up * 0.4f);
 
-                yield return _waitSpawn;
+                yield return _pace.For(PhasePace.SpawnShow);
             }
 
             _spawnShow.Clear();

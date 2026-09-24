@@ -41,6 +41,21 @@ public class EnemyAI : MonoBehaviour
     [Tooltip("Distance au-dela de laquelle un batiment n'interesse plus l'IA.")]
     public int buildingMaxDistance = 3;
 
+    /// <summary>
+    /// CE QUE VAUT UNE BULLE QUI ME BARRE LA ROUTE, quand je suis deja contre elle.
+    ///
+    /// Sans ce bonus, un ennemi bute sur la bulle d'un Centre de Commandement et
+    /// continue de convoiter une usine a l'autre bout de la carte : il vaut 805 points
+    /// et la bulle 360, alors il reste la, a tourner autour d'un mur qu'il ne franchira
+    /// jamais. C'est la version moderne du meme blocage qu'avant.
+    ///
+    /// A 350, une bulle que je touche deja passe devant l'usine lointaine - et
+    /// seulement celle-la : une bulle que je vois au loin ne me detourne de rien. La
+    /// regle se lit simplement : ce qui me barre la route, je le casse.
+    /// </summary>
+    [Tooltip("Attrait d'une bulle que cet ennemi touche deja : ce qui bloque se casse.")]
+    public int bubbleBlockBonus = 350;
+
     // Tampon reutilise d'un tour a l'autre : FindAll(lambda) allouait une List et
     // une closure a chaque phase ennemie.
     private readonly List<PawnController> _enemyBuffer = new List<PawnController>(24);
@@ -56,34 +71,20 @@ public class EnemyAI : MonoBehaviour
     /// Le temps de focalisation doit rester SUPERIEUR a CameraDirector.moveDuration,
     /// sinon l'attaque se resout pendant que la camera voyage encore.
     /// </summary>
-    [Header("Rythme")]
+    /// <remarks>
+    /// Ces cinq champs ne sont PLUS LUS : les durees vivent dans PhasePace, avec
+    /// celles de la phase des Tanks, parce que les deux phases doivent partager le
+    /// meme tempo et que deux listes de reglages separees finissent toujours par
+    /// diverger. Ils sont conserves pour ne pas salir la scene.
+    /// </remarks>
+    [Header("Rythme (OBSOLETE - voir PhasePace)")]
     public float focusDelay = 0.95f;
     public float aimDelay = 0.35f;
     public float resolveDelay = 1.05f;
     public float moveDelay = 0.85f;
     public float stepDelay = 0.55f;
 
-    private WaitForSeconds _waitFocus, _waitAim, _waitResolve, _waitMove, _waitStep;
-    private float _cachedFocus = -1f, _cachedAim = -1f, _cachedResolve = -1f;
-    private float _cachedMove = -1f, _cachedStep = -1f;
-
-    private void RefreshPhaseWaits()
-    {
-        if (!Mathf.Approximately(_cachedFocus, focusDelay))
-        { _cachedFocus = focusDelay; _waitFocus = new WaitForSeconds(focusDelay); }
-
-        if (!Mathf.Approximately(_cachedAim, aimDelay))
-        { _cachedAim = aimDelay; _waitAim = new WaitForSeconds(aimDelay); }
-
-        if (!Mathf.Approximately(_cachedResolve, resolveDelay))
-        { _cachedResolve = resolveDelay; _waitResolve = new WaitForSeconds(resolveDelay); }
-
-        if (!Mathf.Approximately(_cachedMove, moveDelay))
-        { _cachedMove = moveDelay; _waitMove = new WaitForSeconds(moveDelay); }
-
-        if (!Mathf.Approximately(_cachedStep, stepDelay))
-        { _cachedStep = stepDelay; _waitStep = new WaitForSeconds(stepDelay); }
-    }
+    private readonly MNLTHII.Managers.PaceWait _pace = new MNLTHII.Managers.PaceWait();
 
     private void Awake()
     {
@@ -111,8 +112,6 @@ public class EnemyAI : MonoBehaviour
 
     private IEnumerator ProcessEnemyUnitsSequential()
     {
-        RefreshPhaseWaits();
-
         BoardController board = BoardController.instance;
         if (board == null || board.PawnsInBoard == null)
         {
@@ -133,12 +132,15 @@ public class EnemyAI : MonoBehaviour
             PawnController enemy = _enemyBuffer[i];
             if (enemy == null || enemy.currentHP <= 0) continue;
 
+            // Nouvel ennemi : le "suivant" demande sur le precedent est oublie.
+            MNLTHII.Managers.PhasePace.BeginUnit();
+
             if (FXManager.Instance != null) FXManager.Instance.SetUnitFocus(enemy.transform, true);
 
             // Exactement la meme carte qu'en phase 3, en rouge. Le joueur n'a rien
             // de nouveau a apprendre : il lit sa propre mecanique, retournee.
             UnitActionCard.Focus(enemy, i + 1);
-            yield return _waitFocus;
+            yield return _pace.For(MNLTHII.Managers.PhasePace.UnitFocus);
 
             // Choix de cible pondere : la Base reste l'objectif (c'est elle qui fait
             // gagner le Yetzer Hara), les Tanks rencontres en chemin sont engages.
@@ -149,7 +151,12 @@ public class EnemyAI : MonoBehaviour
             if (targetPawn == null && targetHex == null) continue;
 
             HexCoord targetCoord = (targetPawn != null) ? targetPawn.hexcoord : targetHex.positionInTheBoard;
-            int distance = BoardController.GetHexDistance(enemy.hexcoord, targetCoord);
+
+            // Contre une structure protegee, c'est la BULLE qu'on touche, et elle est
+            // plus large que la case. DistanceToTarget retire son rayon.
+            int distance = (targetPawn != null)
+                           ? BoardController.GetHexDistance(enemy.hexcoord, targetPawn.hexcoord)
+                           : MNLTHII.Rules.InteractionRules.DistanceToTarget(enemy.hexcoord, targetHex);
 
             if (distance <= enemy.attackRange)
             {
@@ -168,12 +175,12 @@ public class EnemyAI : MonoBehaviour
                 // cadre le duel, l'effet d'impact sur la cible, et le chiffre de degats
                 // qui s'envole au-dessus d'elle.
 
-                yield return _waitAim;
+                yield return _pace.For(MNLTHII.Managers.PhasePace.UnitAim);
 
                 if (targetPawn != null) InteractionRules.ResolveCombat(enemy, targetPawn);
                 else InteractionRules.ResolveCombat(enemy, targetHex);
 
-                yield return _waitResolve;
+                yield return _pace.For(MNLTHII.Managers.PhasePace.UnitResolve);
             }
             else
             {
@@ -188,18 +195,22 @@ public class EnemyAI : MonoBehaviour
 
                 for (int s = 0; s < steps; s++)
                 {
-                    if (BoardController.GetHexDistance(enemy.hexcoord, targetCoord) <= enemy.attackRange) break;
+                    // On s'arrete des qu'on est au contact - de la cible, ou de sa bulle.
+                    int reached = (targetPawn != null)
+                                  ? BoardController.GetHexDistance(enemy.hexcoord, targetPawn.hexcoord)
+                                  : MNLTHII.Rules.InteractionRules.DistanceToTarget(enemy.hexcoord, targetHex);
+                    if (reached <= enemy.attackRange) break;
 
                     HexCoord nextCoord = board.GetNextStepTowards(enemy.hexcoord, targetCoord, true);
                     if (nextCoord == null || nextCoord.CompareHexCoord(enemy.hexcoord)) break;
 
                     enemy.targetCoord = nextCoord;
                     enemy.ApplySequenceAnimation(PawnController.TypeOfPawnInteractions.target);
-                    yield return _waitMove;
+                    yield return _pace.For(MNLTHII.Managers.PhasePace.UnitMove);
                 }
             }
 
-            yield return _waitStep;
+            yield return _pace.For(MNLTHII.Managers.PhasePace.UnitStep);
         }
 
         if (FXManager.Instance != null) FXManager.Instance.SetUnitFocus(null);
@@ -326,9 +337,22 @@ public class EnemyAI : MonoBehaviour
             int distance = BoardController.GetHexDistance(enemy.hexcoord, hex.positionInTheBoard);
             if (distance > buildingMaxDistance) continue;
 
+            // LA DISTANCE QUI COMPTE EST CELLE DE LA FRAPPE. Un Centre protege se
+            // frappe sur sa bulle : a deux cases du batiment, je suis a une case de la
+            // coque, donc a portee.
+            int strike = MNLTHII.Rules.InteractionRules.DistanceToTarget(enemy.hexcoord, hex);
+            bool bubble = MNLTHII.Rules.InteractionRules.BubbleRadius(hex) > 0;
+
             int score = buildingPriority - distance * distanceWeight;
-            if (distance <= enemy.attackRange) score += inRangeBonus;
-            if (hex.currentHP <= damage) score += finishBonus;
+            if (strike <= enemy.attackRange) score += inRangeBonus;
+
+            // Une bulle que je touche deja est un mur entre moi et tout le reste.
+            if (bubble && strike <= enemy.attackRange) score += bubbleBlockBonus;
+
+            // Le coup de grace ne se compte que sur ce qu'on peut reellement achever :
+            // tant que la bulle tient, ce sont SES points qui descendent, pas ceux du
+            // batiment.
+            if (bubble ? (hex.shieldHP <= damage) : (hex.currentHP <= damage)) score += finishBonus;
 
             if (score > bestScore)
             {

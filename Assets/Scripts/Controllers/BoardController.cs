@@ -254,7 +254,25 @@ namespace MNLTHII
             }
             int run = _pathRun;
 
-            // Centres de Commandement qui repoussent les ennemis.
+            // =============================================================
+            //  LES BULLES DES CENTRES DE COMMANDEMENT
+            // =============================================================
+            //
+            // UNE SEULE REGLE : ON N'ENTRE PAS DANS UNE BULLE.
+            //
+            // Les cases sous la bulle sont fermees aux ennemis, sans exception. Ils
+            // s'arretent au bord et frappent la bulle de l'exterieur - leur portee
+            // d'une case leur suffit, ils sont au contact de sa surface. Voir
+            // InteractionRules.DistanceToTarget.
+            //
+            // La version precedente essayait de faire entrer l'ennemi jusqu'au
+            // batiment, ce qui demandait deux exceptions tordues pour ne pas rendre le
+            // Centre invincible. Frapper la coque au lieu du noyau supprime le
+            // probleme au lieu de le contourner : la bulle est une chose qu'on voit,
+            // qu'on attaque, et qui tombe.
+            //
+            // BULLE PERCEE, PLUS DE MUR. La zone s'ouvre, et les ennemis entrent
+            // s'occuper du batiment. C'est la seule condition testee ici.
             int repelCount = 0;
             if (isEnemy)
             {
@@ -262,12 +280,14 @@ namespace MNLTHII
                 {
                     Hexagon hex = hexList[i];
                     if (hex == null || hex.positionInTheBoard == null) continue;
-                    if (hex.type != TypeOfHex.mountain || hex.level < 1 || hex.currentHP <= 0) continue;
+
+                    int radius = MNLTHII.Rules.InteractionRules.BubbleRadius(hex);
+                    if (radius <= 0) continue;
 
                     _repelQ[repelCount] = hex.positionInTheBoard.q;
                     _repelR[repelCount] = hex.positionInTheBoard.r;
                     _repelS[repelCount] = hex.positionInTheBoard.s;
-                    _repelD[repelCount] = MNLTHII.Rules.InteractionRules.GetMountainRepel(hex.level);
+                    _repelD[repelCount] = radius;
                     repelCount++;
                 }
             }
@@ -424,21 +444,24 @@ namespace MNLTHII
                         isBlocked = true;
                     }
 
-                    // Centre de Commandement : repousse les ennemis a 1 case (Niv2) ou 2 cases (Niv3).
+                    // La bulle d'un Centre de Commandement ferme ses cases aux ennemis.
+                    // Meme regle qu'en recherche complete, et elle doit etre ici AUSSI :
+                    // ce chemin-ci est le secours, emprunte precisement quand la
+                    // recherche a echoue - donc dans les situations bloquees, ou une
+                    // bulle oubliee laisserait un ennemi la traverser.
                     if (!isBlocked && isEnemy)
                     {
                         List<Hexagon> hexList = instance.hexagonsInBoard;
                         for (int i = 0; i < hexList.Count; i++)
                         {
                             Hexagon hex = hexList[i];
-                            if (hex != null && hex.type == TypeOfHex.mountain && hex.level >= 1 && hex.currentHP > 0)
+                            int radius = MNLTHII.Rules.InteractionRules.BubbleRadius(hex);
+                            if (radius <= 0) continue;
+
+                            if (GetHexDistance(hex.positionInTheBoard, neighbor) <= radius)
                             {
-                                int hexDist = GetHexDistance(hex.positionInTheBoard, neighbor);
-                                if (hexDist <= MNLTHII.Rules.InteractionRules.GetMountainRepel(hex.level))
-                                {
-                                    isBlocked = true;
-                                    break;
-                                }
+                                isBlocked = true;
+                                break;
                             }
                         }
                     }

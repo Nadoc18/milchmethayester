@@ -24,17 +24,22 @@ namespace MNLTHII.Managers
         private readonly List<Hexagon> _mountainBuffer = new List<Hexagon>(32);
         private readonly List<PawnController> _targetBuffer = new List<PawnController>(24);
 
-        // Une salve de Bunker enchaine jusqu'a six tirs : trop courte, elle devient un
-        // seul eclair et on ne compte plus rien.
-        private static readonly WaitForSeconds WaitBunkerVolley = new WaitForSeconds(0.8f);
-
-        // Entre deux tirs d'une meme salve : assez pour voir CHAQUE trait partir,
-        // assez court pour que la salve reste une rafale.
-        private static readonly WaitForSeconds WaitBetweenShots = new WaitForSeconds(0.45f);
-
-        // Le temps que la camera arrive sur le duel avant le premier tir : sinon la
-        // salve part hors champ et le joueur ne voit que la fin.
-        private static readonly WaitForSeconds WaitFrameBunker = new WaitForSeconds(0.5f);
+        // LES RYTHMES DE L'ETAPE DES BATIMENTS vivent maintenant dans PhasePace, avec
+        // tous les autres : avant le premier tir (BunkerFrame, le temps que la camera
+        // arrive), entre deux tirs (BunkerBetweenShots, assez pour voir chaque trait
+        // partir), apres la salve (BunkerVolley), et sur chaque Cristal ou Centre
+        // (BuildingShow).
+        //
+        // Ils passent par une PaceWait, donc ils suivent l'allure choisie par le
+        // joueur ET ils se laissent interrompre : qui a compris ce que fait ce Bunker
+        // peut passer au suivant sans attendre les six traits.
+        //
+        // Deux instances : ProcessBunkers, ProcessCrystalsSequential et
+        // ProcessMountainsSequential s'enchainent mais HealAroundCrystals est appelee
+        // DEPUIS l'une d'elles, et deux coroutines imbriquees ne peuvent pas partager
+        // la meme echeance.
+        private readonly PaceWait _pace = new PaceWait();
+        private readonly PaceWait _paceInner = new PaceWait();
 
         /// <summary>Couleur du trait de tir d'un Bunker (celle du joueur).</summary>
         private static readonly Color BunkerShotColor = new Color(0.35f, 0.95f, 1f, 1f);
@@ -48,30 +53,11 @@ namespace MNLTHII.Managers
         /// pas pourquoi. Maintenant on s'arrete sur CHAQUE batiment, le temps de lire ce
         /// qu'il fait.
         /// </summary>
-        [Header("Rythme de l'etape des batiments")]
-        [Tooltip("Temps passe sur chaque Cristal ou Centre de Commandement, apres l'arrivee de la camera.")]
+        [Header("Rythme (OBSOLETE - voir PhasePace.BuildingShow)")]
         public float buildingShowDuration = 1.5f;
 
-        private WaitForSeconds _waitBuilding;
-        private float _cachedBuilding = -1f;
-        private WaitForSeconds _waitTravel;
-        private float _cachedTravel = -1f;
-
-        private void RefreshBuildingWaits()
-        {
-            if (_cachedBuilding != buildingShowDuration || _waitBuilding == null)
-            {
-                _cachedBuilding = buildingShowDuration;
-                _waitBuilding = new WaitForSeconds(buildingShowDuration);
-            }
-
-            float travel = (CameraDirector.Instance != null) ? CameraDirector.Instance.moveDuration + 0.1f : 0.1f;
-            if (!Mathf.Approximately(_cachedTravel, travel) || _waitTravel == null)
-            {
-                _cachedTravel = travel;
-                _waitTravel = new WaitForSeconds(travel);
-            }
-        }
+        /// <summary>Le trajet de la camera, avant l'allure. PaceWait applique l'allure.</summary>
+        private static float Travel { get { return CameraDirector.RawTravel + PhasePace.CameraMargin; } }
 
         /// <summary>Y a-t-il seulement quelque chose a montrer cette fin de tour ?</summary>
         public bool HasAnythingToShow()
@@ -102,8 +88,6 @@ namespace MNLTHII.Managers
         public IEnumerator ProcessEndOfTurn()
         {
             if (BoardController.instance == null || BoardController.instance.HexagonsInBoard == null) yield break;
-
-            RefreshBuildingWaits();
 
             yield return StartCoroutine(ProcessBunkers());
             yield return StartCoroutine(ProcessCrystalsSequential());
@@ -155,6 +139,10 @@ namespace MNLTHII.Managers
                     continue;
                 }
 
+                // Un Bunker est un "element" : le bouton "suivant" passe de l'un a
+                // l'autre, comme il passe d'un Tank au Tank d'apres.
+                PhasePace.BeginUnit();
+
                 int shots = InteractionRules.GetBunkerTargets(bunker.level);
                 int damage = InteractionRules.GetBunkerDamage(bunker.level);
                 int shotCost = InteractionRules.GetBunkerShotCost(bunker.level);
@@ -170,17 +158,23 @@ namespace MNLTHII.Managers
                     && (energy == null || energy.CanAfford(shotCost)))
                 {
                     CameraDirector.FrameAction(bunker.transform.position, firstTarget.transform.position);
-                    yield return WaitFrameBunker;
+                    yield return _pace.For(PhasePace.BunkerFrame);
                 }
 
                 Vector3 muzzle = MuzzleOf(bunker);
 
                 for (int s = 0; s < shots; s++)
                 {
-                    // Chaque tir se paie. Un Bunker sans cible ne coute rien ; un Bunker
-                    // qui vide son chargeur coute cher. Des qu'on ne peut plus payer,
-                    // il se tait.
-                    if (energy != null && !energy.CanAfford(shotCost))
+                    // UN TIR NE COUTE PLUS D'ENERGIE. C'etait le dernier prelevement
+                    // passif du jeu - le seul endroit ou le solde baissait sans que le
+                    // joueur ait clique - et il donnait a la defense un gout
+                    // d'entretien. Le Bunker se paie desormais entierement a la pose,
+                    // et en PV a chaque coup parti (voir InteractionRules).
+                    //
+                    // Le test est conserve pour le cas ou shotCost redeviendrait non
+                    // nul : a zero, CanAfford est toujours vrai et cette branche ne
+                    // coute rien.
+                    if (shotCost > 0 && energy != null && !energy.CanAfford(shotCost))
                     {
                         if (fired == 0)
                             Debug.LogFormat("[Bunker] Plus assez d'Energie ({0} par tir) : ce bunker se tait.", shotCost);
@@ -190,8 +184,11 @@ namespace MNLTHII.Managers
                     PawnController victim = SelectBunkerTarget(inRange, damage);
                     if (victim == null) break;
 
-                    if (energy != null && !energy.TrySpend(shotCost)) break;
-                    spent += shotCost;
+                    if (shotCost > 0)
+                    {
+                        if (energy != null && !energy.TrySpend(shotCost)) break;
+                        spent += shotCost;
+                    }
 
                     // LE TRAIT : du haut du Bunker au corps de la cible. C'est lui qui dit
                     // "ce Bunker tire sur CET ennemi" - sans lui, on ne voyait qu'un
@@ -199,7 +196,7 @@ namespace MNLTHII.Managers
                     float travel = ShotTracer.Fire(muzzle, CenterOf(victim), BunkerShotColor);
 
                     // L'impact tombe quand le trait ARRIVE, pas quand il part.
-                    if (travel > 0f) yield return new WaitForSecondsRealtime(travel);
+                    if (travel > 0f) yield return _pace.ForExact(travel);
                     if (victim == null) break;
 
                     if (FXManager.Instance != null)
@@ -234,15 +231,18 @@ namespace MNLTHII.Managers
                     }
 
                     // Chaque tir se voit : un trait, une pause, le suivant.
-                    yield return WaitBetweenShots;
+                    yield return _pace.For(PhasePace.BunkerBetweenShots);
                 }
 
                 if (fired > 0)
                 {
                     if (FXManager.Instance != null) FXManager.Instance.PlayAttackSFX();
-                    Debug.LogFormat("[Bunker] {0} tir(s) de {1} degats, {2} abattu(s), {3} Energie depensee.",
-                                    fired, damage, kills, spent);
-                    yield return WaitBunkerVolley;
+                    Debug.LogFormat("[Bunker] {0} tir(s) de {1} degats, {2} abattu(s), {3} Energie, "
+                                  + "{4} PV d'usure ({5}/{6} restants).",
+                                    fired, damage, kills, spent,
+                                    fired * InteractionRules.BUNKER_WEAR_PER_SHOT,
+                                    bunker.currentHP, bunker.maxHP);
+                    yield return _pace.For(PhasePace.BunkerVolley);
                 }
 
                 WearBunker(bunker, fired);
@@ -252,8 +252,16 @@ namespace MNLTHII.Managers
         }
 
         /// <summary>
-        /// L'usure de fin de tour : un peu chaque tour, plus un point par tir. A zero PV
-        /// le Bunker s'effondre (voir InteractionRules.BUNKER_DECAY_L1).
+        /// L'usure d'un Bunker : ce qu'il a TIRE, et rien d'autre.
+        ///
+        /// La decroissance passive vaut zero (voir InteractionRules.BUNKER_DECAY_L1) :
+        /// un Bunker qui n'a eu personne a portee ne perd plus rien. Le test le garde
+        /// quand meme dans le calcul, pour qu'un futur reglage a une valeur non nulle
+        /// n'oblige a toucher a rien ici.
+        ///
+        /// Zero tir et zero decroissance : on sort tout de suite plutot que d'appeler
+        /// ApplyDamage(0), qui declencherait le clignotement de degats et ferait croire
+        /// au joueur que son Bunker vient d'encaisser quelque chose.
         /// </summary>
         private void WearBunker(Hexagon bunker, int shotsFired)
         {
@@ -262,11 +270,13 @@ namespace MNLTHII.Managers
             int wear = InteractionRules.GetBunkerDecay(bunker.level)
                      + shotsFired * InteractionRules.BUNKER_WEAR_PER_SHOT;
 
+            if (wear <= 0) return;
+
             bunker.ApplyDamage(wear);
 
             if (bunker.currentHP <= 0)
             {
-                Debug.Log("[Bunker] Use jusqu'au bout, il s'effondre.");
+                Debug.Log("[Bunker] Il a tire jusqu'a sa derniere munition, il s'effondre.");
                 InteractionRules.DestroyBuilding(bunker);
             }
         }
@@ -386,13 +396,15 @@ namespace MNLTHII.Managers
                 if (hex == null || hex.type != TypeOfHex.crystal || hex.level < 1) continue;
                 if (hex.currentHP <= 0) continue;
 
+                PhasePace.BeginUnit();
+
                 int heal = InteractionRules.GetCrystalHeal(hex.level);
                 int range = InteractionRules.GetCrystalRange(hex.level);
 
                 // On va VOIR le Cristal travailler : sans cela, des PV remontaient
                 // quelque part sur la carte sans que rien ne dise d'ou ca venait.
                 CameraDirector.FocusPoint(hex.transform.position);
-                yield return _waitTravel;
+                yield return _paceInner.For(Travel);
 
                 if (FXManager.Instance != null)
                 {
@@ -428,11 +440,11 @@ namespace MNLTHII.Managers
                     // Personne a soigner : on le montre quand meme une demi-seconde,
                     // le joueur comprend que le Cristal est la et qu'il ne sert a rien
                     // ce tour-ci.
-                    yield return new WaitForSeconds(0.45f);
+                    yield return _paceInner.For(0.45f);
                     continue;
                 }
 
-                yield return _waitBuilding;
+                yield return _paceInner.For(PhasePace.BuildingShow);
             }
         }
 
@@ -460,8 +472,22 @@ namespace MNLTHII.Managers
         }
 
         // ---------------------------------------------------------------
-        //  MONTAGNE : Centre de Commandement, -10 PV par tour
+        //  MONTAGNE : Centre de Commandement - il ne fond que s'il est abandonne
         // ---------------------------------------------------------------
+        /// <summary>
+        /// UN CENTRE DE COMMANDEMENT NE FOND PLUS : SA BULLE SE REFAIT.
+        ///
+        /// L'etape ne retire plus rien par defaut (MOUNTAIN_DECAY_PER_TURN vaut zero).
+        /// Elle fait l'inverse : elle rend a la bulle ce qu'elle peut, a condition que
+        /// le Centre n'ait rien encaisse pendant le tour. Frappe, il ne se refait pas -
+        /// sinon un assaut lent n'aboutirait jamais et la tete de pont redeviendrait
+        /// une fortification.
+        ///
+        /// ON NE S'ARRETE QUE SUR CE QUI A UNE NOUVELLE. Faire voyager la camera pour
+        /// montrer un batiment intact, c'est prendre deux secondes au joueur pour lui
+        /// apprendre qu'il ne s'est rien passe. Elle n'y va que quand la bulle remonte
+        /// ou quand le Centre perd quelque chose.
+        /// </summary>
         private IEnumerator ProcessMountainsSequential()
         {
             List<Hexagon> hexes = BoardController.instance.HexagonsInBoard;
@@ -476,24 +502,58 @@ namespace MNLTHII.Managers
             for (int i = 0; i < _mountainBuffer.Count; i++)
             {
                 Hexagon mountain = _mountainBuffer[i];
-                if (mountain == null) continue;
+                if (mountain == null || mountain.currentHP <= 0) continue;
 
-                // L'usure d'un Centre est une information, pas un detail : c'est elle
-                // qui dit au joueur qu'il a quelques tours pour en profiter.
+                // Une partie rechargee depuis un ancien fichier n'a pas de bulle :
+                // on la lui rend plutot que de la laisser sans protection.
+                if (mountain.shieldMax <= 0) InteractionRules.ResetShield(mountain);
+
+                bool wasHit = mountain.attacked;
+                mountain.attacked = false;
+
+                int decay = InteractionRules.MOUNTAIN_DECAY_PER_TURN;
+                bool canHeal = !wasHit && mountain.shieldHP < mountain.shieldMax;
+
+                // Rien a raconter : intact, bulle pleine, ou frappe ce tour-ci (auquel
+                // cas le joueur a DEJA vu les coups tomber pendant la phase ennemie).
+                if (decay <= 0 && !canHeal) continue;
+
+                PhasePace.BeginUnit();
+
                 CameraDirector.FocusPoint(mountain.transform.position);
-                yield return _waitTravel;
+                yield return _paceInner.For(Travel);
 
                 if (FXManager.Instance != null) FXManager.Instance.PlayBuildingSFX();
 
-                mountain.ApplyDamage(InteractionRules.MOUNTAIN_DECAY_PER_TURN);
-
-                if (mountain.currentHP <= 0)
+                if (canHeal)
                 {
-                    Debug.Log("[Montagne] Centre de Commandement epuise, il s'effondre.");
-                    InteractionRules.DestroyBuilding(mountain);
+                    int before = mountain.shieldHP;
+
+                    mountain.shieldHP += InteractionRules.MOUNTAIN_SHIELD_REGEN;
+                    if (mountain.shieldHP > mountain.shieldMax) mountain.shieldHP = mountain.shieldMax;
+
+                    int given = mountain.shieldHP - before;
+                    if (given > 0)
+                    {
+                        MNLTHII.UI.DamagePopup.Show(mountain.transform.position + Vector3.up * 0.8f,
+                                                    given, MNLTHII.UI.DamageKind.Healed);
+                        if (FXManager.Instance != null)
+                            FXManager.Instance.SpawnCrystalBuffFX(mountain.transform.position);
+                    }
                 }
 
-                yield return _waitBuilding;
+                if (decay > 0)
+                {
+                    mountain.ApplyDamage(decay);
+
+                    if (mountain.currentHP <= 0)
+                    {
+                        Debug.Log("[Montagne] Centre de Commandement epuise, il s'effondre.");
+                        InteractionRules.DestroyBuilding(mountain);
+                    }
+                }
+
+                yield return _paceInner.For(PhasePace.BuildingShow);
             }
         }
 

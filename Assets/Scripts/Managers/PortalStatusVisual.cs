@@ -46,6 +46,18 @@ namespace MNLTHII.Managers
         /// la couleur de la menace dans tout le reste du jeu.
         /// </summary>
         public Color shieldColor = new Color(1f, 0.58f, 0.18f, 1f);
+
+        /// <summary>
+        /// La bulle du joueur, sur un Centre de Commandement. CYAN, la couleur alliee de
+        /// tout le reste du jeu - le compteur d'Energie, les Tanks, la jauge de la Base.
+        /// Deux bulles de la meme couleur sur le meme plateau, et on ne saurait plus
+        /// laquelle il faut percer et laquelle il faut defendre.
+        /// </summary>
+        public Color commandShieldColor = new Color(0.30f, 0.94f, 0.86f, 1f);
+
+        [Tooltip("Le disque pose au sol qui montre les cases interdites, sous la bulle d'un Centre.")]
+        public Color commandZoneColor = new Color(0.30f, 0.94f, 0.86f, 0.22f);
+
         [Range(0f, 4f)] public float shieldStrength = 1.4f;
         [Range(0.5f, 8f)] public float shieldPower = 2.2f;
         [Tooltip("Taille de la bulle par rapport au Shofar.")]
@@ -77,6 +89,9 @@ namespace MNLTHII.Managers
             public Transform pipRow;
             public Renderer[] pips;
             public bool broken;
+
+            /// <summary>Le disque au sol d'un Centre : les cases que la bulle interdit.</summary>
+            public Renderer zone;
         }
 
         private readonly List<Visual> _visuals = new List<Visual>(8);
@@ -230,7 +245,7 @@ namespace MNLTHII.Managers
             for (int i = _visuals.Count - 1; i >= 0; i--)
             {
                 Visual v = _visuals[i];
-                if (v.portal == null || v.portal.type != TypeOfHex.portal)
+                if (v.portal == null || !CarriesShield(v.portal))
                 {
                     if (v.root != null) Destroy(v.root.gameObject);
                     _visuals.RemoveAt(i);
@@ -249,7 +264,7 @@ namespace MNLTHII.Managers
             for (int i = 0; i < hexes.Count; i++)
             {
                 Hexagon hex = hexes[i];
-                if (hex == null || hex.type != TypeOfHex.portal || hex.currentHP <= 0) continue;
+                if (hex == null || hex.currentHP <= 0 || !CarriesShield(hex)) continue;
 
                 Visual v = Find(hex);
                 if (v == null) v = Create(hex);
@@ -260,8 +275,82 @@ namespace MNLTHII.Managers
             }
         }
 
+        /// <summary>
+        /// Cette case porte-t-elle une bulle a afficher ?
+        ///
+        /// Deux camps, une seule grammaire : le Shofar du Yetzer Hara, et le Centre de
+        /// Commandement du joueur. Le dome se lit pareil des deux cotes - tant qu'il
+        /// brille, il faut le percer avant de toucher a ce qu'il y a dessous - et c'est
+        /// precisement pour cela qu'on reutilise ce systeme au lieu d'en ecrire un
+        /// second : le joueur passe la partie a briser la bulle d'en face, il n'a rien
+        /// de nouveau a apprendre pour lire la sienne.
+        /// </summary>
+        private static bool CarriesShield(Hexagon hex)
+        {
+            if (hex == null) return false;
+            if (hex.type == TypeOfHex.portal) return true;
+            return hex.type == TypeOfHex.mountain && hex.level >= 1;
+        }
+
+        /// <summary>
+        /// La bulle d'un Centre de Commandement : elle faiblit avec ce qu'elle a
+        /// encaisse, et elle s'eteint quand elle est percee. Aucune pastille - un
+        /// Centre n'a pas de fissures a compter, seulement une bulle qui tient ou non.
+        /// </summary>
+        private void UpdateCommandVisual(Visual v)
+        {
+            Hexagon hex = v.portal;
+            bool broken = hex.shieldHP <= 0;
+
+            v.broken = false;   // pas de clignotement : ce n'est pas un compte a rebours
+
+            if (v.dome != null)
+            {
+                if (v.dome.enabled == broken) v.dome.enabled = !broken;
+
+                if (!broken)
+                {
+                    float left = (hex.shieldMax > 0)
+                                 ? Mathf.Clamp01((float)hex.shieldHP / hex.shieldMax)
+                                 : 1f;
+
+                    v.dome.GetPropertyBlock(_block);
+                    _block.SetColor(RimColorId, commandShieldColor);
+                    _block.SetFloat(RimStrengthId, shieldStrength * (0.3f + 0.7f * left));
+                    _block.SetFloat(RimPowerId, shieldPower);
+                    v.dome.SetPropertyBlock(_block);
+                }
+            }
+
+            // Le disque au sol suit la bulle : il dit les cases interdites, donc il
+            // disparait exactement quand elles cessent de l'etre.
+            if (v.zone != null)
+            {
+                if (v.zone.enabled == broken) v.zone.enabled = !broken;
+
+                if (!broken)
+                {
+                    float left = (hex.shieldMax > 0)
+                                 ? Mathf.Clamp01((float)hex.shieldHP / hex.shieldMax)
+                                 : 1f;
+
+                    Color tint = commandZoneColor;
+                    tint.a *= 0.35f + 0.65f * left;
+                    SetColor(v.zone, tint);
+                }
+            }
+
+            for (int p = 0; p < v.pips.Length; p++)
+                if (v.pips[p] != null && v.pips[p].enabled) v.pips[p].enabled = false;
+        }
+
         private void UpdateVisual(Visual v, PortalManager portals)
         {
+            // Un Centre de Commandement porte sa bulle sur l'hexagone lui-meme, pas
+            // dans PortalManager : il ne survit pas a sa destruction, donc il n'y a
+            // rien a conserver apres lui.
+            if (v.portal.type == TypeOfHex.mountain) { UpdateCommandVisual(v); return; }
+
             int needed = InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD;
             int kills = portals.GetInstability(v.portal);
             int downTurns = portals.GetShieldDownTurns(v.portal);
@@ -306,6 +395,20 @@ namespace MNLTHII.Managers
             }
         }
 
+        /// <summary>
+        /// Largeur d'une case, en unites du monde. Meme constante que BoardReadability
+        /// (0.55 x racine de 3), multipliee par l'echelle reelle du plateau : une bulle
+        /// mesuree en cases doit suivre le plateau s'il est redimensionne.
+        /// </summary>
+        private static float HexWidth()
+        {
+            BoardController board = BoardController.instance;
+            float scale = (board != null) ? board.transform.lossyScale.x : 1f;
+            if (scale < 0.00001f) scale = 1f;
+
+            return 0.9526f * scale;
+        }
+
         private void SetColor(Renderer r, Color c)
         {
             r.GetPropertyBlock(_block);
@@ -347,7 +450,7 @@ namespace MNLTHII.Managers
             Visual v = new Visual();
             v.portal = portal;
 
-            GameObject rootGo = new GameObject("Shofar_Etat");
+            GameObject rootGo = new GameObject(portal.type == TypeOfHex.mountain ? "Centre_Bulle" : "Shofar_Etat");
             rootGo.layer = 2;   // Ignore Raycast
             v.root = rootGo.transform;
             v.root.position = portal.transform.position;
@@ -363,9 +466,94 @@ namespace MNLTHII.Managers
             dt.SetParent(v.root, false);
             dt.position = bounds.center;
 
-            float radius = Mathf.Max(bounds.extents.x, bounds.extents.z) * shieldScale;
-            float height = Mathf.Max(bounds.extents.y * shieldScale, radius * 0.7f);
+            // LA TAILLE DIT LA REGLE.
+            //
+            // Sur un Shofar, la bulle habille le batiment : c'est LUI qu'elle protege,
+            // et c'est lui qu'on vient frapper.
+            //
+            // Sur un Centre de Commandement, elle couvre des CASES - la sienne et ses
+            // voisines - parce que c'est exactement ce qu'elle interdit. Un joueur qui
+            // regarde le plateau doit voir ou il ne peut pas entrer, sans avoir lu une
+            // seule ligne de regle. Une bulle collee au batiment aurait menti sur ce
+            // qu'elle fait.
+            // On lit le rayon du TYPE, pas l'etat courant : la taille du dome est figee
+            // a la construction, et BubbleRadius rend zero quand la bulle est percee.
+            // Creer le visuel pendant ce creux aurait donne une bulle a la taille du
+            // batiment, definitivement fausse des qu'elle se refait.
+            int bubbleCells = (portal.type == TypeOfHex.mountain && portal.level >= 1)
+                              ? MNLTHII.Rules.InteractionRules.GetMountainRepel(portal.level)
+                              : 0;
+
+            float radius, height;
+
+            if (bubbleCells > 0)
+            {
+                // Le +0.55 deborde d'un demi-hexagone : la bulle doit ENGLOBER la
+                // derniere couronne interdite, pas s'arreter sur son centre.
+                radius = (bubbleCells + 0.55f) * HexWidth();
+
+                // UNE COUPOLE SURBAISSEE, ET PAS UNE SPHERE.
+                //
+                // Large et basse : c'est la forme qui dit "ceci couvre du terrain".
+                // Une bulle haute aurait l'air d'envelopper le batiment, ce qui est
+                // justement ce qu'elle ne fait pas - elle protege des CASES.
+                //
+                // J'avais remonte cette valeur en croyant que l'anneau se perdait dans
+                // le sol. C'etait faux : il se voyait, et le demi-cercle qu'il dessinait
+                // au ras du plateau etait exactement la bonne lecture. Ce qui manquait
+                // n'etait pas la hauteur, c'etait la bulle elle-meme - elle n'existait
+                // pas pendant les trois premieres phases (voir HexagonFactory).
+                height = Mathf.Max(bounds.extents.y * shieldScale, radius * 0.45f);
+            }
+            else
+            {
+                radius = Mathf.Max(bounds.extents.x, bounds.extents.z) * shieldScale;
+                height = Mathf.Max(bounds.extents.y * shieldScale, radius * 0.7f);
+            }
+
+            // LE DEFAUT QUE CE CALCUL CORRIGE.
+            //
+            // Le dome etait centre sur le SOL de la case, ce qui paraissait logique
+            // pour une bulle qui couvre du terrain. Sauf que ce shader ne dessine que
+            // le LISERE - l'anneau de silhouette, la ou la surface se detourne de la
+            // camera. Centre au sol, cet anneau tombait exactement dans le plateau :
+            // il etait masque par le terrain, et la bulle restait invisible.
+            //
+            // CENTREE SUR LE SOL DE LA CASE : la moitie basse passe sous le plateau,
+            // la moitie haute dessine le demi-cercle qu'on voit. C'est la forme juste
+            // pour une bulle qui couvre des cases, et elle pose son bord exactement la
+            // ou l'ennemi devra s'arreter.
+            if (bubbleCells > 0)
+                dt.position = new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
+
             dt.localScale = new Vector3(radius * 2f, height * 2f, radius * 2f);
+
+            // --- LE DISQUE AU SOL : les cases interdites ---
+            //
+            // Un lisere seul est une jolie lueur, pas une information. Ce qu'il faut
+            // lire d'un coup d'oeil, c'est OU on ne peut pas entrer - et ca se dessine
+            // a plat, sur les cases concernees. Le meme materiau que les pastilles de
+            // fissure : un disque doux, additif, pose sur le plateau.
+            if (bubbleCells > 0 && _pipMaterial != null)
+            {
+                GameObject zoneGo = new GameObject("Zone_Interdite");
+                zoneGo.layer = 2;
+
+                Transform zt = zoneGo.transform;
+                zt.SetParent(v.root, false);
+
+                // Trois centimetres au-dessus du plateau : assez pour ne pas clignoter
+                // contre le sol, assez peu pour rester pose dessus.
+                zt.position = new Vector3(bounds.center.x, bounds.min.y + 0.03f, bounds.center.z);
+                zt.localScale = new Vector3(radius * 2f, radius * 2f, radius * 2f);
+
+                zoneGo.AddComponent<MeshFilter>().sharedMesh = Quad();
+                MeshRenderer zoneRenderer = zoneGo.AddComponent<MeshRenderer>();
+                zoneRenderer.sharedMaterial = _pipMaterial;
+                zoneRenderer.shadowCastingMode = ShadowCastingMode.Off;
+                zoneRenderer.receiveShadows = false;
+                v.zone = zoneRenderer;
+            }
 
             MeshRenderer domeRenderer = dome.GetComponent<MeshRenderer>();
             domeRenderer.sharedMaterial = _domeMaterial;

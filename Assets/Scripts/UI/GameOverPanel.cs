@@ -160,14 +160,57 @@ namespace MNLTHII.Managers
 
             if (accentBar != null) accentBar.color = accent;
 
+            // LE RANG, SELON LE TANYA.
+            //
+            // Gagner ne dit pas COMMENT on a gagne. Abattre les six Shofars sans en
+            // retourner un seul, c'est l'Atkafya pure : le Yetzer est soumis, il n'est
+            // pas transforme. C'est la mesure du BEINONI - et ce n'est pas un echec,
+            // le Tanya en fait le niveau de tout homme.
+            //
+            // En retourner une partie : TZADIK VE'RA LO, une part est devenue bien,
+            // une part reste du mal tenu. Les retourner tous : TZADIK VE'TOV LO, il ne
+            // reste plus rien a soumettre.
+            //
+            // Les trois titres vivent dans hud_labels.json. Aucun n'est une defaite.
+            int turned = victory ? MNLTHII.Rules.InteractionRules.CountTurnedPortals() : 0;
+            int fallen = victory ? MNLTHII.Rules.InteractionRules.CountFallenPortals() : 0;
+
+            string rankTitle = null;
+            string rankBody = null;
+
+            if (victory && fallen > 0)
+            {
+                if (turned >= fallen)
+                {
+                    rankTitle = MNLTHII.UI.HudLabelsRuntime.Get("rankTzadikTov");
+                    rankBody = MNLTHII.UI.HudLabelsRuntime.Get("rankTzadikTovBody");
+                }
+                else if (turned > 0)
+                {
+                    rankTitle = MNLTHII.UI.HudLabelsRuntime.Get("rankTzadikRa");
+                    rankBody = MNLTHII.UI.HudLabelsRuntime.Get("rankTzadikRaBody");
+                }
+                else
+                {
+                    rankTitle = MNLTHII.UI.HudLabelsRuntime.Get("rankBeinoni");
+                    rankBody = MNLTHII.UI.HudLabelsRuntime.Get("rankBeinoniBody");
+                }
+            }
+
             if (titleText != null)
             {
-                titleText.text = victory ? victoryTitle : defeatTitle;
+                titleText.text = string.IsNullOrEmpty(rankTitle)
+                                 ? (victory ? victoryTitle : defeatTitle)
+                                 : rankTitle;
                 titleText.color = accent;
             }
 
             if (subtitleText != null)
-                subtitleText.text = victory ? victorySubtitle : defeatSubtitle;
+            {
+                subtitleText.text = string.IsNullOrEmpty(rankBody)
+                                    ? (victory ? victorySubtitle : defeatSubtitle)
+                                    : rankBody;
+            }
 
             FillStats(accent);
 

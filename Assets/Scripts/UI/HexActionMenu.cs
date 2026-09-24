@@ -63,6 +63,18 @@ namespace MNLTHII.Managers
         public string viewLabel = "";
         public string useLabel = "";
 
+        [Tooltip("Affiche a la place du prix quand la case est hors de portee de "
+               + "construction. Vide : relu au lancement dans hud_labels.json.")]
+        public string outOfRangeLabel = "";
+
+        [Tooltip("Affiche quand la case est dans l'ombre d'un Shofar debout - un refus "
+               + "qui ne se repare pas en amenant un Tank, mais en fermant le Shofar.")]
+        public string portalShadowLabel = "";
+
+        [Tooltip("Affiche sur une case de desert : aucune action, aucune evolution, "
+               + "jamais. Vide : relu au lancement dans hud_labels.json.")]
+        public string barrenLabel = "";
+
         [Header("Aspect")]
         [Tooltip("Coche : le menu s'ouvre au centre de l'ecran. Decoche : au-dessus du point clique.")]
         public bool centered = false;
@@ -112,6 +124,17 @@ namespace MNLTHII.Managers
 
             _detailsCallback = OnDetails;
             if (detailsButton != null) detailsButton.onClick.AddListener(_detailsCallback);
+
+            // Libelle ajoute apres la derniere construction du HUD : on le relit dans
+            // le JSON plutot que d'exiger une reconstruction.
+            if (string.IsNullOrEmpty(outOfRangeLabel))
+                outOfRangeLabel = MNLTHII.UI.HudLabelsRuntime.Get("outOfRange");
+
+            if (string.IsNullOrEmpty(portalShadowLabel))
+                portalShadowLabel = MNLTHII.UI.HudLabelsRuntime.Get("portalShadow");
+
+            if (string.IsNullOrEmpty(barrenLabel))
+                barrenLabel = MNLTHII.UI.HudLabelsRuntime.Get("barrenTitle");
 
             Hide();
         }
@@ -199,7 +222,8 @@ namespace MNLTHII.Managers
             // rien a faire, plutot que de se demander ou il est passe.
             bool usable = action.kind != HexActionKind.None
                           && action.kind != HexActionKind.MaxLevel
-                          && action.kind != HexActionKind.Occupied;
+                          && action.kind != HexActionKind.Occupied
+                          && action.kind != HexActionKind.Barren;
 
             bool canUse = usable && action.affordable;
 
@@ -208,13 +232,24 @@ namespace MNLTHII.Managers
 
             if (useText != null)
             {
-                useText.text = useLabel;
+                // Hors de portee, le bouton DIT pourquoi. Un bouton simplement eteint
+                // laisse croire a un bug, ou a un manque d'Energie qui n'existe pas.
+                // Trois refus differents, trois mots differents. Le desert ne se
+                // repare pas : il n'a simplement rien a donner, et le dire evite de
+                // chercher pourquoi le bouton ne repond pas.
+                string refus = null;
+                if (action.kind == HexActionKind.Barren) refus = barrenLabel;
+                else if (action.outOfRange) refus = action.portalShadow ? portalShadowLabel : outOfRangeLabel;
+
+                useText.text = string.IsNullOrEmpty(refus) ? useLabel : refus;
                 useText.color = canUse ? textColor : textDisabledColor;
             }
 
             if (costText != null)
             {
-                bool showCost = usable && action.cost > 0;
+                // Le prix disparait quand la case est hors de portee : il n'y a pas de
+                // prix a une chose qu'on ne peut pas faire.
+                bool showCost = usable && action.cost > 0 && !action.outOfRange;
                 costText.gameObject.SetActive(showCost);
 
                 if (showCost)
@@ -226,6 +261,7 @@ namespace MNLTHII.Managers
 
             // Details : il y a quelque chose a dire sur toute case qui a une action ou un
             // occupant. Rien sur un Shofar ou la Base, qui ont leur propre panneau.
+            // Le desert a droit a ses details : c'est la que la phrase apparait.
             bool hasDetails = action.kind != HexActionKind.None && HexTooltipController.Instance != null;
             if (detailsButton != null) detailsButton.interactable = hasDetails;
             if (detailsText != null)

@@ -476,6 +476,23 @@ public class PawnController : MonoBehaviour
     // =====================================================================
     //  ANIMATIONS
     // =====================================================================
+    /// <summary>
+    /// Duree d'une orientation, a l'allure choisie. Le plancher evite un tween de
+    /// duree nulle, que DOTween traite comme "pas de tween du tout".
+    /// </summary>
+    private static float LookSeconds()
+    {
+        float value = MNLTHII.Managers.PhasePace.Seconds(MNLTHII.Managers.PhasePace.PawnLook);
+        return (value < 0.02f) ? 0.02f : value;
+    }
+
+    /// <summary>Duree d'un pas, a l'allure choisie. Toujours sous PhasePace.UnitMove.</summary>
+    private static float MoveSeconds()
+    {
+        float value = MNLTHII.Managers.PhasePace.Seconds(MNLTHII.Managers.PhasePace.PawnMove);
+        return (value < 0.02f) ? 0.02f : value;
+    }
+
     public void ApplySequenceAnimation(TypeOfPawnInteractions p_pawnInteraction)
     {
         if (_board == null) _board = BoardController.instance;
@@ -492,12 +509,24 @@ public class PawnController : MonoBehaviour
                         // Stocke dans un champ au lieu d'etre capture par une lambda.
                         _pendingDestination = destination;
 
+                        // LE PAS DURAIT 1,5 SECONDE ALORS QUE LA PHASE N'EN ATTENDAIT
+                        // QUE 0,85. Un pion etait donc encore en train de glisser quand
+                        // le suivant commencait a jouer - et un Tank de rang 2, qui
+                        // enchaine deux pas, lancait son second tween pendant que le
+                        // premier courait encore : DOTween ecrasait l'un par l'autre et
+                        // l'unite sautait une case a l'ecran.
+                        //
+                        // La duree vient maintenant de PhasePace, ou elle est reglee
+                        // POUR RESTER SOUS l'attente d'un pas, et elle suit l'allure
+                        // choisie par le joueur : accelerer l'attente sans accelerer le
+                        // mouvement aurait juste deplace le meme bogue.
                         Sequence sequence = DOTween.Sequence();
-                        sequence.Append(_transform.DOLookAt(destination.transform.position, 0.1f)).SetEase(Ease.InOutCirc);
+                        sequence.Append(_transform.DOLookAt(destination.transform.position, LookSeconds()))
+                                .SetEase(Ease.InOutCirc);
                         // Un pas n'est pas un coup : ce tween declenchait le son
                         // d'ATTAQUE, et le joueur entendait donc frapper a chaque
                         // deplacement. Il a maintenant le sien.
-                        sequence.Append(_transform.DOMove(destination.transform.position, 1.5f))
+                        sequence.Append(_transform.DOMove(destination.transform.position, MoveSeconds()))
                                 .SetEase(Ease.InCirc)
                                 .OnStart(_onMoveSfxCached);
                         sequence.OnComplete(_onMoveCompleteCached);
@@ -524,10 +553,10 @@ public class PawnController : MonoBehaviour
                         _pendingDestination = destination;
 
                         Sequence sequence = DOTween.Sequence();
-                        sequence.Append(_transform.DOLookAt(destination.transform.position, 0.1f))
+                        sequence.Append(_transform.DOLookAt(destination.transform.position, LookSeconds()))
                                 .SetEase(Ease.InCirc)
                                 .OnStart(_onMoveSfxCached);
-                        sequence.Append(_transform.DOMove(destination.transform.position, 1.8f))
+                        sequence.Append(_transform.DOMove(destination.transform.position, MoveSeconds()))
                                 .SetEase(Ease.InCirc);
                         sequence.OnComplete(_onMoveCompleteCached);
                     }
@@ -557,7 +586,7 @@ public class PawnController : MonoBehaviour
         if (_transform == null) return;
 
         if (targetHex != null)
-            _transform.DOLookAt(targetHex.transform.position, 0.08f).SetEase(Ease.OutQuad);
+            _transform.DOLookAt(targetHex.transform.position, LookSeconds()).SetEase(Ease.OutQuad);
 
         if (_attackFlashRoutine != null) StopCoroutine(_attackFlashRoutine);
         _attackFlashRoutine = StartCoroutine(AttackFlashRoutine());

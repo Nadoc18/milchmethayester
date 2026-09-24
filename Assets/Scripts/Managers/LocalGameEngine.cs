@@ -41,6 +41,10 @@ namespace MNLTHII.Managers
             if (gameObject.GetComponent<BuildingManager>() == null) gameObject.AddComponent<BuildingManager>();
             if (gameObject.GetComponent<ThreatPreview>() == null) gameObject.AddComponent<ThreatPreview>();
 
+            // La terre qui refleurit quand un Shofar tombe. Posee ici comme les autres :
+            // elle existe meme dans une scene ou personne n'a ajoute le composant.
+            if (gameObject.GetComponent<LandBloom>() == null) gameObject.AddComponent<LandBloom>();
+
             // Les cordons ennemi-Shofar. Ils se posent ici comme tout le reste : ainsi
             // ils existent meme dans une scene ou personne n'a ajoute le composant a la
             // main, et ils partagent la duree de vie des gestionnaires qui les nourrissent.

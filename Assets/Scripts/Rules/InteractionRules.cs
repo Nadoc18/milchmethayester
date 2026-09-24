@@ -16,7 +16,10 @@ namespace MNLTHII.Rules
         Blocked_NotEnoughEnergy,
         Blocked_MaxLevel,
         Blocked_NoCrystal,
-        Blocked_NotPlayerPhase
+        Blocked_NotPlayerPhase,
+
+        /// <summary>Trop loin de tout ce qui donne le droit de batir ici.</summary>
+        Blocked_OutOfRange
     }
 
     /// <summary>
@@ -49,12 +52,21 @@ namespace MNLTHII.Rules
         // =====================================================================
         //  ECONOMIE - revenu
         // =====================================================================
-        /// <summary>Solde au premier tour : de quoi poser un batiment d'ouverture.</summary>
-        // 110 et plus 60 : la partie commence desormais sans aucun pion. Les trois
-        // Tanks offerts valaient 150 d'Energie ; on en rend une partie pour que le
-        // premier tour permette deux usines de gaz ET un Tank (30 + 30 + 50).
-        /// <remarks>Selon la difficulte (voir GameDifficulty) : 170 / 140 / 110.</remarks>
-        public static int STARTING_ENERGY { get { return GameDifficulty.Pick(170, 140, 110); } }
+        /// <summary>
+        /// Solde au premier tour.
+        ///
+        /// RAMENE DE 140 A 90 (moyen). A 140, une usine coutant 30 et remboursee en
+        /// deux tours, le premier coup etait toujours le meme : quatre usines, sans
+        /// risque et sans reflexion. Un premier coup qui ne se discute pas est un tour
+        /// perdu.
+        ///
+        /// A 90 le premier tour ne permet plus tout : trois usines, ou une usine et un
+        /// Bunker, ou une usine et de quoi poser un Tank au tour suivant. Il faut
+        /// choisir par quel cote on ouvre - et c'est la que le plateau commence a
+        /// vouloir dire quelque chose.
+        /// </summary>
+        /// <remarks>Selon la difficulte (voir GameDifficulty) : 110 / 90 / 70.</remarks>
+        public static int STARTING_ENERGY { get { return GameDifficulty.Pick(110, 90, 70); } }
 
         /// <summary>
         /// LE PLANCHER. Verse en debut de tour quoi qu'il arrive, meme si le joueur a
@@ -117,7 +129,41 @@ namespace MNLTHII.Rules
         // =====================================================================
         //  ECONOMIE - couts
         // =====================================================================
-        public const int TANK_CREATION_COST = 50;
+        /// <summary>
+        /// LE TANK COUTE MOINS CHER QUE LE BUNKER. C'est volontaire, et c'est le
+        /// pivot de tout l'equilibrage militaire.
+        ///
+        /// Compare ce que les deux font vraiment, par tour :
+        ///
+        ///                    degats/tour   portee   duree       pilotage
+        ///   Bunker rang 1     40 (4 x 10)     2     ~3 tours    aucun
+        ///   Tank rang 1       10 (1 x 10)     1     indefinie   posture a donner
+        ///
+        /// Le Bunker frappe quatre fois plus fort, deux fois plus loin, et il n'exige
+        /// rien du joueur : il se declenche seul sur ce qui passe a portee. Le Tank
+        /// frappe une cible, avance d'une case, meurt en trois coups, et il faut
+        /// l'avoir compris avant de s'en servir. A prix egal, personne n'a de raison
+        /// de sortir : on se terre derriere des Bunkers et on regarde.
+        ///
+        /// Or se terrer ne gagne pas cette partie. Les Shofars sont aux coins, a sept
+        /// cases ; un Bunker porte a deux et ne bouge pas. Le Tank est le SEUL moyen
+        /// d'aller fermer un Shofar, et le seul moyen de porter la construction plus
+        /// loin que la Base (BUILD_RANGE_FROM_TANK). Faire payer le plus cher l'unique
+        /// chemin vers la victoire, c'etait taxer la sortie et subventionner l'attente.
+        ///
+        /// A 40, le Tank redevient ce qu'il doit etre : peu efficace, mais jetable. On
+        /// peut en perdre un sur une erreur de posture sans avoir perdu son tour. Le
+        /// prix ne rend pas le Tank plus facile a diriger - il rend l'erreur moins
+        /// chere, et c'est la seule reponse honnete a une unite difficile a diriger.
+        ///
+        /// Rendement tout compris, une fois le Bunker use :
+        ///   Bunker : 60 + ~48 de munitions pour ~120 degats -> 0.9 par degat
+        ///   Tank   : 40 pour ~50 degats s'il tient cinq tours -> 0.8 par degat
+        /// Presque le meme prix au degat. Le Bunker paie une prime pour la salve, la
+        /// portee et le zero-pilotage ; le Tank est moins cher et demande de la
+        /// patience. C'est redevenu un choix, ce n'etait plus une evidence.
+        /// </summary>
+        public const int TANK_CREATION_COST = 40;
 
         /// <summary>
         /// Prix d'un changement de posture sur un Tank DEJA POSE. Choisir la posture
@@ -133,8 +179,42 @@ namespace MNLTHII.Rules
         public const int TANK_STANCE_COST = 15;
         public const int TANK_EVOLVE_COST = 60;
 
-        public const int COST_BUNKER_L1 = 40;
-        public const int COST_BUNKER_L2 = 60;
+        /// <summary>
+        /// LE BUNKER EST LE BATIMENT LE PLUS CHER APRES LE CRISTAL, et il est le seul
+        /// qui disparaisse. Les deux vont ensemble : voir TANK_CREATION_COST.
+        ///
+        /// Ce qu'on achete pour 60 : quatre tirs de 10 par tour sur dix-huit cases,
+        /// sans un clic, pendant trois tours. Il n'existe rien d'autre dans le jeu qui
+        /// arrete une vague entiere a lui tout seul. Ce prix-la se paie en un tour de
+        /// revenu, et c'est le bon ordre de grandeur pour une decision qui doit rester
+        /// ponctuelle - "une vague arrive ICI" - et jamais devenir une doctrine.
+        ///
+        /// Le rang 2 ne suit PAS la regle du x1.5 des autres batiments (Gaz 30/45,
+        /// Cristal 60/90, Centre 50/75). Ceux-la sont permanents : on amortit leur
+        /// second rang sur toute la partie. Le Bunker fond en quatre tours, donc son
+        /// second rang s'amortit sur quatre tours, et 80 est deja le plafond de ce
+        /// qu'on peut demander pour quelque chose qu'on ne reverra pas.
+        /// </summary>
+        /// PRIX RELEVE PARCE QUE LE TIR EST DEVENU GRATUIT. Le Bunker coutait 60 a la
+        /// construction PLUS 4 d'Energie par coup tire, soit une cinquantaine de plus
+        /// sur toute sa vie. Ce prelevement au tir a disparu (voir BUNKER_SHOT_COST) :
+        /// son cout entier est maintenant paye a la pose, et il est passe de 60 a 75
+        /// pour que le rendement ne bouge pas.
+        ///
+        /// Ce qu'on achete pour 75, et c'est enfin un nombre que le joueur peut
+        /// retenir : DIX SALVES. Quarante PV, quatre de perdus par coup parti. Le
+        /// rang 2 en offre vingt, de quinze degats chacune.
+        ///
+        /// Prix au degat : 0,75 pour le Bunker, 0,80 pour le Tank. Les deux sont a
+        /// egalite, et le Tank reste le moins cher a l'achat - le pivot tient (voir
+        /// TANK_CREATION_COST).
+        ///
+        /// A SAVOIR, PARCE QUE C'EST UNE VRAIE DECISION : ameliorer un Bunker au rang 2
+        /// remet ses PV au maximum. Un Bunker presque vide peut donc etre RECHARGE pour
+        /// 95 au lieu d'etre laisse mourir et reconstruit pour 75. On paie vingt de plus
+        /// et on recoit vingt salves plus fortes au lieu de dix.
+        public const int COST_BUNKER_L1 = 75;
+        public const int COST_BUNKER_L2 = 95;
         public const int COST_GAS_L1 = 30;
         public const int COST_GAS_L2 = 45;
         public const int COST_CRYSTAL_L1 = 60;
@@ -156,37 +236,80 @@ namespace MNLTHII.Rules
         public const int BUNKER_RANGE = 2;
 
         /// <summary>
-        /// Cout d'UN tir de Bunker. Ce n'est pas un forfait : un Bunker qui n'a aucune
-        /// cible ne coute rien, et un Bunker qui vide son chargeur coute cher. Sans ce
-        /// prix, un mur de six Bunkers etait un investissement unique qui bloquait la
-        /// carte pour toujours - la strategie degeneree que la simulation a montree.
-        /// Avec le cout au tir, tenir la ligne se paie exactement a la hauteur de ce
-        /// qu'elle arrete.
+        /// L'USURE DU BUNKER : UN BUNKER NE S'USE QU'EN TIRANT.
+        ///
+        /// CE QUE C'ETAIT, ET POURQUOI C'ETAIT FAUX
+        ///
+        /// Il perdait 8 PV par tour au rang 1, 11 au rang 2, QUOI QU'IL ARRIVE, plus
+        /// 2 par tir. Une colline au calme fondait donc exactement comme une colline
+        /// au front : cinq tours et elle s'effondrait sans avoir tire un coup.
+        ///
+        /// L'intention etait bonne - empecher le mur de Bunkers eternel qui gagnait la
+        /// partie tout seul - mais le moyen retirait au joueur le seul levier qui
+        /// comptait. Il ne pouvait ni reparer, ni ralentir, ni meme mettre son Bunker a
+        /// l'abri. Un batiment qui fond a un rythme qu'on ne controle pas n'est pas une
+        /// decision, c'est un impot avec un minuteur - et cela donnait au jeu entier un
+        /// gout de construire sur du sable.
+        ///
+        /// LA REGLE MAINTENANT, ET ELLE TIENT EN UNE PHRASE
+        ///
+        /// Le Bunker ne perd de PV qu'en tirant : BUNKER_WEAR_PER_SHOT par coup parti.
+        /// Ce n'est plus de la rouille, c'est des MUNITIONS - il se depense sur
+        /// l'ennemi, et le joueur decide combien en choisissant ou il le pose.
+        ///
+        ///                     tous ses tirs   feu moyen   au calme
+        ///   rang 1 (40 PV)      3 tours        5 tours     indefini
+        ///   rang 2 (80 PV)      4 tours        7 tours     indefini
+        ///
+        /// SOUS LE FEU, LA DUREE EST EXACTEMENT CELLE D'AVANT : l'usure par tir passe
+        /// de 2 a 4, ce qui compense au PV pres la decroissance passive supprimee. On
+        /// n'a donc pas rendu le Bunker plus fort la ou il sert - on a seulement cesse
+        /// de le punir la ou il ne sert pas.
+        ///
+        /// LE VERROU ANTI-FORTERESSE TIENT TOUJOURS, et c'est verifiable : six Bunkers
+        /// qui tirent tous, ce sont 24 tirs, donc 96 Energie de munitions par tour -
+        /// la moitie du revenu maximal de la carte - et 96 PV d'usure. Le mur fond
+        /// toujours, exactement la ou il arrete quelque chose. Un Bunker ne dure que la
+        /// ou personne ne passe, c'est-a-dire la ou il ne sert a rien.
         /// </summary>
-        /// <summary>
-        /// L'USURE DU BUNKER. Sans elle, un Bunker etait eternel : on couvrait la carte
-        /// de Bunkers rang 2, plus aucun ennemi n'arrivait jusqu'a quoi que ce soit, et
-        /// la partie etait jouee.
-        ///
-        /// Chaque fin de tour il perd BUNKER_DECAY (8 au rang 1, 11 au rang 2), plus
-        /// BUNKER_WEAR_PER_SHOT (2) par tir tire ce tour-ci :
-        ///
-        ///                     tous ses tirs     au calme
-        ///   rang 1 (40 PV)      ~3 tours        5 tours
-        ///   rang 2 (80 PV)      ~4 tours        ~8 tours
-        ///
-        /// C'est un renfort ponctuel, pas un mur : on le pose quand une vague arrive,
-        /// il encaisse, il tombe. A zero il s'effondre, la colline redevient nue et peut
-        /// etre reconstruite.
-        /// </summary>
-        public const int BUNKER_DECAY_L1 = 8;
-        public const int BUNKER_DECAY_L2 = 11;
-        public const int BUNKER_WEAR_PER_SHOT = 2;
+        public const int BUNKER_DECAY_L1 = 0;
+        public const int BUNKER_DECAY_L2 = 0;
+        public const int BUNKER_WEAR_PER_SHOT = 4;
 
         public static int GetBunkerDecay(int level) { return (level >= 2) ? BUNKER_DECAY_L2 : BUNKER_DECAY_L1; }
 
-        public const int BUNKER_SHOT_COST_L1 = 4;
-        public const int BUNKER_SHOT_COST_L2 = 5;
+        /// <summary>
+        /// L'ENERGIE NE SE PERD QU'EN ETANT DEPENSEE. Ces deux constantes valent zero,
+        /// et c'est desormais une regle du jeu, pas un reglage.
+        ///
+        /// Un tir de Bunker coutait 4 d'Energie au rang 1, 5 au rang 2. C'etait le
+        /// DERNIER prelevement passif du jeu : le seul endroit ou le solde du joueur
+        /// baissait sans qu'il ait clique sur quoi que ce soit. Tout le reste - un
+        /// Tank, un batiment, une posture, un Shofar retourne - se paie sur une
+        /// decision.
+        ///
+        /// Un compteur qui descend tout seul apprend au joueur a ne pas construire.
+        /// Il regardait ses six Bunkers lui manger cent Energie par tour pour un
+        /// resultat qu'il ne pouvait pas rattacher a un choix, et le jeu entier prenait
+        /// le gout d'un entretien plutot que d'une conquete.
+        ///
+        /// Le prix n'a pas disparu, il a change de place : il est paye a la
+        /// construction (voir COST_BUNKER_L1, passe de 60 a 75) et en PV a chaque tir
+        /// (BUNKER_WEAR_PER_SHOT). Le Bunker reste donc exactement aussi cher pour ce
+        /// qu'il fait - mais tout se decide au moment de le poser, et plus rien ne
+        /// coule ensuite.
+        ///
+        /// Le verrou anti-forteresse ne reposait pas sur ce prix : six Bunkers, c'est
+        /// 450 d'Energie a reconstruire tous les trois tours, soit 150 par tour sur un
+        /// revenu maximal de 192. Le mur complet reste impossible, et il l'est
+        /// maintenant a cause d'une decision de construction, pas d'une fuite.
+        ///
+        /// Elles restent dans le code plutot que d'etre supprimees : BuildingManager
+        /// les additionne toujours, et un reglage futur a une valeur non nulle
+        /// remarcherait sans toucher a rien.
+        /// </summary>
+        public const int BUNKER_SHOT_COST_L1 = 0;
+        public const int BUNKER_SHOT_COST_L2 = 0;
 
         // ---------------- Section 3 : Cristal (soutien militaire) ----------------
         //
@@ -233,27 +356,222 @@ namespace MNLTHII.Rules
         //   - les Tanks en Garde defendent autour de LUI comme autour de la Base ;
         //   - les Tanks dans son rayon avancent d'une case de plus.
         //
-        // Et il continue de fondre. Ce n'est donc pas une fortification, c'est une
-        // TETE DE PONT : on la paie, on pousse, elle s'ecroule. C'est le seul batiment
-        // qui ne rapporte rien si on le pose chez soi - son rayon doublerait celui de
-        // la Base - et qui ne paie que place devant, expose.
-        public const int MOUNTAIN_HP_L1 = 30;
-        public const int MOUNTAIN_HP_L2 = 50;
+        // Ce n'est pas une fortification, c'est une TETE DE PONT - et une tete de pont
+        // ne fond pas toute seule : on vient la lui prendre. Voir MOUNTAIN_SHIELD_L1.
+        //
+        // PV releves de 30/50 a 45/75. A 30, un Centre pose a quatre cases de la Base -
+        // donc a portee des emissaires - tombait en trois coups d'un ennemi de rang 1,
+        // ou en un seul d'un rang 3, pour 50 d'Energie. Ce n'etait pas une tete de
+        // pont, c'etait une cible.
+        public const int MOUNTAIN_HP_L1 = 45;
+        public const int MOUNTAIN_HP_L2 = 75;
 
         /// <summary>
         /// Rayon INFRANCHISSABLE pour les ennemis. Lu par BoardController quand il
         /// calcule le pas suivant d'un ennemi ; les Tanks du joueur passent librement.
+        ///
+        /// TROIS CORRECTIONS, ET ELLES VONT ENSEMBLE. La repulsion rendait le Centre
+        /// litteralement invincible : un ennemi frappe au CONTACT, et la repulsion
+        /// fermait justement les six cases de contact. Pire, l'IA le choisissait quand
+        /// meme comme cible, marchait vers lui, se faisait bloquer a deux cases, et
+        /// restait plantee la - ni avancer, ni frapper, tour apres tour.
+        ///
+        ///   1. LE RANG 2 NE REPOUSSE PLUS PLUS LOIN. Il est passe de 2 a 1.
+        ///      Mesure sur le plateau reel : six Centres rang 2 debout fermaient
+        ///      TOUTES les cases d'attaque de la Base - zero sur douze. Le joueur
+        ///      n'avait qu'a en batir six pour ne plus jamais pouvoir perdre. Cela ne
+        ///      tenait avant que parce qu'un Centre fondait en dix tours ; maintenant
+        ///      qu'il est permanent, c'etait une victoire automatique a 300 d'Energie.
+        ///      Le rang 2 garde tout le reste : plus de PV, une bulle plus grande, et
+        ///      un rayon de commandement qui passe de 2 a 3.
+        ///
+        ///   2. CELUI QUI VIENT POUR LUI PASSE. Un Centre barre le passage a ceux qui
+        ///      vont AILLEURS ; il n'empeche pas de frapper ce qu'on est venu frapper.
+        ///      Voir BoardController.PathStepTowards : la repulsion est ignoree quand
+        ///      la cible de l'ennemi est dans sa zone ou au bord.
+        ///
+        ///   3. LA BULLE EST LE MUR. Bulle percee, le Centre ne barre plus rien.
+        ///
+        /// Ensemble, ces trois regles repondent a la seule question qui comptait :
+        /// comment abat-on un Centre ? On vient expres pour lui - la repulsion ne
+        /// protege pas de cela - on perce sa bulle, et alors le couloir s'ouvre pour
+        /// tout le monde.
         /// </summary>
         public const int MOUNTAIN_REPEL_L1 = 1;
-        public const int MOUNTAIN_REPEL_L2 = 2;
+        public const int MOUNTAIN_REPEL_L2 = 1;
 
         /// <summary>
-        /// Usure par tour. Ramenee de 10 a 5 : a 10, un Centre rang 1 vivait trois
-        /// tours pour 50 d'Energie, et personne n'en aurait jamais pose un. A 5, il
-        /// tient six tours au rang 1 et dix au rang 2 - de quoi mener une offensive
-        /// complete, sans jamais devenir permanent.
+        /// PLUS D'USURE DU TOUT. Un Centre de Commandement ne fond plus.
+        ///
+        /// Il perdait 5 PV par tour, quoi qu'il arrive : six tours de vie au rang 1,
+        /// dix au rang 2. Or le trajet de la Base a un Shofar prend trois tours a un
+        /// Tank rang 2. Le joueur posait donc son Centre, s'en servait deux fois, et le
+        /// regardait tomber sans pouvoir rien y faire. Payer 50 d'Energie pour un objet
+        /// dont on connait deja la date de mort, c'est la definition du sable mouvant.
+        ///
+        /// CE QUI LE REND PERISSABLE MAINTENANT : L'ENNEMI, ET RIEN D'AUTRE. Il est
+        /// pose en avant, expose, et le Yetzer Hara le prend pour cible des qu'il passe
+        /// a trois cases. Il tombera - mais parce qu'on est venu le lui prendre, et
+        /// c'est une histoire que le joueur peut suivre, contester, et parfois gagner.
+        ///
+        /// Conservee a zero plutot que supprimee : BuildingManager l'additionne
+        /// toujours, et une valeur non nulle remarcherait sans toucher a rien.
         /// </summary>
-        public const int MOUNTAIN_DECAY_PER_TURN = 5;
+        public const int MOUNTAIN_DECAY_PER_TURN = 0;
+
+        // =====================================================================
+        //  LA BULLE DU CENTRE DE COMMANDEMENT
+        // =====================================================================
+        //
+        // L'ennemi doit d'abord CASSER LA BULLE. Tant qu'elle tient, le batiment ne
+        // prend rien : tous les degats vont dans le bouclier.
+        //
+        // C'est la meme grammaire que le bouclier d'un Shofar, retournee. Le joueur
+        // connait deja la regle - il passe la partie a briser celle du Yetzer Hara -
+        // et il la retrouve ici de son cote. Rien de neuf a apprendre.
+        //
+        // POURQUOI UN BOUCLIER PLUTOT QUE PLUS DE PV
+        //
+        // Doubler les PV aurait rendu le Centre plus dur a tuer, pas plus interessant.
+        // Un bouclier fait trois choses qu'un tas de PV ne fait pas :
+        //
+        //   - il SE VOIT. Un dome au-dessus de la case, exactement comme sur un Shofar
+        //     debout : on sait d'un coup d'oeil si sa tete de pont tient encore.
+        //   - il SE REFAIT quand on laisse le Centre tranquille, donc une escarmouche
+        //     ne coute rien a long terme, alors qu'un assaut soutenu perce.
+        //   - il DONNE UN TOUR. Le tour ou la bulle tombe est un avertissement : le
+        //     joueur voit venir la perte et peut encore envoyer un Tank.
+        //
+        // Un seul ennemi de rang 2 ne percera jamais un Centre rang 1 : il fait 15
+        // degats et la bulle en reprend 8 par tour de calme. Il faut une vraie poussee,
+        // ce qui est exactement ce qu'on veut qu'une tete de pont demande.
+
+        public const int MOUNTAIN_SHIELD_L1 = 40;
+        public const int MOUNTAIN_SHIELD_L2 = 70;
+
+        /// <summary>
+        /// Ce que la bulle reprend par tour, UNIQUEMENT si le Centre n'a rien encaisse
+        /// ce tour-ci. Frappe, elle ne se refait pas : sinon un assaut lent n'aboutirait
+        /// jamais et la tete de pont redeviendrait une fortification.
+        /// </summary>
+        public const int MOUNTAIN_SHIELD_REGEN = 8;
+
+        public static int GetMountainShield(int level)
+        {
+            if (level >= 2) return MOUNTAIN_SHIELD_L2;
+            return (level == 1) ? MOUNTAIN_SHIELD_L1 : 0;
+        }
+
+        // =====================================================================
+        //  LA BULLE EST UNE ZONE, ET ELLE SE FRAPPE DE L'EXTERIEUR
+        // =====================================================================
+        //
+        // LA VERSION PRECEDENTE ETAIT UN BRICOLAGE, ET CA SE VOYAIT.
+        //
+        // Le bouclier etait colle au batiment, la repulsion fermait separement les
+        // cases autour, et il fallait deux exceptions pour que l'ennemi puisse
+        // quand meme entrer frapper : "celui qui vient pour lui passe", "la cible dans
+        // la zone annule la repulsion". Deux regles qu'aucun joueur n'aurait devinees
+        // en regardant le plateau.
+        //
+        // LA BULLE COUVRE DES CASES. C'est tout, et ca se voit.
+        //
+        //   Le Centre et les cases a MOUNTAIN_REPEL autour de lui - sept cases au
+        //   total - sont SOUS la bulle. Aucun ennemi n'y entre, jamais, sans exception.
+        //
+        //   Un ennemi arrive au bord, a une case de la bulle, et il FRAPPE LA BULLE.
+        //   Il est au contact de sa surface : sa portee de une case suffit. Neuf cases
+        //   font le tour de la bulle, il y en a toujours une de libre.
+        //
+        //   La bulle tombe, la zone s'ouvre, les ennemis entrent et s'en prennent au
+        //   batiment.
+        //
+        // Une seule phrase pour tout le systeme : ON NE PEUT PAS ENTRER DANS LA BULLE,
+        // ON LA CASSE DE L'EXTERIEUR. Les deux exceptions ont disparu avec elle.
+
+        /// <summary>
+        /// Rayon de la bulle de cette case, en cases. Zero quand il n'y en a pas -
+        /// n'importe quelle cible, un Shofar, une usine, un Tank - ce qui fait de
+        /// DistanceToTarget un calcul valable partout.
+        /// </summary>
+        public static int BubbleRadius(Hexagon hex)
+        {
+            if (hex == null) return 0;
+            if (hex.type != TypeOfHex.mountain || hex.level < 1) return 0;
+            if (hex.currentHP <= 0 || hex.shieldHP <= 0) return 0;
+
+            return GetMountainRepel(hex.level);
+        }
+
+        /// <summary>
+        /// Distance de FRAPPE jusqu'a cette case : la distance ordinaire, moins le
+        /// rayon de sa bulle. Un ennemi a deux cases d'un Centre protege est donc a
+        /// une case de la bulle, c'est-a-dire a portee.
+        ///
+        /// C'est le seul calcul que l'IA ennemie doit faire pour que tout le systeme
+        /// marche : chercher une cible, decider d'attaquer plutot que d'avancer, et
+        /// savoir quand s'arreter en chemin passent tous par ici.
+        /// </summary>
+        public static int DistanceToTarget(HexCoord from, Hexagon target)
+        {
+            if (from == null || target == null || target.positionInTheBoard == null) return int.MaxValue;
+
+            int distance = BoardController.GetHexDistance(from, target.positionInTheBoard) - BubbleRadius(target);
+            return (distance < 0) ? 0 : distance;
+        }
+
+        /// <summary>
+        /// La bulle de ce Centre tient-elle encore ? Lue par l'affichage et par le
+        /// filtre de degats.
+        /// </summary>
+        public static bool HasShield(Hexagon hex)
+        {
+            return hex != null
+                && hex.type == TypeOfHex.mountain
+                && hex.level >= 1
+                && hex.currentHP > 0
+                && hex.shieldHP > 0;
+        }
+
+        /// <summary>
+        /// (Re)pose la bulle a son maximum. Appele a la construction et a chaque montee
+        /// de rang : un Centre ameliore repart avec une bulle pleine, comme il repart
+        /// avec ses PV pleins.
+        /// </summary>
+        public static void ResetShield(Hexagon hex)
+        {
+            if (hex == null || hex.type != TypeOfHex.mountain) return;
+
+            hex.shieldMax = GetMountainShield(hex.level);
+            hex.shieldHP = hex.shieldMax;
+        }
+
+        /// <summary>
+        /// Les degats passent d'abord dans la bulle. Rend ce qui reste pour le
+        /// batiment - zero tant que la bulle encaisse tout.
+        ///
+        /// Le debordement n'est PAS reporte sur le batiment : le coup qui fait tomber
+        /// la bulle s'arrete a la bulle. C'est ce qui garantit le tour d'avertissement
+        /// dont parle le commentaire ci-dessus - la bulle tombe, le Centre est encore
+        /// entier, le joueur a un tour pour reagir.
+        /// </summary>
+        public static int FilterMountainDamage(Hexagon hex, int amount)
+        {
+            if (hex == null || amount <= 0) return amount;
+            if (hex.type != TypeOfHex.mountain || hex.level < 1) return amount;
+            if (hex.shieldHP <= 0) return amount;
+
+            hex.shieldHP -= amount;
+
+            if (hex.shieldHP <= 0)
+            {
+                hex.shieldHP = 0;
+                Debug.LogFormat("[Centre] La bulle de ({0},{1}) vient de ceder.",
+                                hex.positionInTheBoard.q, hex.positionInTheBoard.r);
+            }
+
+            return 0;
+        }
 
         /// <summary>
         /// Rayon de COMMANDEMENT : jusqu'ou ce Centre remplace la Base comme point
@@ -322,8 +640,83 @@ namespace MNLTHII.Rules
         /// arrive. L'affaiblir assez pour changer le debut de partie l'aurait rendu
         /// inutile contre les rangs 2 et 3 en fin de partie.
         /// </summary>
-        /// <remarks>Selon la difficulte : 5 / 4 / 3.</remarks>
-        public static int PORTAL_SPAWN_INTERVAL { get { return GameDifficulty.Pick(5, 4, 3); } }
+        /// <remarks>Selon la difficulte : 5 / 4 / 3, MOINS l'acceleration ci-dessous.</remarks>
+        public static int PORTAL_SPAWN_INTERVAL
+        {
+            get
+            {
+                int interval = GameDifficulty.Pick(5, 4, 3) - SpawnAcceleration();
+                return (interval < PORTAL_SPAWN_INTERVAL_FLOOR) ? PORTAL_SPAWN_INTERVAL_FLOOR : interval;
+            }
+        }
+
+        // ------- LE YETZER SE NOURRIT DE TA PROSPERITE -------
+        //
+        // C'etait le trou de l'equilibrage : une economie exponentielle en face d'une
+        // pression PLATE. Quatre usines au premier tour, aucune contrepartie, et des
+        // le quatrieme tour l'Energie cessait d'etre une contrainte - avec elle,
+        // toutes les decisions qu'elle portait.
+        //
+        // Maintenant, chaque tranche de revenu enleve un tour au cycle de deploiement
+        // de TOUS les Shofars. Batir n'est plus gratuit : ca t'achete du temps et ca
+        // t'en reprend. Et l'austerite devient une vraie strategie - rester pauvre
+        // pour que l'ennemi reste lent.
+        //
+        // C'est aussi la regle la plus juste thematiquement : ce qu'on accumule
+        // renforce ce qu'on affronte.
+
+        /// <summary>
+        /// Revenu d'usines qui enleve UN tour au cycle de deploiement.
+        ///
+        /// PORTE DE 45 A 60 QUAND LE GLACIS A REDUIT LA CARTE A SIX USINES. A 45,
+        /// batir simplement ses six usines de depart (90 de revenu) suffisait a
+        /// atteindre le plancher du cycle : passe ce point, monter en rang 2, liberer
+        /// un secteur ou doubler son economie ne coutait plus RIEN, et la regle
+        /// cessait d'exister au moment ou elle aurait du mordre.
+        ///
+        /// A 60, la courbe respire : six usines rang 1 valent une marche, les monter
+        /// toutes en rang 2 en vaut une deuxieme et touche le plancher. L'evolution
+        /// d'une usine redevient une decision, au lieu d'un gain sans facture.
+        /// </summary>
+        public const int SPAWN_ACCEL_PER_INCOME = 60;
+
+        /// <summary>Le cycle ne descend jamais sous ce seuil, quelle que soit la richesse.</summary>
+        public const int PORTAL_SPAWN_INTERVAL_FLOOR = 2;
+
+        /// <summary>Tours retires au cycle par la richesse du joueur.</summary>
+        public static int SpawnAcceleration()
+        {
+            return GasIncomePerTurn() / SPAWN_ACCEL_PER_INCOME;
+        }
+
+        // Memoire d'une frame : PORTAL_SPAWN_INTERVAL est lu plusieurs fois par tour
+        // (deploiement, apercu de menace, panneau d'un Shofar). Sans ce garde-fou on
+        // reparcourrait les 169 cases a chaque lecture. Avec, au plus une fois par
+        // frame - et jamais de valeur perimee, puisqu'une usine batie change la frame.
+        private static int _incomeFrame = -1;
+        private static int _incomeValue;
+
+        /// <summary>Ce que les usines DEBOUT rapportent par tour, Base non comprise.</summary>
+        public static int GasIncomePerTurn()
+        {
+            int frame = Time.frameCount;
+            if (frame == _incomeFrame) return _incomeValue;
+            _incomeFrame = frame;
+            _incomeValue = 0;
+
+            BoardController board = BoardController.instance;
+            if (board == null || board.HexagonsInBoard == null) return 0;
+
+            System.Collections.Generic.List<Hexagon> hexes = board.HexagonsInBoard;
+            for (int i = 0; i < hexes.Count; i++)
+            {
+                Hexagon hex = hexes[i];
+                if (hex == null || hex.type != TypeOfHex.gas || hex.level < 1 || hex.currentHP <= 0) continue;
+                _incomeValue += GetGasIncome(hex.level);
+            }
+
+            return _incomeValue;
+        }
 
         /// <summary>
         /// Ennemis deja presents sur la carte au premier tour. 0 : le plateau commence
@@ -494,6 +887,10 @@ namespace MNLTHII.Rules
                 case TypeOfHex.gas: return second ? COST_GAS_L2 : COST_GAS_L1;
                 case TypeOfHex.crystal: return second ? COST_CRYSTAL_L2 : COST_CRYSTAL_L1;
                 case TypeOfHex.mountain: return second ? COST_MOUNTAIN_L2 : COST_MOUNTAIN_L1;
+
+                // La ruine d'un Shofar : son unique "niveau" est le retournement.
+                case TypeOfHex.Destroyed: return second ? 0 : COST_TURN_PORTAL;
+
                 default: return 0;
             }
         }
@@ -562,9 +959,147 @@ namespace MNLTHII.Rules
                 case TypeOfHex.mountain:
                     return hex.level < 1;
 
+                // Une ruine de Shofar se traverse ; une ruine RETOURNEE est un
+                // batiment, et un batiment ne se pietine pas.
+                case TypeOfHex.Destroyed:
+                    return hex.level < 1;
+
                 default:
                     return true;
             }
+        }
+
+        // =====================================================================
+        //  ATKAFYA ET AT'HAPKHA - les deux etapes du Tanya
+        // =====================================================================
+        //
+        // Le Tanya distingue deux travaux sur le Yetzer Hara.
+        //
+        //   ATKAFYA - le soumettre. On resiste, on l'empeche d'agir, on le met a bas.
+        //             Le mal reste du mal ; il est tenu. C'est tout le jeu jusqu'ici :
+        //             la ligne qu'on tient, le bouclier qu'on brise, le Shofar qu'on
+        //             abat. Il en reste une ruine, morte et sterile.
+        //
+        //   AT'HAPKHA - le retourner. Le mal lui-meme devient bien : ce n'est plus une
+        //             force qu'on contient, c'est une force qui sert. Et la lumiere
+        //             tiree de l'obscurite vaut plus que la lumiere ordinaire -
+        //             YITRON HA'OR MIN HA'HOSHEKH.
+        //
+        // Sur le plateau, la ruine d'un Shofar peut donc etre RETOURNEE : elle devient
+        // une source qui verse plus qu'une usine de Gaz au rang 2.
+        //
+        // Et surtout - c'est la ligne qui porte toute l'idee - cette Energie-la
+        // N'ACCELERE PAS le Yetzer. Le Gaz qu'on batit le nourrit (voir
+        // SPAWN_ACCEL_PER_INCOME, qui ne compte que les usines) ; ce qu'on lui a pris
+        // ne le nourrit pas. La richesse ordinaire a un prix, la richesse retournee
+        // n'en a aucun : elle est d'un autre ordre.
+        //
+        // Un Shofar retourne est INDESTRUCTIBLE, et ce n'est pas un oubli : ce qui a
+        // ete retourne ne se retourne pas en sens inverse.
+
+        /// <summary>Prix du retournement d'une ruine de Shofar. C'est le prix d'une offensive.</summary>
+        public const int COST_TURN_PORTAL = 120;
+
+        /// <summary>Ce que verse un Shofar retourne, chaque tour. Plus qu'un Gaz rang 2.</summary>
+        public const int TURNED_PORTAL_INCOME = 35;
+
+        /// <summary>Une ruine de Shofar, pas encore retournee.</summary>
+        public static bool IsFallenPortal(Hexagon hex)
+        {
+            return hex != null && hex.type == TypeOfHex.Destroyed && hex.level < 1;
+        }
+
+        /// <summary>Un Shofar retourne : il verse, et il ne nourrit plus le Yetzer.</summary>
+        public static bool IsTurnedPortal(Hexagon hex)
+        {
+            return hex != null && hex.type == TypeOfHex.Destroyed && hex.level >= 1;
+        }
+
+        /// <summary>Peut-on retourner cette ruine maintenant ? (portee comprise)</summary>
+        public static bool CanTurnPortal(Hexagon hex)
+        {
+            return IsFallenPortal(hex) && CanBuildAt(hex.positionInTheBoard);
+        }
+
+        /// <summary>
+        /// Le retournement. La case garde son type (une ruine reste une ruine aux yeux
+        /// du code : elle ne compte pas parmi les Shofars a abattre) et passe au niveau
+        /// 1, ce qui suffit a la distinguer partout. Aucun nouveau type d'hexagone :
+        /// les parties deja sauvegardees continuent donc de se relire sans rien changer.
+        /// </summary>
+        public static TriviaOutcome TurnPortal(Hexagon hex)
+        {
+            if (!IsFallenPortal(hex)) return TriviaOutcome.EnergyOnly;
+            if (!CanBuildAt(hex.positionInTheBoard)) return TriviaOutcome.Blocked_OutOfRange;
+
+            EnergyManager energy = EnergyManager.Instance;
+            if (energy == null || !energy.TrySpend(COST_TURN_PORTAL))
+                return TriviaOutcome.Blocked_NotEnoughEnergy;
+
+            hex.level = 1;
+            hex.buildingType = "Prod";
+
+            if (FXManager.Instance != null)
+            {
+                FXManager.Instance.SpawnCrystalBuffFX(hex.transform.position);
+                FXManager.Instance.PlayBuildingSFX();
+            }
+
+            if (BoardController.instance != null)
+            {
+                BoardController.instance.UpgradeHexVisual(hex);
+                BoardController.instance.RefreshAllAuras();
+            }
+
+            Debug.LogFormat("[Rules] Shofar retourne en ({0},{1}) : il verse {2} par tour.",
+                            hex.positionInTheBoard.q, hex.positionInTheBoard.r, TURNED_PORTAL_INCOME);
+
+            return TriviaOutcome.BuildingUpgraded;
+        }
+
+        /// <summary>Combien de Shofars sont tombes - retournes ou non.</summary>
+        public static int CountFallenPortals()
+        {
+            return CountDestroyed(false);
+        }
+
+        /// <summary>Combien de Shofars ont ete RETOURNES. C'est la mesure du Tanya.</summary>
+        public static int CountTurnedPortals()
+        {
+            return CountDestroyed(true);
+        }
+
+        private static int CountDestroyed(bool turnedOnly)
+        {
+            BoardController board = BoardController.instance;
+            if (board == null || board.HexagonsInBoard == null) return 0;
+
+            System.Collections.Generic.List<Hexagon> hexes = board.HexagonsInBoard;
+
+            int count = 0;
+            for (int i = 0; i < hexes.Count; i++)
+            {
+                Hexagon hex = hexes[i];
+                if (hex == null || hex.type != TypeOfHex.Destroyed) continue;
+                if (turnedOnly && hex.level < 1) continue;
+                count++;
+            }
+            return count;
+        }
+
+        /// <summary>
+        /// Ce que cette case verse a chaque tour : une usine de Gaz debout, ou un
+        /// Shofar retourne. Un seul endroit pour les deux, sinon l'un des deux finira
+        /// par etre oublie quelque part.
+        /// </summary>
+        public static int GetHexIncome(Hexagon hex)
+        {
+            if (hex == null) return 0;
+
+            if (hex.type == TypeOfHex.gas)
+                return (hex.level < 1 || hex.currentHP <= 0) ? 0 : GetGasIncome(hex.level);
+
+            return IsTurnedPortal(hex) ? TURNED_PORTAL_INCOME : 0;
         }
 
         /// <summary>Un hexagone est occupe des qu'un pion (allie ou ennemi) s'y trouve.</summary>
@@ -572,6 +1107,184 @@ namespace MNLTHII.Rules
         {
             if (hex == null || BoardController.instance == null) return false;
             return BoardController.instance.getPawnByCoord(hex.positionInTheBoard) != null;
+        }
+
+        // =====================================================================
+        //  PORTEE DE CONSTRUCTION
+        // =====================================================================
+        //
+        // POURQUOI ON NE BATIT PLUS N'IMPORTE OU
+        //
+        // Avant, une usine pouvait naitre a l'autre bout de la carte au premier tour,
+        // et un Tank s'achetait colle a un Shofar. Trois choses en mouraient d'un coup :
+        //
+        //   - la GEOGRAPHIE. Le plateau distingue soigneusement les usines couvertes
+        //     par une colline et celles exposees au bord ; si les deux s'atteignent
+        //     pour le meme prix et sans risque, la distinction ne coute rien et ne
+        //     veut donc rien dire ;
+        //   - le TEMPS DE TRAJET, qui devait etre la grande friction de l'offensive.
+        //     Il s'achetait pour cinquante d'Energie ;
+        //   - le CENTRE DE COMMANDEMENT, pense comme une tete de pont. On n'a pas
+        //     besoin d'une tete de pont quand on peut deja tout poser la-bas.
+        //
+        // Desormais on batit autour de ce qu'on TIENT. Trois ancrages, et ils
+        // racontent les trois ages d'une partie :
+        //
+        //   la BASE           -> l'anneau interieur : collines de couloir, usines sures.
+        //                        C'est chez toi, tu n'as besoin de personne.
+        //   un TANK POSTE     -> tout site a une case de lui. Le Tank devient pionnier :
+        //                        il marche, et tu batis derriere lui. C'est ce qui
+        //                        ouvre l'anneau des Cristaux et des Centres.
+        //   un CENTRE DE      -> son rayon de commandement, qui porte jusqu'au bord.
+        //   COMMANDEMENT        Planter un Centre ouvre les usines exposees et les
+        //                        collines avancees - et comme il fond, cette ouverture
+        //                        est une FENETRE, pas une conquete.
+        //
+        // Le desert trouve ici son role : on n'y batit pas, mais on s'y tient. C'est le
+        // sol depuis lequel un Tank ouvre un site.
+
+        /// <summary>
+        /// Distance a la Base (bord compris) en deca de laquelle on batit librement.
+        ///
+        /// PORTE DE 3 A 4 QUAND LE GLACIS A PRIS LE RELAIS. A 3, les Cristaux et les
+        /// Centres de Commandement - poses a 4 - demandaient un Tank pionnier pour la
+        /// moindre construction. C'etait une friction de plus, et surtout une friction
+        /// INVISIBLE : le joueur voyait un site, cliquait, et recevait un refus qu'il
+        /// ne pouvait pas deviner.
+        ///
+        /// A 4, tout ce qui n'est pas du desert est a portee des le premier tour. Le
+        /// terrain dit alors tout : ce qui est constructible se voit, et ce qui ne
+        /// l'est pas est du sable.
+        ///
+        /// La regle continue de servir a un seul endroit, et c'est le bon : la terre
+        /// qu'un Shofar tombe vient de rendre. Elle est au bord du plateau, hors de
+        /// portee de la Base - il faut donc aller la prendre, avec un Tank ou un
+        /// Centre de Commandement. Gagner ouvre du terrain, mais ne l'offre pas.
+        /// </summary>
+        public const int BUILD_RANGE_FROM_BASE = 4;
+
+        /// <summary>Distance a un Tank a soi en deca de laquelle on peut batir.</summary>
+        public const int BUILD_RANGE_FROM_TANK = 1;
+
+        /// <summary>
+        /// L'OMBRE DU SHOFAR : rien ne se construit a cette distance d'un Shofar DEBOUT.
+        ///
+        /// On ne batit pas de forteresse au pied du Yetzer. Le siege confortable - un
+        /// Bunker pose a deux cases, qui fauche les emissaires a leur sortie et engrange
+        /// l'instabilite sans jamais rien risquer - disparait. Il reste l'assaut : on y
+        /// va avec des Tanks, ou on n'y va pas.
+        ///
+        /// Deux cases, et pas une autre valeur : c'est exactement la portee d'un Bunker,
+        /// donc la distance qui rendait ce siege possible.
+        ///
+        /// ELLE MEURT AVEC LUI. L'ombre est attachee au Shofar vivant : quand il tombe,
+        /// la terre autour s'ouvre, et la colline avancee qu'elle gelait devient enfin
+        /// constructible - contre ses voisins. Fermer un Shofar ne rapporte donc plus
+        /// seulement un point de victoire : ca rapporte du terrain.
+        ///
+        /// Elle interdit de CONSTRUIRE, jamais de MARCHER : un Tank vient se poster a
+        /// deux cases et tire. L'assaut est intact.
+        ///
+        /// A ZERO, ET C'EST VOLONTAIRE : le GLACIS l'a remplacee. Les deux derniers
+        /// anneaux du plateau sont devenus du desert nu (voir MapGenerator), et le
+        /// desert ne porte deja ni batiment ni Tank. Mesure faite, une ombre de rayon 2
+        /// n'interdirait plus que SIX cases que le glacis ne couvre pas deja, et une
+        /// ombre de rayon 1 n'en interdirait aucune : deux regles pour le meme effet,
+        /// dont une invisible.
+        ///
+        /// Le code reste, juste, et pret : si les sites revenaient vers le bord un
+        /// jour, remettre 2 ici suffit a retrouver l'interdiction - avec, en prime, ce
+        /// que le desert ne sait pas faire, s'effacer quand le Shofar tombe.
+        /// </summary>
+        public const int PORTAL_SHADOW_RADIUS = 0;
+
+        // Coordonnees des Shofars encore debout, relevees une fois par frame. Sans ce
+        // cache, le conseiller - qui teste les 169 cases - relirait le plateau entier
+        // pour chacune d'elles.
+        private static int _shadowFrame = -1;
+        private static int _shadowCount;
+        private static readonly int[] _shadowQ = new int[16];
+        private static readonly int[] _shadowR = new int[16];
+
+        private static void RefreshPortalShadows()
+        {
+            int frame = Time.frameCount;
+            if (frame == _shadowFrame) return;
+            _shadowFrame = frame;
+            _shadowCount = 0;
+
+            BoardController board = BoardController.instance;
+            if (board == null || board.HexagonsInBoard == null) return;
+
+            System.Collections.Generic.List<Hexagon> hexes = board.HexagonsInBoard;
+            for (int i = 0; i < hexes.Count && _shadowCount < _shadowQ.Length; i++)
+            {
+                Hexagon hex = hexes[i];
+                if (hex == null || hex.type != TypeOfHex.portal) continue;
+                if (hex.currentHP <= 0 || hex.positionInTheBoard == null) continue;
+
+                _shadowQ[_shadowCount] = hex.positionInTheBoard.q;
+                _shadowR[_shadowCount] = hex.positionInTheBoard.r;
+                _shadowCount++;
+            }
+        }
+
+        /// <summary>Cette case est-elle dans l'ombre d'un Shofar encore debout ?</summary>
+        public static bool IsInPortalShadow(HexCoord coord)
+        {
+            if (coord == null || PORTAL_SHADOW_RADIUS <= 0) return false;
+
+            RefreshPortalShadows();
+
+            for (int i = 0; i < _shadowCount; i++)
+            {
+                // Distance cubique, calculee a plat : s se deduit de q et r.
+                int dq = coord.q - _shadowQ[i];
+                int dr = coord.r - _shadowR[i];
+                int ds = -dq - dr;
+
+                int distance = (Mathf.Abs(dq) + Mathf.Abs(dr) + Mathf.Abs(ds)) / 2;
+                if (distance <= PORTAL_SHADOW_RADIUS) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// A-t-on le droit de construire sur cette case ? Seule regle de portee du jeu :
+        /// l'interface l'interroge pour eteindre ses boutons, et ApplyPlayerAction pour
+        /// refuser l'action. Les deux ne peuvent donc pas diverger.
+        /// </summary>
+        public static bool CanBuildAt(HexCoord coord)
+        {
+            if (coord == null) return false;
+
+            // L'ombre d'un Shofar debout passe AVANT tout le reste : ni la Base, ni un
+            // Tank, ni un Centre de Commandement n'y donnent le droit de batir.
+            if (IsInPortalShadow(coord)) return false;
+
+            BuildingManager buildings = BuildingManager.Instance;
+            if (buildings != null)
+            {
+                if (buildings.DistanceToBase(coord) <= BUILD_RANGE_FROM_BASE) return true;
+
+                // Le rayon de commandement d'un Centre debout - pas celui de la Base,
+                // que la ligne precedente couvre deja.
+                if (buildings.HasCommandSupport(coord)) return true;
+            }
+
+            BoardController board = BoardController.instance;
+            if (board == null || board.PawnsInBoard == null) return false;
+
+            System.Collections.Generic.List<PawnController> pawns = board.PawnsInBoard;
+            for (int i = 0; i < pawns.Count; i++)
+            {
+                PawnController pawn = pawns[i];
+                if (pawn == null || pawn.IsEnemy || pawn.currentHP <= 0 || pawn.hexcoord == null) continue;
+                if (BoardController.GetHexDistance(coord, pawn.hexcoord) <= BUILD_RANGE_FROM_TANK) return true;
+            }
+
+            return false;
         }
 
         /// <summary>Un Cristal actif (level interne 1+, "Niv 2" au GDD) couvre-t-il cet hexagone ?</summary>
@@ -647,6 +1360,12 @@ namespace MNLTHII.Rules
         public static TriviaOutcome CreateTankWithStance(Hexagon hex, PawnStance stance)
         {
             if (hex == null) return TriviaOutcome.EnergyOnly;
+
+            // La portee est verifiee ICI aussi, et pas seulement a l'ouverture de
+            // l'ecran de choix : entre le clic et le choix, le Tank qui donnait le
+            // droit de batir a pu mourir, ou le Centre de Commandement s'effondrer.
+            // C'est le dernier point avant la depense.
+            if (!CanBuildAt(hex.positionInTheBoard)) return TriviaOutcome.Blocked_OutOfRange;
 
             EnergyManager energy = EnergyManager.Instance;
             if (energy == null || !energy.TrySpend(TANK_CREATION_COST))
@@ -868,6 +1587,10 @@ namespace MNLTHII.Rules
                 // on la traverse, on ne s'y installe pas - et l'autre moitie devient
                 // une ressource dont la position compte.
                 case TypeOfHex.plain:
+                    // On ne pose que sur le terrain qu'on tient : autour de la Base,
+                    // d'un Tank deja la, ou d'un Centre de Commandement.
+                    if (!CanBuildAt(hex.positionInTheBoard)) return TriviaOutcome.Blocked_OutOfRange;
+
                     if (energy == null || !energy.TrySpend(TANK_CREATION_COST))
                         return TriviaOutcome.Blocked_NotEnoughEnergy;
                     if (BoardController.instance != null)
@@ -882,6 +1605,11 @@ namespace MNLTHII.Rules
                 {
                     if (hex.level >= MAX_TERRAIN_LEVEL) return TriviaOutcome.Blocked_MaxLevel;
 
+                    // Meme regle pour les batiments : la portee d'abord, le prix ensuite.
+                    // Dans cet ordre, un joueur qui n'a pas les moyens ET qui vise trop
+                    // loin apprend la vraie raison du refus.
+                    if (!CanBuildAt(hex.positionInTheBoard)) return TriviaOutcome.Blocked_OutOfRange;
+
                     int targetLevel = hex.level + 1;
                     int cost = GetBuildCost(hex.type, targetLevel);
 
@@ -891,6 +1619,10 @@ namespace MNLTHII.Rules
                     UpgradeBuilding(hex, targetLevel);
                     return TriviaOutcome.BuildingUpgraded;
                 }
+
+                // AT'HAPKHA : la ruine d'un Shofar se retourne.
+                case TypeOfHex.Destroyed:
+                    return TurnPortal(hex);
 
                 default:
                     return TriviaOutcome.EnergyOnly;
@@ -912,6 +1644,10 @@ namespace MNLTHII.Rules
             hex.level = Mathf.Clamp(newLevel, 0, MAX_TERRAIN_LEVEL);
             ApplyBuildingHP(hex);
 
+            // Un Centre neuf, ou monte en rang, repart avec une bulle pleine - comme il
+            // repart avec ses PV pleins. Sur tout autre terrain, ceci ne fait rien.
+            ResetShield(hex);
+
             if (FXManager.Instance != null)
                 FXManager.Instance.SpawnBuildingUpgradeFX(hex.transform.position);
 
@@ -920,7 +1656,15 @@ namespace MNLTHII.Rules
 
             if (BoardController.instance != null)
             {
-                BoardController.instance.UpgradeHexVisual(hex);
+                // UpgradeHexVisual ne modifie pas l'hexagone : il en FABRIQUE UN AUTRE
+                // et remplace le premier dans la liste du plateau. Tout ce qu'on vient
+                // de poser sur "hex" ne vaut donc que si HexagonFactory le recopie - ce
+                // qu'elle fait, bulle comprise. On repose quand meme la bulle sur le
+                // nouveau : c'est lui qui vit maintenant, et une regle aussi visible que
+                // celle-la ne doit dependre de personne d'autre.
+                Hexagon rebuilt = BoardController.instance.UpgradeHexVisual(hex);
+                if (rebuilt != null) ResetShield(rebuilt);
+
                 BoardController.instance.RefreshAllAuras();
             }
         }
@@ -1036,6 +1780,36 @@ namespace MNLTHII.Rules
                     hex.ApplyDamage(amount);
                 }
                 return;
+            }
+
+            // LA BULLE DU CENTRE DE COMMANDEMENT : elle encaisse tout tant qu'elle
+            // tient. Le Centre ne prend rien, et on note le coup pour que la bulle ne
+            // se refasse pas ce tour-ci.
+            if (hex.type == TypeOfHex.mountain && hex.level >= 1)
+            {
+                hex.attacked = true;
+
+                int absorbed = amount;
+                amount = FilterMountainDamage(hex, amount);
+
+                if (amount <= 0)
+                {
+                    // LE CHIFFRE MONTE SUR LA BULLE, PAS SUR LE BATIMENT. Sans lui, le
+                    // joueur voyait un ennemi tirer et il ne se passait rien a l'ecran :
+                    // les PV du Centre ne bougeaient pas, et la seule trace du coup
+                    // etait le dome qui palissait d'un cran. Le coup doit se compter.
+                    if (hex.transform != null)
+                    {
+                        MNLTHII.UI.DamagePopup.Show(hex.transform.position + Vector3.up * 1.4f,
+                                                    absorbed, MNLTHII.UI.DamageKind.TakenByPlayer);
+
+                        if (FXManager.Instance != null)
+                            FXManager.Instance.SpawnHitFX(hex.transform.position + Vector3.up * 1.2f);
+                    }
+
+                    hex.RefreshHealthBar();
+                    return;
+                }
             }
 
             if (hex.type == TypeOfHex.portal)
