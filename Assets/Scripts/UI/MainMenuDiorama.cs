@@ -39,6 +39,16 @@ namespace MNLTHII.Managers
         [Tooltip("Retard de la vague par pixel de distance au centre.")]
         public float waveDelayPerPixel = 0.0025f;
 
+        [Header("Nuit electronique")]
+        [Tooltip("Fond de camera sombre, brume bleu nuit qui noie le lointain : le diorama "
+               + "sort du sable et passe en salle des machines. Decoche pour retrouver le ciel.")]
+        public bool nightMode = true;
+        public Color nightBackground = new Color(0.027f, 0.035f, 0.075f, 1f);
+        public Color nightFog = new Color(0.06f, 0.08f, 0.16f, 1f);
+        [Range(0f, 0.2f)] public float nightFogDensity = 0.055f;
+        [Tooltip("Lumiere ambiante de la nuit : un bleu froid, assez clair pour lire les robots.")]
+        public Color nightAmbient = new Color(0.34f, 0.40f, 0.58f, 1f);
+
         private Vector3 _offset;
         private bool _hasRig;
 
@@ -46,6 +56,31 @@ namespace MNLTHII.Managers
         {
             _hasRig = cameraRig != null;
             if (_hasRig) _offset = cameraRig.position - focus;
+
+            if (nightMode) ApplyNight();
+        }
+
+        /// <summary>
+        /// La nuit : camera sur fond uni sombre, brume exponentielle de la meme
+        /// famille, ambiance bleue. Rien n'est touche dans la scene elle-meme - ce
+        /// sont des reglages de rendu, retablis par Unity au changement de scene.
+        /// </summary>
+        private void ApplyNight()
+        {
+            Camera cam = (cameraRig != null) ? cameraRig.GetComponentInChildren<Camera>() : null;
+            if (cam == null) cam = Camera.main;
+            if (cam != null)
+            {
+                cam.clearFlags = CameraClearFlags.SolidColor;
+                cam.backgroundColor = nightBackground;
+            }
+
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.ExponentialSquared;
+            RenderSettings.fogColor = nightFog;
+            RenderSettings.fogDensity = nightFogDensity;
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = nightAmbient;
         }
 
         private void Update()

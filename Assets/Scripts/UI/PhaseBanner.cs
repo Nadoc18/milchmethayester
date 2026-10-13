@@ -207,10 +207,10 @@ namespace MNLTHII.Managers
             // Sans libelle, pas de bandeau : mieux vaut rien qu'une bande vide.
             if (string.IsNullOrEmpty(title)) yield break;
 
-            if (_title != null) { _title.text = title; _title.color = accent; }
+            if (_title != null) { _title.text = MNLTHII.UI.Rtl.Fix(title); _title.color = accent; }
             if (_body != null)
             {
-                _body.text = body;
+                _body.text = MNLTHII.UI.Rtl.Fix(body);
                 _body.gameObject.SetActive(!string.IsNullOrEmpty(body));
             }
 
@@ -262,10 +262,16 @@ namespace MNLTHII.Managers
 
                 waited += Time.unscaledDeltaTime;
 
+                // Pendant une phase automatique, Espace et Entree appartiennent a la
+                // barre de phase (unite suivante / tout passer) : les lire ici aussi
+                // ferait sauter toute la phase ennemie a qui voulait juste fermer le
+                // bandeau. Le bandeau sort alors via AnySkip ci-dessus.
+                bool keys = !MNLTHII.Managers.PhasePace.Running
+                            && (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return));
+
                 if (waited >= minimum
                     && (Input.GetMouseButtonDown(0)
-                        || Input.GetKeyDown(KeyCode.Space)
-                        || Input.GetKeyDown(KeyCode.Return)
+                        || keys
                         || Input.GetKeyDown(KeyCode.Escape)))
                     yield break;
 

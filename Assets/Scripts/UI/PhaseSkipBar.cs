@@ -91,6 +91,10 @@ namespace MNLTHII.UI
         private static void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene,
                                           UnityEngine.SceneManagement.LoadSceneMode mode)
         {
+            // Une scene rechargee au milieu d'une phase (Resynchronize, rejouer)
+            // laisserait Running a true : la barre s'afficherait sur l'annonce du
+            // tour et Espace/Entree y declencheraient des sauts fantomes.
+            PhasePace.EndPhase();
             Spawn();
         }
 
@@ -126,12 +130,17 @@ namespace MNLTHII.UI
                 if (_root != null) _root.SetActive(running);
 
                 if (running) RefreshSpeedLabel();
+
+                // L'image ou la barre apparait, on ne lit PAS les touches : c'est
+                // souvent l'Entree qui vient de terminer le tour (TurnManager.Update,
+                // meme image), et elle sauterait toute la phase des Tanks.
+                return;
             }
 
             if (!running) return;
 
-            // Les memes touches que le bouton d'a cote. Elles ne sont lues qu'ici,
-            // donc jamais pendant la phase de depense ou elles terminent le tour.
+            // Les memes touches que le bouton d'a cote. Pendant une phase automatique
+            // elles ne sont lues qu'ici (PhaseBanner s'en remet a AnySkip).
             if (Input.GetKeyDown(KeyCode.Space)) PhasePace.SkipUnit();
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) PhasePace.SkipPhase();
 
@@ -168,8 +177,10 @@ namespace MNLTHII.UI
 
             if (_speedBackground != null && index >= 0 && index < SpeedColors.Length)
             {
+                // Sur la plaque du theme, la couleur TEINTE le sprite : on reste clair.
                 Color tint = SpeedColors[index];
-                tint.a = 0.20f;
+                tint.a = (_speedBackground.sprite != null) ? 0.90f : 0.20f;
+                if (_speedBackground.sprite != null) tint = Color.Lerp(Color.white, tint, 0.55f);
                 _speedBackground.color = tint;
             }
         }
@@ -210,6 +221,7 @@ namespace MNLTHII.UI
             float panelHeight = ButtonHeight + 52f;
 
             Image panel = NewImage("Fond", canvasGo.transform, PanelColor, false);
+            Dress(panel, "UI/ui_panel_dark", new Color(1f, 1f, 1f, 0.92f));
             RectTransform panelRect = panel.rectTransform;
             panelRect.anchorMin = new Vector2(1f, 0f);
             panelRect.anchorMax = new Vector2(1f, 0f);
@@ -254,6 +266,7 @@ namespace MNLTHII.UI
                                 out TMPro.TextMeshProUGUI text)
         {
             Image background = NewImage("Bouton", parent, IdleColor, true);
+            Dress(background, "UI/ui_button_cyan", new Color(1f, 1f, 1f, 0.90f));
             RectTransform rect = background.rectTransform;
             rect.anchorMin = new Vector2(1f, 0f);
             rect.anchorMax = new Vector2(1f, 0f);
@@ -284,6 +297,21 @@ namespace MNLTHII.UI
 
             button.onClick.AddListener(action);
             return background;
+        }
+
+        /// <summary>
+        /// Le theme electronique, s'il est la : un sprite chanfreine decoupe en 9 a la
+        /// place du rectangle plat. Resources/UI est importe par le HudBuilder ; tant
+        /// qu'il ne l'a pas ete, Load rend null et le rectangle plat reste.
+        /// </summary>
+        private static void Dress(Image image, string resource, Color color)
+        {
+            Sprite sprite = Resources.Load<Sprite>(resource);
+            if (sprite == null) return;
+
+            image.sprite = sprite;
+            image.type = Image.Type.Sliced;
+            image.color = color;
         }
 
         private static void Stretch(RectTransform rect)

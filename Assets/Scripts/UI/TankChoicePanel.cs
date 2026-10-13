@@ -397,12 +397,12 @@ namespace MNLTHII.Managers
 
             if (cardNames != null && slot < cardNames.Length && cardNames[slot] != null)
             {
-                cardNames[slot].text = name;
+                cardNames[slot].text = MNLTHII.UI.Rtl.Fix(name);
                 cardNames[slot].color = accent;
             }
 
             if (cardBodies != null && slot < cardBodies.Length && cardBodies[slot] != null)
-                cardBodies[slot].text = body;
+                cardBodies[slot].text = MNLTHII.UI.Rtl.Fix(body);
 
             if (cardCosts == null || slot >= cardCosts.Length || cardCosts[slot] == null) return;
 

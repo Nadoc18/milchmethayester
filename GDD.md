@@ -90,8 +90,8 @@ Dans cet ordre exact :
 
 1. **Les usines paient.** La camera va sur chaque usine et sur chaque Shofar
    retourne ; le gain s'affiche en grand puis file vers le compteur.
-2. **Les Bunkers tirent**, les **Cristaux soignent**, les **Centres de Commandement
-   s'usent**.
+2. **Les Bunkers tirent**, les **Cristaux soignent**, les **bulles des Centres de
+   Commandement se regenerent** (si elles n'ont pas ete frappees ce tour-ci).
 3. **Les Shofars deploient**, se refont, evoluent ; une vague est annoncee.
 4. **La terre refleurit** (§11) si un Shofar est tombe.
 5. Test de victoire / defaite. Sinon, tour suivant.
@@ -103,8 +103,9 @@ Dans cet ordre exact :
 ## 3. Le plateau
 
 **Rayon 7, 169 cases, coordonnees cubiques.** Le plateau est **fixe** : deux parties
-donnent exactement le meme dessin. C'est un plateau d'echecs — ce qui change d'une
-partie a l'autre, c'est ce qu'on en fait.
+sur la meme disposition donnent exactement le meme dessin. C'est un plateau d'echecs
+— ce qui change d'une partie a l'autre, c'est ce qu'on en fait. Il existe **quatre
+dispositions** (§3.3), choisies au menu principal, qui ne deplacent que les sites.
 
 Il a une **symetrie d'ordre 6** : chaque site est donne par une seule case, les cinq
 autres exemplaires viennent de la rotation de 60 degres `(q,r,s) -> (-r,-s,-q)`.
@@ -127,6 +128,8 @@ Aucun secteur n'est avantage.
 
 La distance qui compte pour la construction est celle au **bord de la Base**, pas au
 centre.
+
+Disposition d'origine (**החומה**) :
 
 | Site | Depuis le centre | Depuis la Base | Du Shofar le plus proche |
 |---|---|---|---|
@@ -157,7 +160,55 @@ mais arbitraire : aucun joueur ne devine un modulo, et le desert perdait son sen
 apparaissant au pied de la Base. Il est maintenant exactement, et uniquement, ce que
 le Yetzer a desseche.
 
-### 3.3 Le glacis
+### 3.3 Les quatre dispositions
+
+**Meme plateau, pieces deplacees.** Tout ce qui sert de repere ne bouge jamais : la
+Base au centre, les six Shofars aux pointes, le glacis sur les deux derniers
+anneaux, la plaine partout ailleurs, la symetrie d'ordre 6, les memes quatre sortes
+de sites avec les memes couleurs. Ce qui change, c'est uniquement **la place des 24
+sites sur les anneaux 3 a 5** — donc ce qui est a portee de main et ce qu'il faut
+aller chercher. Le joueur lit la carte au premier coup d'oeil quelle que soit la
+disposition, et son plan change avec elle.
+
+| # | Nom | Colline | Gaz | Cristal | Centre | Ce que ca change |
+|---|---|---|---|---|---|---|
+| 0 | **החומה** (le mur) | 3, sur l'axe | 4 | 5 | 5 | la carte d'origine : on defend sur la ligne des collines |
+| 1 | **הגן** (le jardin) | 3, sur l'axe | **5** (3 d'un Shofar) | **4** | 5 | on evolue chez soi, on gagne sa vie dehors : economie exposee |
+| 2 | **המבצר** (la forteresse) | **4, entre les axes** | **3, sur l'axe** | 5 | 5 | l'economie au pied de la Base, les Bunkers en avant : defense facile, attaque longue |
+| 3 | **המסע** (le voyage) | **4, entre les axes** | **5** (3 d'un Shofar) | **3, sur l'axe** | 5 | la porte est un atelier, chaque sou se gagne au loin |
+
+Les graines (`MapGenerator.LayoutSeeds`), une case par site, tournees six fois :
+
+```
+0  colline (-3,0,3)  gaz (-4,2,2)  cristal (-5,1,4)  centre (-5,4,1)
+1  colline (-3,0,3)  gaz (-5,1,4)  cristal (-4,2,2)  centre (-5,4,1)
+2  colline (-4,2,2)  gaz (-3,0,3)  cristal (-5,1,4)  centre (-5,4,1)
+3  colline (-4,2,2)  gaz (-5,1,4)  cristal (-3,0,3)  centre (-5,4,1)
+```
+
+Ces quatre-la sont **les seules** qui passent toutes les regles, verifiees par
+enumeration des 30 placements possibles : aucun site n'en touche un autre ni la Base
+ni un Shofar ; aucune usine, Cristal ou Centre a moins de 3 cases d'un Shofar (on ne
+s'installe pas chez lui) ; chaque usine couverte par une colline a 2 cases (portee
+du Bunker) ; un chemin de chaque Shofar a la Base, **meme avec six bulles de Centre
+actives** — c'est cette derniere regle qui interdit les Centres a l'anneau 4 : six
+bulles de rayon 1 a l'anneau 4 scellent la Base. Le `TestRunner` reverifie le
+voisinage et la distance aux Shofars de chaque disposition
+(`MapGenerator.LayoutIsSound`).
+
+**Ou ca se choisit** : un bouton du menu principal (case en bas a gauche du nid
+d'abeille, clone du bouton de nouvelle partie comme celui du chargement) fait
+tourner les quatre dispositions ; la ligne sous le plateau en donne la description.
+Le dernier choix est retenu (`PlayerPrefs mnlth_map`). La disposition est ecrite
+dans la sauvegarde (`SaveGameFile.map`, 0 pour les anciens fichiers), affichee dans
+la liste des parties a reprendre et sur la premiere carte de la presentation
+d'ouverture.
+
+*Sources : `MapGenerator.cs` (LayoutSeeds, CurrentLayout, LayoutIsSound),
+`MainMenuController.cs` (BuildMapButton, CycleMap), `SaveManager.cs`,
+`LoadGamePanel.cs`, `IntroTour.cs`.*
+
+### 3.4 Le glacis
 
 **Les deux anneaux exterieurs (anneaux 6 et 7) sont du desert nu** : 78 cases, dont
 6 Shofars, soit **72 cases mortes — 43 % du plateau**. Ni usine, ni colline, ni meme
@@ -207,12 +258,16 @@ joueur ne voyait pas la difference.
 |---|---|---|
 | Tank | **40** | 60 (evolution, uniquement pres d'un Cristal) |
 | Changement de posture | 15 (gratuit a la creation) | — |
-| Bunker (colline) | **60** | 80 |
+| Bunker (colline) | **75** | 95 |
 | Usine de Gaz | 30 | 45 |
 | Cristal | 60 | 90 |
 | Centre de Commandement | 50 | 75 |
 | Retourner un Shofar tombe | **120** | — |
-| Un tir de Bunker | 4 | 5 |
+| Un tir de Bunker | 0 | 0 |
+
+**L'Energie ne se perd qu'en etant depensee.** Aucun batiment ne preleve rien par
+tour, aucun tir ne coute rien : ce qu'on n'a pas depense reste. Le seul "cout" cache
+est l'usure du Bunker, et elle se paie en PV, pas en Energie.
 
 **Le Tank coute moins cher que le Bunker, et c'est le pivot de tout l'equilibrage
 militaire.** Le Bunker frappe quatre fois plus fort, deux fois plus loin, et n'exige
@@ -222,11 +277,13 @@ construction au-dela de la Base. Faire payer le plus cher l'unique chemin vers l
 victoire, c'etait taxer la sortie et subventionner l'attente.
 
 Rendement tout compris, une fois le Bunker use :
-- **Bunker** : 60 + ~48 de munitions pour ~120 degats -> 0,9 par degat
+- **Bunker** : 75 pour 10 tirs x 10 degats = 100 degats -> 0,75 par degat, sans
+  rien piloter, et seulement s'il a eu quelqu'un a viser
 - **Tank** : 40 pour ~50 degats s'il tient cinq tours -> 0,8 par degat
 
-Presque le meme prix au degat. Le Bunker paie une prime pour la salve, la portee et
-le zero-pilotage ; le Tank est moins cher et demande de la patience.
+Presque le meme prix au degat. Le Bunker paie sa salve, sa portee et le
+zero-pilotage dans son prix d'achat, et plus rien ensuite ; le Tank est moins cher
+et demande de la patience.
 
 ### 4.3 La prosperite nourrit le Yetzer
 
@@ -260,20 +317,25 @@ Elle ne se repare pas.
 
 | | Rang 1 | Rang 2 (forteresse) |
 |---|---|---|
-| Cout | 60 | 80 |
+| Cout | 75 | 95 |
 | PV | 40 | 80 |
 | Degats par tir | 10 | 15 |
 | Tirs par tour | 4 | 6 |
 | Portee | 2 | 2 |
-| Cout d'un tir | 4 | 5 |
-| Usure par tour | 8 | 11 |
-| Usure par tir | 2 | 2 |
+| Cout d'un tir | 0 | 0 |
+| Usure par tour | 0 | 0 |
+| Usure par tir | 4 | 4 |
 
-**Il fond.** Plein feu : environ 3 tours au rang 1, 4 au rang 2. Au calme : 5 et 8
-tours. A zero PV il s'effondre, la colline redevient nue et se reconstruit.
+**Il ne s'use qu'en tirant.** Chaque tir lui coute 4 PV : 10 tirs au rang 1 (deux
+salves et demie), 20 au rang 2. Sans ennemi a portee il ne tire pas, ne s'use pas,
+et tient indefiniment. A zero PV il s'effondre, la colline redevient nue et se
+reconstruit.
 
-Sans cette usure, un Bunker etait eternel : on couvrait la carte de forteresses, plus
-rien n'arrivait nulle part, et la partie etait jouee.
+L'ancienne usure passive (8 a 11 PV par tour, plus une facture d'Energie par tir)
+faisait du Bunker une chose qui fondait qu'on s'en serve ou non : "construire sur du
+sable mouvant". Desormais le joueur tient le seul levier : **un Bunker sur une
+colline calme est eternel, un Bunker dans un couloir se consomme**. C'est au
+placement que se decide sa duree de vie, pas au chronometre.
 
 **Tir concentre** : le Bunker vide son chargeur sur la meme cible jusqu'a ce qu'elle
 tombe, puis passe a la suivante. Il vise d'abord **ce qu'il peut achever ce tir-ci**,
@@ -314,23 +376,33 @@ passer au rang 2**. Place a 4 cases de la Base et 3 d'un Shofar, il oblige a ava
 | | Rang 1 | Rang 2 |
 |---|---|---|
 | Cout | 50 | 75 |
-| PV | 30 | 50 |
-| Repousse les ennemis a | 1 case | 2 cases |
+| PV | 45 | 75 |
+| Bulle (PV du bouclier) | 40 | 70 |
+| Rayon de la bulle | 1 case | 1 case |
+| Regeneration de la bulle | +8 / tour calme | +8 / tour calme |
 | Rayon de commandement | 2 | 3 |
-| Usure | -5 PV / tour | -5 PV / tour |
+| Usure | aucune | aucune |
 
 Trois effets, tous importants :
 
-1. **Il barre le passage** : les cases dans son rayon de repulsion sont
-   infranchissables pour les ennemis, et seulement pour eux.
+1. **La bulle.** Le Centre et les six cases autour de lui sont couverts d'un dome
+   (cyan, demi-sphere posee au sol). Tant qu'il tient, **aucun ennemi n'y entre** :
+   il s'arrete au bord et frappe la bulle de l'exterieur. La distance d'attaque se
+   mesure jusqu'au bord de la bulle, pas jusqu'au Centre (`DistanceToTarget`), donc
+   un emissaire de portee 1 la frappe depuis la deuxieme couronne. Tout degat subi
+   tombe d'abord dans la bulle ; le Centre lui-meme n'est touche que quand elle est
+   a zero, et le surplus du coup qui la perce est perdu. Un tour sans coup recu lui
+   rend 8 points. Au rang 2 la bulle est plus epaisse, pas plus large : un seul
+   Centre ne peut jamais sceller la Base.
 2. **Il commande** : tout Tank dans son rayon avance **une case de plus** par tour,
-   et un Tank en Garde defend autour de lui comme autour de la Base.
+   et un Tank en Garde peut s'y poster comme a la Base.
 3. **Il porte la construction** : on peut batir dans son rayon de commandement, meme
    loin de la Base. C'est ce qui permet de prendre le terrain rendu par un Shofar
    tombe.
 
-Il s'use de 5 PV par tour, quoi qu'il arrive : **c'est une tete de pont, pas une
-fortification permanente**. Au rang 1 il tient 6 tours, au rang 2 dix.
+Il ne s'use plus de lui-meme : **une tete de pont que l'ennemi doit venir percer**,
+et qu'on voit percer. La bulle est sauvegardee (champ `sh`, -1 pour les anciennes
+parties) ; une bulle percee reste percee apres rechargement.
 
 *Sources : `InteractionRules.cs`, `BuildingManager.cs`.*
 
@@ -656,9 +728,13 @@ Shofars **retournes** par rapport au nombre **tombes** :
 
 | Retournes | Rang | Sens |
 |---|---|---|
-| tous (>= tombes) | **צדיק וטוב לו** | il ne reste plus rien a soumettre |
+| tous sauf le dernier tombe (>= tombes - 1) | **צדיק וטוב לו** | il ne reste plus rien a soumettre |
 | au moins un | **צדיק ורע לו** | une part est devenue bien, une part reste du mal tenu |
 | aucun | **בינוני** | *atkafya* pure : le Yetzer est soumis, il n'est pas transforme |
+
+Pourquoi « tous sauf le dernier » : la victoire est declaree dans la fin de tour ou
+le sixieme Shofar tombe, et sa ruine n'a donc jamais l'occasion d'etre retournee.
+Exiger six retournements sur six rendait le titre supreme inatteignable.
 
 **Aucun des trois n'est une defaite.** Le Tanya fait du beinoni le niveau de tout
 homme — ce n'est pas un echec, c'est la mesure.
@@ -670,10 +746,18 @@ homme — ce n'est pas un echec, c'est la mesure.
 ## 13. Les enseignements
 
 Chaque debut de tour presente **deux enseignements** tires de `teachings.json` :
-12 textes, sources citees (Souka 52, Kidouchin 30, Messilat Yesharim, Berakhot 5,
-Avot 2 et 4, Tanya chapitres 1, 12 et 26).
+31 textes, sources citees (Berakhot 5, Souka 52, Kidouchin 30 et 40, Shabbat 105,
+Nedarim 32, Yoma 38 et 69, Bava Batra 16, Bereshit Rabba 9, Avot 2, 4 et 5, Rambam
+Teshouva 5, Tanya chapitres 1, 12, 26 et 27, Messilat Yesharim chapitres 2 et 3).
+Le tirage est un sac melange : on voit tout une fois avant de revoir quoi que ce soit.
 
-**Un tour sur deux**, si un des deux textes en porte une, une **question** est posee.
+**Un tour sur deux**, si un des deux textes en porte une, une **question** est posee :
+23 des 31 textes en portent une. Chaque question est une **situation** de la vie
+reelle a reconnaitre, avec trois reponses, et **l'ordre des reponses est melange a
+chaque affichage** (`TeachingPanel`, `_slotToAnswer`) : la bonne n'est jamais a une
+place fixe, et l'auteur d'une question la met ou il veut. Apres la reponse,
+l'explication s'affiche dans les deux cas, et une bonne reponse dit en plus quel
+Shofar a pris la fissure et ou il en est (3/4).
 
 > **Bonne reponse = une fissure de plus** sur le Shofar le plus fissure parmi ceux
 > dont le bouclier n'est pas deja tombe. **Pas d'Energie.**
@@ -721,6 +805,33 @@ Rien d'autre ne depend de la difficulte.
 
 Tout l'hebreu vient de `Assets/Resources/hud_labels.json`. **Aucun fichier `.cs` ne
 contient un seul octet non-ASCII.**
+
+### Le theme electronique
+
+L'interface parle la langue du logo robot : plaques chanfreinees a lisere lumineux
+(cyan pour le joueur, or pour l'Energie et les actions, rouge pour le Yetzer), trame
+hexagonale en fond des grands panneaux, boutons chanfreines. Les sprites vivent dans
+`Resources/UI` (`ui_plate_*`, `ui_button_*`, `ui_panel_dark`, `ui_hexgrid`,
+`ui_vignette`, `ui_scanlines`), decoupes en 9 ; `HudBuilder.ApplyElectronicTheme`
+les pose en dernier sur ce que les Build ont construit, d'apres la couleur de chaque
+fond, et `Milchemet > Importer les sprites du theme` regle leur import. La barre de
+phase, les cartes de la visite guidee et le menu principal les chargent a chaud
+(`Resources.Load`) et gardent leurs fonds plats si les sprites manquent.
+
+Le menu principal porte en plus un voile de nuit (`MainMenuController.nightVeil`),
+une vignette et une trame d'ecran derriere le diorama, et le logo est contraint a la
+bande libre au-dessus des cartes de difficulte.
+
+**Les chiffres dans un texte hebreu** passent par `Rtl.Fix` : TextMeshPro en mode
+RTL inverse tous les caracteres, "40" devenait "04" et "Space" "ecapS". Toute
+chaine hebraique portant des chiffres ou du latin est corrigee avant d'etre posee
+dans un champ RTL (intro, bandeaux, enseignements, info-bulles, choix du Tank,
+liste des sauvegardes, popups).
+
+**Chaque situation a son mot**, en popup sur la case concernee (`DamagePopup.ShowLabel`) :
+fissure « סדק 3/4 » avec un plan camera sur le Shofar, « המגן נשבר! », « גל מתקרב! »
+sur le Shofar qui prepare une vague, « הבסיס נפגע! » sur la Base touchee,
+« הבועה נשברה! » quand une bulle cede, et le bandeau de floraison.
 
 ### Permanent
 
@@ -834,6 +945,18 @@ le site qnigame en WebGL : une classe a ecrire, une ligne a changer.
    le HUD : bandeaux de phase, selection de cible, pastilles de posture, panneau de
    chargement, visite d'ouverture, chiffres volants.
 
+### Le realisateur de trailer (outil de tournage)
+
+`Scripts/Dev/TrailerDirector.cs` n'existe en jeu que si la cle PlayerPrefs
+`mnlth_trailer` vaut 1 (menu Unity **Milchemet > Trailer > Activer le realisateur**).
+Actif, il demarre la scene Game sans visite guidee, sans enseignements automatiques
+(`TeachingPanel.AutoSkip`) et sans sauvegarde (un `ISaveStore` vide), puis chaque
+touche F joue une prise autonome avec les vraies regles et la vraie camera : F1 tour
+d'horizon, F2 vague, F3 Bunker, F4 bulle, F5 Tank, F6 bouclier brise puis chute,
+F7 chute et floraison, F8 ruine retournee, F9 enseignement avec question, F10 ecran
+de fin, F12 remise a zero, H cache le HUD. L'aide a l'ecran disparait pendant une
+prise. En partie normale, rien de ce fichier ne tourne.
+
 ### Ce qui n'est pas branche
 
 - **Le systeme de Trivia** (`TriviaManager`, `SubjectChoicePanel`,
@@ -873,10 +996,10 @@ Plancher d'intervalle      2 tours
 Tank                       40
 Posture (Tank pose)        15
 Evolution d'un Tank        60   (uniquement au contact d'un Cristal)
-Bunker rang 1 / 2          60 / 80
+Bunker rang 1 / 2          75 / 95
 Cristal rang 1 / 2         60 / 90
 Centre de Com. rang 1 / 2  50 / 75
-Tir de Bunker rang 1 / 2   4 / 5
+Tir de Bunker              0    (l'Energie ne se perd qu'en etant depensee)
 ```
 
 ### Points de vie
@@ -886,7 +1009,7 @@ Base                       200   (reservoir unique pour 7 cases)
 Bunker rang 1 / 2          40 / 80
 Usine de Gaz rang 1 / 2    40 / 70
 Cristal rang 1 / 2         35 / 60
-Centre de Com. rang 1 / 2  30 / 50
+Centre de Com. rang 1 / 2  45 / 75   (+ bulle 40 / 70)
 Shofar rang 1 / 2          50 / 100
 Tank rang 1 / 2            30 / 60
 Ennemi rang 1 / 2 / 3      20 / 40 / 80
@@ -908,15 +1031,15 @@ Hasard                     aucun (ni critique, ni esquive)
 ### Usure
 
 ```
-Bunker rang 1 / 2          -8 / -11 PV par tour, plus 2 par tir
-Centre de Commandement     -5 PV par tour
+Bunker rang 1 / 2          0 par tour, -4 PV par tir (10 / 20 tirs)
+Centre de Commandement     aucune ; bulle 40 / 70, +8 par tour sans coup recu
 ```
 
 ### Soutien
 
 ```
 Cristal rang 1 / 2         soin 10 / 20, portee 1 / 2, +20 PV max (sans cumul)
-Centre rang 1 / 2          repulsion 1 / 2, commandement 2 / 3, +1 case de mouvement
+Centre rang 1 / 2          bulle de rayon 1 / 1, commandement 2 / 3, +1 case de mouvement
 ```
 
 ### Shofars

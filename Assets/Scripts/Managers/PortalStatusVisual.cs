@@ -90,6 +90,10 @@ namespace MNLTHII.Managers
             public Renderer[] pips;
             public bool broken;
 
+            /// <summary>Fin du coup de loupe sur les pastilles (une fissure vient d'etre prise).</summary>
+            public float pulseUntil;
+            public Vector3 pipRowScale = Vector3.one;
+
             /// <summary>Le disque au sol d'un Centre : les cases que la bulle interdit.</summary>
             public Renderer zone;
         }
@@ -215,6 +219,24 @@ namespace MNLTHII.Managers
                 if (v == null || v.pipRow == null || !v.pipRow.gameObject.activeSelf) continue;
 
                 if (_camTransform != null) v.pipRow.rotation = _camTransform.rotation;
+
+                // LE COUP DE LOUPE : quand une fissure vient d'etre prise, la rangee de
+                // pastilles gonfle puis revient, pour que l'oeil aille la ou ca compte.
+                if (v.pulseUntil > 0f)
+                {
+                    float remaining = v.pulseUntil - Time.unscaledTime;
+                    if (remaining <= 0f)
+                    {
+                        v.pulseUntil = 0f;
+                        v.pipRow.localScale = v.pipRowScale;
+                    }
+                    else
+                    {
+                        float k = 1f - remaining / CrackPulseSeconds;           // 0 -> 1
+                        float grow = 1f + CrackPulseGrow * Mathf.Sin(k * Mathf.PI);
+                        v.pipRow.localScale = v.pipRowScale * grow;
+                    }
+                }
 
                 if (!v.broken) continue;
 
@@ -414,6 +436,24 @@ namespace MNLTHII.Managers
             r.GetPropertyBlock(_block);
             _block.SetColor(ColorId, c);
             r.SetPropertyBlock(_block);
+        }
+
+        private const float CrackPulseSeconds = 0.9f;
+        private const float CrackPulseGrow = 0.9f;
+
+        /// <summary>
+        /// Une fissure vient d'etre prise sur ce Shofar : la rangee de pastilles
+        /// se remet a jour tout de suite (sans attendre le prochain rafraichissement)
+        /// et fait un coup de loupe. Appele par PortalManager.
+        /// </summary>
+        public void PulseCracks(Hexagon portal)
+        {
+            Visual v = Find(portal);
+            if (v == null || v.pipRow == null) return;
+
+            _nextRefresh = 0f;   // relecture immediate au prochain LateUpdate
+            if (v.pulseUntil <= 0f) v.pipRowScale = v.pipRow.localScale;
+            v.pulseUntil = Time.unscaledTime + CrackPulseSeconds;
         }
 
         private Visual Find(Hexagon hex)

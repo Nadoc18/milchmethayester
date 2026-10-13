@@ -129,7 +129,32 @@ namespace MNLTHII.Managers
         /// regarde-la en jeu.
         /// </summary>
         [Tooltip("Multiplie la couleur des plaines. Blanc = inchange.")]
-        public Color plainTint = new Color(1f, 0.55f, 0.42f, 1f);
+        public Color plainTint = new Color(0.86f, 0.36f, 0.30f, 1f);
+
+        /// <summary>
+        /// VU EN JEU, LA TEINTE N'ARRIVAIT PAS A L'ECRAN : le modele de plaine est un
+        /// gris sombre, et une fois multiplie puis desature de 45 %, le rouge n'en
+        /// ressortait presque plus - les plaines restaient gris-bleu comme les
+        /// collines. Les plaines teintees gardent donc LEUR propre desaturation,
+        /// faible, pour que la couleur survive au calmage. Les autres terrains gardent
+        /// la valeur generale.
+        /// </summary>
+        [Range(0f, 1f)]
+        [Tooltip("Desaturation appliquee aux plaines teintees (les autres terrains gardent la valeur generale).")]
+        public float plainDesaturation = 0.08f;
+
+        /// <summary>
+        /// Le modele de plaine est sombre : teinte en rouge, il devenait chocolat. On
+        /// le releve pour que la plaine se lise comme une terre rouge, claire, et pas
+        /// comme une ombre entre les collines.
+        /// </summary>
+        [Range(0.5f, 3f)]
+        [Tooltip("Luminosite supplementaire des plaines teintees.")]
+        public float plainBrightness = 1.7f;
+
+        [Range(0f, 1f)]
+        [Tooltip("Force de la colorisation des plaines : 0 = modele d'origine, 1 = la teinte pure portee par le relief.")]
+        public float plainTintStrength = 0.70f;
 
         [Header("2. Couleurs d'equipe")]
         public Color playerColor = new Color(0.25f, 0.85f, 1f, 1f);
@@ -196,6 +221,8 @@ namespace MNLTHII.Managers
         private static readonly int RimPowerId = Shader.PropertyToID("_RimPower");
         private static readonly int RimStrengthId = Shader.PropertyToID("_RimStrength");
         private static readonly int CalmDesaturateId = Shader.PropertyToID("_CalmDesaturate");
+        private static readonly int CalmTintId = Shader.PropertyToID("_CalmTint");
+        private static readonly int CalmTintStrengthId = Shader.PropertyToID("_CalmTintStrength");
         private static readonly int CalmContrastId = Shader.PropertyToID("_CalmContrast");
         private static readonly int CalmPivotId = Shader.PropertyToID("_CalmPivot");
         private static readonly int CalmBrightnessId = Shader.PropertyToID("_CalmBrightness");
@@ -526,10 +553,16 @@ namespace MNLTHII.Managers
                                      baseColor.b * tint.b, baseColor.a);
             calm.SetColor(ColorId, tinted);
 
-            calm.SetFloat(CalmDesaturateId, desaturation);
+            // Une case teintee (la plaine) : COLORISEE par le shader (la teinte portee
+            // par le relief du modele), et desaturation reduite pour que la couleur
+            // survive au calmage. Les autres terrains : teinte neutre, rien ne change.
+            bool isTinted = (tint.r != 1f || tint.g != 1f || tint.b != 1f);
+            calm.SetFloat(CalmDesaturateId, isTinted ? Mathf.Min(desaturation, plainDesaturation) : desaturation);
+            calm.SetColor(CalmTintId, isTinted ? tint : Color.white);
+            calm.SetFloat(CalmTintStrengthId, isTinted ? plainTintStrength : 0f);
             calm.SetFloat(CalmContrastId, contrast);
             calm.SetFloat(CalmPivotId, contrastPivot);
-            calm.SetFloat(CalmBrightnessId, brightness * typeBrightness);
+            calm.SetFloat(CalmBrightnessId, brightness * typeBrightness * (isTinted ? plainBrightness : 1f));
             calm.SetFloat(CalmEmissionDesaturateId, emissionDesaturation);
             calm.SetFloat(CalmEmissionScaleId, emissionScale);
         }

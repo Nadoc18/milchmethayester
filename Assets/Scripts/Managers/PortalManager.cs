@@ -191,7 +191,91 @@ namespace MNLTHII.Managers
 
             if (_kills[slot] >= InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD) BreakShield(portal, slot);
 
+            // L'enseignement : le joueur regarde le plateau, le libelle monte tout de suite.
+            CrackCue(portal, slot, true);
+
             portal.RefreshHealthBar();
+        }
+
+        // =================================================================
+        //  LA FISSURE SE VOIT
+        // =================================================================
+        //
+        // "Un ennemi tombe, et quelque part a l'autre bout du plateau une pastille
+        // change de couleur" : personne ne comprenait pourquoi un Shofar se brisait.
+        // Chaque fissure prise fait maintenant trois choses : la rangee de pastilles
+        // gonfle (PortalStatusVisual), un libelle "fissure 3/4" monte du Shofar, et,
+        // quand c'est un Tank ou un Bunker qui a tue, la camera va le voir
+        // (CrackCameraCut, appele par la phase qui a fait la victime : le libelle
+        // n'apparait alors qu'une fois la camera arrivee). Si personne ne vient
+        // cadrer (riposte pendant la phase ennemie, par exemple), le libelle monte
+        // quand meme, un peu plus tard, la ou le Shofar se trouve.
+
+        private static readonly Color CrackColor = new Color(1f, 0.85f, 0.30f);
+        private static readonly Color BrokenColor = new Color(1f, 0.35f, 0.30f);
+
+        private readonly int[] _cueTicket = new int[MaxTrackedPortals];
+        private readonly int[] _cueShown = new int[MaxTrackedPortals];
+
+        private void CrackCue(Hexagon portal, int slot, bool immediate)
+        {
+            if (portal == null || slot < 0) return;
+
+            if (PortalStatusVisual.Instance != null) PortalStatusVisual.Instance.PulseCracks(portal);
+
+            _cueTicket[slot]++;
+            if (immediate) ShowCrackLabel(portal, slot);
+            else StartCoroutine(FallbackCue(portal.positionInTheBoard, slot, _cueTicket[slot]));
+        }
+
+        private void ShowCrackLabel(Hexagon portal, int slot)
+        {
+            _cueShown[slot] = _cueTicket[slot];
+
+            bool broke = _shieldDown[slot] > 0;
+            string label;
+            if (broke) label = MNLTHII.UI.HudLabelsRuntime.Get("crackBrokenPopup", "");
+            else
+            {
+                string format = MNLTHII.UI.HudLabelsRuntime.Get("crackPopupFormat", "{0}/{1}");
+                label = string.Format(format, _kills[slot], InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD);
+            }
+
+            MNLTHII.UI.DamagePopup.ShowLabel(portal.transform.position + Vector3.up * 0.4f, label,
+                                             broke ? BrokenColor : CrackColor);
+        }
+
+        private IEnumerator FallbackCue(HexCoord coord, int slot, int ticket)
+        {
+            yield return new WaitForSecondsRealtime(1.6f);
+            if (_cueShown[slot] == ticket) yield break;   // la camera est passee : deja montre
+
+            Hexagon portal = (BoardController.instance != null) ? BoardController.instance.getHexByCoord(coord) : null;
+            if (portal == null || portal.type != TypeOfHex.portal) yield break;
+            ShowCrackLabel(portal, slot);
+        }
+
+        /// <summary>
+        /// Apres un ennemi abattu : la camera va voir le Shofar qui vient de se
+        /// fissurer, le libelle monte, on lit, puis la phase reprend. Rien si le
+        /// joueur a demande de tout passer, ou si le Shofar n'existe plus.
+        /// </summary>
+        public IEnumerator CrackCameraCut(HexCoord origin)
+        {
+            if (origin == null || PhasePace.SkipPhaseRequested) yield break;
+            if (BoardController.instance == null) yield break;
+
+            Hexagon portal = BoardController.instance.getHexByCoord(origin);
+            if (portal == null || portal.type != TypeOfHex.portal || portal.currentHP <= 0) yield break;
+
+            int slot = GetSlot(origin, false);
+            if (slot < 0 || _cueShown[slot] == _cueTicket[slot]) yield break;   // rien de neuf a montrer
+
+            CameraDirector.FocusPoint(portal.transform.position);
+            yield return _pace.For(CameraDirector.RawTravel + PhasePace.CameraMargin);
+
+            ShowCrackLabel(portal, slot);
+            yield return _pace.For(PhasePace.CrackCut);
         }
 
         /// <summary>
@@ -375,10 +459,10 @@ namespace MNLTHII.Managers
                             applied, portal.currentHP, portal.maxHP,
                             _kills[slot], InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD);
 
-            if (_kills[slot] >= InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD)
-            {
-                BreakShield(portal, slot);
-            }
+            if (_kills[slot] >= InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD) BreakShield(portal, slot);
+
+            // Le libelle attend la camera (CrackCameraCut), ou monte seul un peu plus tard.
+            CrackCue(portal, slot, false);
 
             portal.RefreshHealthBar();
         }
@@ -398,6 +482,8 @@ namespace MNLTHII.Managers
                 fx.SpawnDestructionFX(portal.transform.position);
                 fx.SpawnHitFX(portal.transform.position + Vector3.up);
             }
+
+            // Le mot vient de ShowCrackLabel ("le bouclier est rompu"), juste apres.
         }
 
         private Hexagon FindPortalAt(int q, int r)
@@ -621,6 +707,13 @@ namespace MNLTHII.Managers
 
                 if (FXManager.Instance != null)
                     FXManager.Instance.SpawnEnemyFX(portal.transform.position + Vector3.up * 1.5f);
+
+                // L'ALERTE EN TOUTES LETTRES AU-DESSUS DU SHOFAR. L'etincelle seule
+                // passait pour un deploiement ordinaire : "vague en approche" dit ce
+                // qui arrive, et ou.
+                MNLTHII.UI.DamagePopup.ShowLabel(portal.transform.position + Vector3.up * 1.3f,
+                                                 MNLTHII.UI.HudLabelsRuntime.Get("surgePopup", ""),
+                                                 new Color(1f, 0.42f, 0.29f));
 
                 return;
             }

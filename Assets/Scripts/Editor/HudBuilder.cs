@@ -109,6 +109,17 @@ namespace MNLTHII.EditorTools
             Transform existing = canvas.transform.Find(RootName);
             if (existing != null) Object.DestroyImmediate(existing.gameObject);
 
+            // Le vieux bouton gris "VOIR LA MENACE", pose a la main sous le canvas
+            // avant que le HUD n'ait le sien : il n'a plus de raison d'etre. Tout
+            // relais de menace qui n'est pas dans la racine du HUD disparait.
+            ThreatPreviewButton[] strays = canvas.GetComponentsInChildren<ThreatPreviewButton>(true);
+            for (int i = 0; i < strays.Length; i++)
+            {
+                if (strays[i] == null) continue;
+                Debug.LogFormat("[HudBuilder] Ancien bouton de menace retire : {0}", strays[i].gameObject.name);
+                Object.DestroyImmediate(strays[i].gameObject);
+            }
+
             RectTransform root = NewRect(RootName, canvas.transform);
             Stretch(root);
 
@@ -119,6 +130,7 @@ namespace MNLTHII.EditorTools
             BuildCenter(root, hud, labels);
             BuildObjectives(root, hud, labels);
             BuildEndTurn(root, hud, labels);
+            BuildThreatButton(root, labels);
             BuildHowToPlay(root, canvas);
             BuildPortalPanel(root, canvas, labels);
             BuildTooltip(root, canvas, labels);
@@ -137,6 +149,9 @@ namespace MNLTHII.EditorTools
             EnsurePortalTether();
             EnsureElementPhotos();
             BuildImmersive(root, canvas, labels);
+
+            // Le theme electronique en dernier : il habille ce que les Build ont pose.
+            ApplyElectronicTheme(root);
 
             EditorUtility.SetDirty(canvas.gameObject);
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(canvas.gameObject.scene);
@@ -304,6 +319,7 @@ namespace MNLTHII.EditorTools
         {
             RectTransform block = NewRect("Energie", root);
             AnchorTopRight(block, new Vector2(-56f, -40f), new Vector2(300f, 150f));
+            PlateBehind(block, "ui_plate_gold.png", 0.92f, new Vector2(22f, 14f));
 
             TextMeshProUGUI label = NewText("Label", block, S(labels, "energy"), 20f, ColDim,
                                             TextAlignmentOptions.TopRight, true);
@@ -327,6 +343,7 @@ namespace MNLTHII.EditorTools
         {
             RectTransform block = NewRect("TourEtPhases", root);
             AnchorTopCenter(block, new Vector2(0f, -36f), new Vector2(900f, 120f));
+            PlateBehind(block, "ui_panel_dark.png", 0.80f, new Vector2(18f, 10f));
 
             TextMeshProUGUI turn = NewText("Tour", block, "1", 20f, new Color32(0xA8, 0xB6, 0xD8, 0xFF),
                                            TextAlignmentOptions.Top, false);
@@ -360,8 +377,12 @@ namespace MNLTHII.EditorTools
                 v.spacing = 9f;
                 v.childAlignment = TextAnchor.UpperCenter;
                 v.childControlWidth = true;
-                v.childControlHeight = false;
+                // La hauteur DOIT etre pilotee par le groupe : sinon LayoutElement
+                // (3 px pour le trait) est ignore et chaque trait prend 100 px - le
+                // rail devenait une rangee de gros rectangles.
+                v.childControlHeight = true;
                 v.childForceExpandWidth = true;
+                v.childForceExpandHeight = false;
 
                 Image bar = NewImage("Trait", step, ColIdle);
                 LayoutElement barLayout = bar.gameObject.AddComponent<LayoutElement>();
@@ -387,6 +408,7 @@ namespace MNLTHII.EditorTools
         {
             RectTransform block = NewRect("Objectifs", root);
             AnchorTopLeft(block, new Vector2(56f, -40f), new Vector2(480f, 120f));
+            PlateBehind(block, "ui_plate_cyan.png", 0.92f, new Vector2(22f, 14f));
 
             // --- ligne des shofars ---
             RectTransform portalRow = NewRect("Shofars", block);
@@ -471,6 +493,40 @@ namespace MNLTHII.EditorTools
 
             hud.endTurnButton = button;
             hud.endTurnRoot = block.gameObject;
+        }
+
+        /// <summary>
+        /// LA VISION DU YETZER : le bouton qui ouvre l'apercu de menace (Tab au
+        /// clavier). Il remplace le vieux bouton gris "VOIR LA MENACE" de l'ancien
+        /// canvas, qui se cache tout seul des qu'il voit celui-ci (ThreatPreviewButton).
+        /// Meme famille que "fin de tour", en plus discret, a sa gauche.
+        /// </summary>
+        private static void BuildThreatButton(RectTransform root, JObject labels)
+        {
+            RectTransform block = NewRect("Menace", root);
+            AnchorBottomCenter(block, new Vector2(-360f, 54f), new Vector2(320f, 56f));
+
+            Image bg = block.gameObject.AddComponent<Image>();
+            bg.color = new Color(ColGold.r, ColGold.g, ColGold.b, 0.10f);
+
+            UnityEngine.UI.Outline outline = block.gameObject.AddComponent<UnityEngine.UI.Outline>();
+            outline.effectColor = new Color(ColGold.r, ColGold.g, ColGold.b, 0.50f);
+            outline.effectDistance = new Vector2(1.5f, 1.5f);
+
+            Button button = block.gameObject.AddComponent<Button>();
+            button.targetGraphic = bg;
+
+            JObject banners = labels["banners"] as JObject;
+            TextMeshProUGUI text = NewText("Texte", block, S(banners, "threatShow"), 19f,
+                                           new Color32(0xFF, 0xE2, 0xA8, 0xFF),
+                                           TextAlignmentOptions.Center, true);
+            Stretch(text.rectTransform);
+
+            ThreatPreviewButton relay = block.gameObject.AddComponent<ThreatPreviewButton>();
+            relay.label = text;
+            relay.showLabel = S(banners, "threatShow");
+            relay.hideLabel = S(banners, "threatHide");
+            relay.activeColor = new Color(ColGold.r, ColGold.g, ColGold.b, 0.35f);
         }
 
         /// <summary>
@@ -1027,13 +1083,14 @@ namespace MNLTHII.EditorTools
             tooltip.labelMoveBonus = S(t, "moveBonus");
             tooltip.labelDecay = S(t, "decay");
 
-            JObject eff = (t != null) ? t["effects"] as JObject : null;
-            tooltip.effectBunker = S(eff, "bunker");
-            tooltip.effectGas = S(eff, "gas");
-            tooltip.effectCrystal = S(eff, "crystal");
-            tooltip.effectMountain = S(eff, "mountain");
-            tooltip.effectTankCreate = S(eff, "tankCreate");
-            tooltip.effectTankEvolve = S(eff, "tankEvolve");
+            // Textes d'effet : cles uniques, relues a chaud par HexTooltipController.
+            // Celles-ci ne sont que le secours grave dans la scene.
+            tooltip.effectBunker = S(t, "effectBunker");
+            tooltip.effectGas = S(t, "effectGas");
+            tooltip.effectCrystal = S(t, "effectCrystal");
+            tooltip.effectMountain = S(t, "effectMountain");
+            tooltip.effectTankCreate = S(t, "effectTankCreate");
+            tooltip.effectTankEvolve = S(t, "effectTankEvolve");
 
             tooltip.subtitleLevelFormat = S(labels, "subtitleLevelFormat", "{0}");
 
@@ -2434,7 +2491,11 @@ namespace MNLTHII.EditorTools
             ctrl.detailsText = detailsText;
             ctrl.detailsLabel = S(hm, "details");
             ctrl.useLabel = S(hm, "use");
-            ctrl.useIdleColor = new Color(ColGold.r, ColGold.g, ColGold.b, 0.14f);
+            // Le fond du bouton est un sprite du theme (voir ApplyElectronicTheme) :
+            // la couleur d'etat le TEINTE, elle ne le remplace plus. Blanc = la plaque
+            // telle quelle ; eteint = la meme plaque, grise et voilee.
+            ctrl.useIdleColor = Color.white;
+            ctrl.useDisabledColor = new Color(0.62f, 0.66f, 0.76f, 0.45f);
 
             panel.gameObject.SetActive(false);
         }
@@ -2884,6 +2945,186 @@ namespace MNLTHII.EditorTools
         // =================================================================
         //  PRIMITIVES
         // =================================================================
+        // =================================================================
+        //  LE THEME ELECTRONIQUE
+        // =================================================================
+        //
+        // Les panneaux etaient des rectangles plats a liseres (Image + Outline). Le
+        // jeu est un jeu de robots : les plaques prennent un chanfrein, un lisere
+        // lumineux, une trame hexagonale en fond, comme le logo. Les sprites vivent
+        // dans Assets/Resources/UI (ui_plate_*, ui_button_*, ui_panel_dark,
+        // ui_hexgrid) ; ils sont decoupes en 9 (bords de 30 px) pour s'etirer sans
+        // deformer les coins.
+        //
+        // Le theme est applique EN DERNIER, sur ce que les Build ont pose, d'apres
+        // la couleur de chaque fond :
+        //   - un fond ColPanel (les grands panneaux)      -> plaque cyan + trame
+        //   - un fond de bouton teinte cyan / or / rouge  -> bouton de la couleur
+        // Les cartes a survol (choix du Tank, reponses) gardent leur fond plat : leur
+        // couleur change a l'execution, un sprite blanc teinte a 6 % disparaitrait.
+        private const string UiSpriteDir = "Assets/Resources/UI/";
+        private const float UiSpriteBorder = 30f;
+
+        private static Sprite UiSprite(string file, bool sliced)
+        {
+            string path = UiSpriteDir + file;
+            TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            if (importer == null)
+            {
+                Debug.LogWarningFormat("[HudBuilder] Sprite du theme introuvable : {0}. Le HUD garde ses fonds plats.", path);
+                return null;
+            }
+
+            bool dirty = false;
+            if (importer.textureType != TextureImporterType.Sprite) { importer.textureType = TextureImporterType.Sprite; dirty = true; }
+            if (importer.spriteImportMode != SpriteImportMode.Single) { importer.spriteImportMode = SpriteImportMode.Single; dirty = true; }
+            if (importer.mipmapEnabled) { importer.mipmapEnabled = false; dirty = true; }
+            if (!importer.alphaIsTransparency) { importer.alphaIsTransparency = true; dirty = true; }
+            if (importer.textureCompression != TextureImporterCompression.Uncompressed) { importer.textureCompression = TextureImporterCompression.Uncompressed; dirty = true; }
+
+            Vector4 border = sliced ? new Vector4(UiSpriteBorder, UiSpriteBorder, UiSpriteBorder, UiSpriteBorder) : Vector4.zero;
+            if (importer.spriteBorder != border) { importer.spriteBorder = border; dirty = true; }
+
+            TextureImporterSettings settings = new TextureImporterSettings();
+            importer.ReadTextureSettings(settings);
+            if (settings.spriteMeshType != SpriteMeshType.FullRect || settings.wrapMode != TextureWrapMode.Clamp)
+            {
+                settings.spriteMeshType = SpriteMeshType.FullRect;
+                settings.wrapMode = TextureWrapMode.Clamp;
+                importer.SetTextureSettings(settings);
+                dirty = true;
+            }
+
+            if (dirty) importer.SaveAndReimport();
+            return AssetDatabase.LoadAssetAtPath<Sprite>(path);
+        }
+
+        /// <summary>Une plaque posee DERRIERE un bloc de textes, un peu plus large que lui.</summary>
+        private static void PlateBehind(RectTransform block, string file, float alpha, Vector2 padding)
+        {
+            Sprite sprite = UiSprite(file, true);
+            if (sprite == null) return;
+
+            RectTransform plate = NewRect("Plaque", block);
+            plate.anchorMin = Vector2.zero;
+            plate.anchorMax = Vector2.one;
+            plate.offsetMin = new Vector2(-padding.x, -padding.y);
+            plate.offsetMax = new Vector2(padding.x, padding.y);
+            plate.SetAsFirstSibling();
+
+            Image image = plate.gameObject.AddComponent<Image>();
+            image.sprite = sprite;
+            image.type = Image.Type.Sliced;
+            image.color = new Color(1f, 1f, 1f, alpha);
+            image.raycastTarget = false;
+        }
+
+        private static bool SameColor(Color a, Color b)
+        {
+            return Mathf.Abs(a.r - b.r) < 0.02f && Mathf.Abs(a.g - b.g) < 0.02f
+                && Mathf.Abs(a.b - b.b) < 0.02f && Mathf.Abs(a.a - b.a) < 0.03f;
+        }
+
+        private static bool SameHue(Color a, Color b)
+        {
+            return Mathf.Abs(a.r - b.r) < 0.02f && Mathf.Abs(a.g - b.g) < 0.02f && Mathf.Abs(a.b - b.b) < 0.02f;
+        }
+
+        private static void Skin(Image image, Sprite sprite, float alpha)
+        {
+            image.sprite = sprite;
+            image.type = Image.Type.Sliced;
+            image.color = new Color(1f, 1f, 1f, alpha);
+
+            UnityEngine.UI.Outline outline = image.GetComponent<UnityEngine.UI.Outline>();
+            if (outline != null) Object.DestroyImmediate(outline);
+        }
+
+        /// <summary>
+        /// Tous les sprites du theme importes comme il faut, y compris ceux que seul
+        /// le code d'execution charge (menu principal, barre de phase, intro) : sans
+        /// ce passage, Resources.Load&lt;Sprite&gt; rendrait null sur une texture
+        /// encore importee en "Default".
+        /// </summary>
+        [MenuItem("Milchemet/Importer les sprites du theme", false, 12)]
+        private static void EnsureAllUiSpritesMenu()
+        {
+            EnsureAllUiSprites();
+            Debug.Log("[HudBuilder] Sprites du theme importes (Resources/UI).");
+        }
+
+        private static void EnsureAllUiSprites()
+        {
+            string[] sliced = { "ui_plate_cyan.png", "ui_plate_gold.png", "ui_plate_red.png",
+                                "ui_button_cyan.png", "ui_button_gold.png", "ui_panel_dark.png" };
+            string[] plain = { "ui_hexgrid.png", "ui_scanlines.png", "ui_vignette.png",
+                               "ui_glowline.png", "ui_bracket.png" };
+            for (int i = 0; i < sliced.Length; i++) UiSprite(sliced[i], true);
+            for (int i = 0; i < plain.Length; i++) UiSprite(plain[i], false);
+        }
+
+        private static void ApplyElectronicTheme(RectTransform root)
+        {
+            EnsureAllUiSprites();
+
+            Sprite plateCyan = UiSprite("ui_plate_cyan.png", true);
+            Sprite buttonCyan = UiSprite("ui_button_cyan.png", true);
+            Sprite buttonGold = UiSprite("ui_button_gold.png", true);
+            Sprite buttonRed = UiSprite("ui_plate_red.png", true);
+            Sprite hexgrid = UiSprite("ui_hexgrid.png", false);
+            if (plateCyan == null || buttonCyan == null || buttonGold == null) return;
+
+            Color pageBg = new Color32(0x0B, 0x11, 0x20, 0xF2);
+
+            Image[] images = root.GetComponentsInChildren<Image>(true);
+            int plates = 0, buttons = 0;
+
+            for (int i = 0; i < images.Length; i++)
+            {
+                Image image = images[i];
+                if (image == null || image.sprite != null) continue;   // icones, photos, pastilles : on ne touche pas
+                if (image.name == "Plaque" || image.name == "Trame") continue;
+
+                Color c = image.color;
+
+                if (SameColor(c, ColPanel) || SameColor(c, pageBg))
+                {
+                    Skin(image, plateCyan, 0.97f);
+                    AddTrame(image.rectTransform, hexgrid);
+                    plates++;
+                    continue;
+                }
+
+                // Un bouton : un Button sur le meme objet, et un fond teinte translucide.
+                if (image.GetComponent<Button>() == null || c.a > 0.30f) continue;
+
+                if (SameHue(c, ColCyan)) { Skin(image, buttonCyan, 0.95f); buttons++; }
+                else if (SameHue(c, ColGold)) { Skin(image, buttonGold, 0.95f); buttons++; }
+                else if (SameHue(c, ColRed) && buttonRed != null) { Skin(image, buttonRed, 0.95f); buttons++; }
+            }
+
+            Debug.LogFormat("[HudBuilder] Theme electronique : {0} plaques, {1} boutons.", plates, buttons);
+        }
+
+        /// <summary>La trame hexagonale, en fond d'une plaque, sous son contenu.</summary>
+        private static void AddTrame(RectTransform plate, Sprite hexgrid)
+        {
+            if (hexgrid == null) return;
+
+            RectTransform trame = NewRect("Trame", plate);
+            trame.anchorMin = Vector2.zero;
+            trame.anchorMax = Vector2.one;
+            trame.offsetMin = new Vector2(10f, 10f);
+            trame.offsetMax = new Vector2(-10f, -10f);
+            trame.SetAsFirstSibling();
+
+            Image image = trame.gameObject.AddComponent<Image>();
+            image.sprite = hexgrid;
+            image.type = Image.Type.Tiled;   // a sa taille native, jamais etiree
+            image.color = new Color(1f, 1f, 1f, 0.55f);
+            image.raycastTarget = false;
+        }
+
         private static RectTransform NewRect(string name, Transform parent)
         {
             GameObject go = new GameObject(name, typeof(RectTransform));

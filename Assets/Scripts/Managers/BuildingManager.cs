@@ -64,13 +64,37 @@ namespace MNLTHII.Managers
         {
             if (BoardController.instance == null || BoardController.instance.HexagonsInBoard == null) return false;
 
+            // Memes conditions que les traitements eux-memes : un Bunker qui n'a
+            // personne a portee et un Centre dont la bulle est pleine ne font rien,
+            // et un bandeau "Batiments" qui ne montre rien apprend au joueur a
+            // ignorer les bandeaux.
             List<Hexagon> hexes = BoardController.instance.HexagonsInBoard;
+            List<PawnController> pawns = BoardController.instance.PawnsInBoard;
+
             for (int i = 0; i < hexes.Count; i++)
             {
                 Hexagon hex = hexes[i];
                 if (hex == null || hex.level < 1 || hex.currentHP <= 0) continue;
-                if (hex.type == TypeOfHex.hill || hex.type == TypeOfHex.crystal || hex.type == TypeOfHex.mountain)
-                    return true;
+
+                if (hex.type == TypeOfHex.crystal) return true;
+
+                if (hex.type == TypeOfHex.mountain)
+                {
+                    if (hex.shieldMax <= 0) return true;
+                    if (!hex.attacked && hex.shieldHP < hex.shieldMax) return true;
+                    continue;
+                }
+
+                if (hex.type == TypeOfHex.hill && pawns != null)
+                {
+                    for (int p = 0; p < pawns.Count; p++)
+                    {
+                        PawnController pawn = pawns[p];
+                        if (pawn == null || !pawn.IsEnemy || pawn.hexcoord == null) continue;
+                        if (BoardController.GetHexDistance(hex.positionInTheBoard, pawn.hexcoord) <= InteractionRules.BUNKER_RANGE)
+                            return true;
+                    }
+                }
             }
             return false;
         }
@@ -150,6 +174,7 @@ namespace MNLTHII.Managers
                 int fired = 0;
                 int spent = 0;
                 int kills = 0;
+                HexCoord lastKillOrigin = null;
 
                 // On va voir AVANT de tirer : la camera cadre le Bunker et sa premiere
                 // cible, puis la salve part sous les yeux du joueur.
@@ -228,6 +253,9 @@ namespace MNLTHII.Managers
                     {
                         inRange.Remove(victim);
                         kills++;
+                        if (victim.HasOriginPortal)
+                            lastKillOrigin = new HexCoord(victim.originPortalQ, victim.originPortalR,
+                                                          -victim.originPortalQ - victim.originPortalR);
                     }
 
                     // Chaque tir se voit : un trait, une pause, le suivant.
@@ -243,6 +271,11 @@ namespace MNLTHII.Managers
                                     fired * InteractionRules.BUNKER_WEAR_PER_SHOT,
                                     bunker.currentHP, bunker.maxHP);
                     yield return _pace.For(PhasePace.BunkerVolley);
+
+                    // La fissure se voit : apres la salve, la camera va voir le Shofar
+                    // du dernier ennemi abattu.
+                    if (lastKillOrigin != null && PortalManager.Instance != null)
+                        yield return StartCoroutine(PortalManager.Instance.CrackCameraCut(lastKillOrigin));
                 }
 
                 WearBunker(bunker, fired);

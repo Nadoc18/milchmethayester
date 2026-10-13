@@ -84,6 +84,7 @@ namespace MNLTHII.Managers
                 // La difficulte AVANT tout le reste : elle decide des PV et des degats
                 // des ennemis, donc elle doit etre en place avant le premier pion pose.
                 GameDifficulty.Current = (DifficultyLevel)saved.difficulty;
+                MapGenerator.CurrentLayout = saved.map;
                 boardJson = SaveManager.BuildBoardJson(saved);
             }
             else if (!useProceduralMap && !string.IsNullOrEmpty(initialBoardJson))

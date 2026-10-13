@@ -300,7 +300,11 @@ namespace MNLTHII.Managers
                     shieldTitleText.text = shieldIntactTitle;
                     shieldTitleText.color = neutralColor;
                 }
-                if (shieldBodyText != null) shieldBodyText.text = shieldIntactBody;
+                // Le texte dit COMMENT briser le bouclier, avec le vrai nombre de
+                // victimes de cette difficulte : lu a chaud dans le JSON.
+                if (shieldBodyText != null)
+                    shieldBodyText.SetText(MNLTHII.UI.HudLabelsRuntime.Get("shieldIntactBody", shieldIntactBody),
+                                           InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD);
 
                 if (shieldBox != null) shieldBox.color = boxNeutralColor;
             }

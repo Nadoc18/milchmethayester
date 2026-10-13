@@ -115,6 +115,30 @@ namespace MNLTHII.UI
             popup.Begin(worldPosition, amount, kind);
         }
 
+        /// <summary>
+        /// Un LIBELLE qui monte, plutot qu'un chiffre : "fissure 3/4", "bouclier
+        /// rompu". Texte hebreu, donc RTL, passe par Rtl.Fix pour ses chiffres. Il
+        /// vit un peu plus longtemps qu'un chiffre de degats : on doit avoir le temps
+        /// de le lire. Appele hors de la boucle de jeu, il peut allouer sa chaine.
+        /// </summary>
+        public static void ShowLabel(Vector3 worldPosition, string label, Color color)
+        {
+            ShowLabel(worldPosition, label, color, 0f);
+        }
+
+        /// <summary>delay : secondes d'attente, invisible, avant de monter (le temps d'un trajet de camera).</summary>
+        public static void ShowLabel(Vector3 worldPosition, string label, Color color, float delay)
+        {
+            if (string.IsNullOrEmpty(label)) return;
+
+            DamagePopup popup = Rent();
+            if (popup == null) return;
+
+            popup.BeginLabel(worldPosition, label, color);
+            popup._delay = (delay > 0f) ? delay : 0f;
+            if (popup._delay > 0f) popup._group.alpha = 0f;
+        }
+
         // =================================================================
         //  POOL
         // =================================================================
@@ -215,6 +239,10 @@ namespace MNLTHII.UI
             }
 
             _text.color = tint;
+            _text.isRightToLeftText = false;
+            _text.fontSize = FontSize;
+            _lifetime = Lifetime;
+            _delay = 0f;
 
             if (kind == DamageKind.Healed || kind == DamageKind.Income) _text.SetText("+{0}", amount);
             else _text.SetText("-{0}", amount);
@@ -226,13 +254,54 @@ namespace MNLTHII.UI
             gameObject.SetActive(true);
         }
 
+        private float _lifetime = Lifetime;
+        private float _delay;
+        private static TMPro.TMP_FontAsset _hebrewFont;
+
+        private void BeginLabel(Vector3 worldPosition, string label, Color color)
+        {
+            _origin = worldPosition + Vector3.up * StartHeight;
+            _transform.position = _origin;
+            FaceCamera();
+
+            // La police du HUD : la police par defaut de TMP n'a pas l'hebreu.
+            if (_hebrewFont == null)
+            {
+                TMPro.TextMeshProUGUI sample = Object.FindFirstObjectByType<TMPro.TextMeshProUGUI>();
+                if (sample != null && sample != _text) _hebrewFont = sample.font;
+            }
+            if (_hebrewFont != null && _text.font != _hebrewFont) _text.font = _hebrewFont;
+
+            _text.color = color;
+            _text.isRightToLeftText = true;
+            _text.fontSize = FontSize * 0.8f;
+            _text.text = Rtl.Fix(label);
+
+            _lifetime = Lifetime * 1.9f;
+            _elapsed = 0f;
+            _alive = true;
+            _group.alpha = 1f;
+
+            gameObject.SetActive(true);
+        }
+
         private void LateUpdate()
         {
             if (!_alive) return;
 
+            // Le delai avant de paraitre : on reste au point de depart, invisible,
+            // en suivant la camera.
+            if (_delay > 0f)
+            {
+                _delay -= Time.deltaTime;
+                if (_delay > 0f) { FaceCamera(); return; }
+                _delay = 0f;
+                _group.alpha = 1f;
+            }
+
             _elapsed += Time.deltaTime;
 
-            float t = _elapsed / Lifetime;
+            float t = _elapsed / _lifetime;
 
             if (t >= 1f)
             {

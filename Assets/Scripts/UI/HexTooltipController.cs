@@ -977,38 +977,31 @@ namespace MNLTHII.Managers
 
             switch (action.kind)
             {
+                // A construire, ou deja au maximum : on dit ce que le batiment FAIT.
+                // Tous les textes sont lus dans le JSON (cles uniques effect*), avec
+                // pour secours ceux poses par le HudBuilder dans la scene : une regle
+                // qui change se corrige alors dans un seul fichier.
                 case HexActionKind.Build:
-                    switch (hex.type)
-                    {
-                        // Bunker et Centre : texte a jour lu dans le JSON (usure, deux
-                        // zones), sinon celui pose par le HudBuilder.
-                        case TypeOfHex.hill: phrase = MNLTHII.UI.HudLabelsRuntime.Get("bunkerEffect", effectBunker); break;
-                        case TypeOfHex.gas: phrase = effectGas; break;
-                        case TypeOfHex.crystal: phrase = effectCrystal; break;
-                        case TypeOfHex.mountain: phrase = MNLTHII.UI.HudLabelsRuntime.Get("mountainEffect", effectMountain); break;
-                    }
-                    break;
-
-                // Deja au maximum : on dit quand meme ce que le batiment FAIT.
                 case HexActionKind.MaxLevel:
                     switch (hex.type)
                     {
-                        case TypeOfHex.hill: phrase = MNLTHII.UI.HudLabelsRuntime.Get("bunkerEffect", effectBunker); break;
-                        case TypeOfHex.gas: phrase = effectGas; break;
-                        case TypeOfHex.crystal: phrase = effectCrystal; break;
-                        case TypeOfHex.mountain: phrase = MNLTHII.UI.HudLabelsRuntime.Get("mountainEffect", effectMountain); break;
+                        case TypeOfHex.hill: phrase = MNLTHII.UI.HudLabelsRuntime.Get("effectBunker", effectBunker); break;
+                        case TypeOfHex.gas: phrase = MNLTHII.UI.HudLabelsRuntime.Get("effectGas", effectGas); break;
+                        case TypeOfHex.crystal: phrase = MNLTHII.UI.HudLabelsRuntime.Get("effectCrystal", effectCrystal); break;
+                        case TypeOfHex.mountain: phrase = MNLTHII.UI.HudLabelsRuntime.Get("effectMountain", effectMountain); break;
+                        case TypeOfHex.Destroyed: phrase = MNLTHII.UI.HudLabelsRuntime.Get("effectTurnPortal", ""); break;
                     }
                     break;
 
-                case HexActionKind.TankCreate: phrase = effectTankCreate; break;
-                case HexActionKind.TankEvolve: phrase = effectTankEvolve; break;
+                case HexActionKind.TankCreate: phrase = MNLTHII.UI.HudLabelsRuntime.Get("effectTankCreate", effectTankCreate); break;
+                case HexActionKind.TankEvolve: phrase = MNLTHII.UI.HudLabelsRuntime.Get("effectTankEvolve", effectTankEvolve); break;
                 case HexActionKind.Barren: phrase = MNLTHII.UI.HudLabelsRuntime.Get("barrenBody"); break;
             }
 
             bool show = !string.IsNullOrEmpty(phrase);
 
             if (effectText.gameObject.activeSelf != show) effectText.gameObject.SetActive(show);
-            if (show) effectText.text = phrase;
+            if (show) effectText.text = MNLTHII.UI.Rtl.Fix(phrase);
         }
 
         private void FillCost(HexAction action)

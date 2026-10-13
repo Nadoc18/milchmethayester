@@ -240,6 +240,9 @@ namespace MNLTHII.Managers
                     if (suggestion.hex.type == TypeOfHex.hill) return titleBunker;
                     if (suggestion.hex.type == TypeOfHex.crystal) return titleCrystal;
                     if (suggestion.hex.type == TypeOfHex.mountain) return titleCommand;
+                    // L'usine de Gaz n'avait que le titre generique "Construis" :
+                    // le conseil le plus frequent du debut de partie meritait son nom.
+                    if (suggestion.hex.type == TypeOfHex.gas) return MNLTHII.UI.HudLabelsRuntime.Get("titleGas", titleBuild);
                     return titleBuild;
             }
 

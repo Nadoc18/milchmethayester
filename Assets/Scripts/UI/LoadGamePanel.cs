@@ -108,18 +108,25 @@ namespace MNLTHII.Managers
                 TMPro.TextMeshProUGUI[] texts = _rowTexts[i];
 
                 // Ligne 1 : le tour et la difficulte. C'est ce qui identifie une partie.
-                texts[0].text = string.Format(Label("savesHeadFormat", "{0} - {1}"),
-                                              file.turn, DifficultyName(file.difficulty));
+                // Champ RTL : le numero de tour passe par Rtl.Fix, sinon 12 devient 21.
+                texts[0].text = UI.Rtl.Fix(string.Format(Label("savesHeadFormat", "{0} - {1} - {2}"),
+                                              file.turn, DifficultyName(file.difficulty), MapName(file.map)));
 
                 // Ligne 2 : ce qu'il reste sur le plateau. Deux parties au meme tour ne
                 // se ressemblent pas ; celle ou il reste deux Shofars n'est pas celle ou
                 // il en reste six.
-                texts[1].text = string.Format(Label("savesDetailFormat", "{0} / {1} / {2}-{3}"),
-                                              file.tanks, file.foes, file.portalsAlive, file.portalsTotal);
+                texts[1].text = UI.Rtl.Fix(string.Format(Label("savesDetailFormat", "{0} / {1} / {2}-{3}"),
+                                              file.tanks, file.foes, file.portalsAlive, file.portalsTotal));
 
                 // Ligne 3 : la date. En chiffres, donc jamais en RTL.
                 texts[2].text = file.savedAt;
             }
+        }
+
+        private static string MapName(int map)
+        {
+            if (map < 0 || map >= MapGenerator.LayoutNameKeys.Length) map = 0;
+            return UI.HudLabelsRuntime.Get(MapGenerator.LayoutNameKeys[map], "");
         }
 
         private static string DifficultyName(int difficulty)
@@ -153,6 +160,7 @@ namespace MNLTHII.Managers
             // La scene de jeu la trouvera ici : c'est LocalGameEngine qui la consomme.
             SaveManager.PendingLoad = file;
             Rules.GameDifficulty.Current = (Rules.DifficultyLevel)file.difficulty;
+            MapGenerator.CurrentLayout = file.map;
             Time.timeScale = 1f;
 
             string scene = (MainMenuController.Instance != null)

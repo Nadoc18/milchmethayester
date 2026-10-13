@@ -178,9 +178,13 @@ namespace MNLTHII.Managers
             string rankTitle = null;
             string rankBody = null;
 
+            // Le DERNIER Shofar abattu declenche la victoire dans la meme fin de tour :
+            // le joueur n'a jamais l'occasion de retourner sa ruine. Le titre supreme
+            // ne peut donc pas exiger "tous" : il exige tous ceux qu'il etait possible
+            // de retourner, c'est-a-dire tous sauf le dernier tombe.
             if (victory && fallen > 0)
             {
-                if (turned >= fallen)
+                if (turned >= fallen - 1)
                 {
                     rankTitle = MNLTHII.UI.HudLabelsRuntime.Get("rankTzadikTov");
                     rankBody = MNLTHII.UI.HudLabelsRuntime.Get("rankTzadikTovBody");

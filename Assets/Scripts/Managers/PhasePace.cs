@@ -237,8 +237,16 @@ namespace MNLTHII.Managers
         public const float UnitFocus = 0.75f;
         public const float UnitAim = 0.30f;
         public const float UnitResolve = 0.85f;
-        public const float UnitMove = 0.55f;
+        // UN PAS DE ROBOT, PAS UN SAUT. A 0.42 s en InCirc, un pion partait d'un coup
+        // et "sautait" sur la case suivante : trop rapide pour etre lu, et laid. Le
+        // pas dure maintenant 0.72 s en InOutSine (demarrage et arret en douceur),
+        // sous une attente de 0.95 s. Les allures Rapide et Eclair divisent tout par
+        // deux et par quatre, comme avant.
+        public const float UnitMove = 0.95f;
         public const float UnitStep = 0.35f;
+
+        /// <summary>Le temps d'aller voir un Shofar qui vient de se fissurer, et de lire "3/4".</summary>
+        public const float CrackCut = 1.25f;
 
         /// <summary>Marge ajoutee au trajet de la camera avant de la croire arrivee.</summary>
         public const float CameraMargin = 0.10f;
@@ -266,8 +274,8 @@ namespace MNLTHII.Managers
         public const float BunkerVolley = 0.50f;
 
         /// <summary>Duree des tweens d'un pion. PawnLook + PawnMove doit rester sous UnitMove.</summary>
-        public const float PawnLook = 0.08f;
-        public const float PawnMove = 0.42f;
+        public const float PawnLook = 0.18f;
+        public const float PawnMove = 0.72f;
 
         // =================================================================
         //  L'ATTENTE

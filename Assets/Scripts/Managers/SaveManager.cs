@@ -146,6 +146,7 @@ namespace MNLTHII.Managers
             file.savedAtTicks = DateTime.Now.Ticks;
             file.savedAt = DateTime.Now.ToString("dd/MM HH:mm");
             file.difficulty = (int)GameDifficulty.Current;
+            file.map = MapGenerator.CurrentLayout;
 
             TurnManager turns = TurnManager.Instance;
             file.turn = (turns != null) ? turns.currentTurn : 1;
@@ -330,6 +331,7 @@ namespace MNLTHII.Managers
 
             CurrentGameId = file.id;
             GameDifficulty.Current = (DifficultyLevel)file.difficulty;
+            MapGenerator.CurrentLayout = file.map;
 
             RestoreHexes(file, board);
             RestorePawns(file, board);
@@ -407,14 +409,15 @@ namespace MNLTHII.Managers
                 // LA BULLE D'UN CENTRE DE COMMANDEMENT.
                 //
                 // ResetShield d'abord, pour retrouver le maximum du rang ; la valeur
-                // sauvegardee ensuite. Un fichier ecrit avant que la bulle existe porte
-                // zero - on lui rend alors une bulle pleine plutot que de rendre au
-                // joueur une tete de pont a nu qu'il croyait protegee.
+                // sauvegardee ensuite. Un fichier ecrit avant que la bulle existe n'a
+                // pas le champ (-1) : on lui rend une bulle pleine. Un zero, lui, est
+                // une bulle PERCEE : la recharger pleine serait une triche a portee
+                // de main (quitter / recharger).
                 if (hex.type == TypeOfHex.mountain && hex.level >= 1)
                 {
                     MNLTHII.Rules.InteractionRules.ResetShield(hex);
 
-                    if (saved.sh > 0)
+                    if (saved.sh >= 0)
                         hex.shieldHP = (saved.sh > hex.shieldMax) ? hex.shieldMax : saved.sh;
                 }
             }

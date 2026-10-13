@@ -47,7 +47,40 @@ namespace MNLTHII.Managers
             _onClickCached = HandleClick;
             if (_button != null) _button.onClick.AddListener(_onClickCached);
 
+            // Les libelles du HUD, s'ils n'ont pas ete poses par le constructeur.
+            if (label != null)
+            {
+                string show = MNLTHII.UI.HudLabelsRuntime.Get("threatShow");
+                string hide = MNLTHII.UI.HudLabelsRuntime.Get("threatHide");
+                if (!string.IsNullOrEmpty(show)) showLabel = show;
+                if (!string.IsNullOrEmpty(hide)) hideLabel = hide;
+            }
+
             Refresh(false);
+        }
+
+        /// <summary>
+        /// L'ANCIEN BOUTON GRIS S'EFFACE DEVANT LE NOUVEAU. Le bouton d'origine (un
+        /// Button Unity par defaut, sans champ TextMeshPro, libelle en francais) reste
+        /// dans la scene ; des que le HUD construit porte son propre relais avec un
+        /// vrai libelle, le vieux se cache. Sans HUD reconstruit, il reste : on ne
+        /// perd jamais l'acces a la souris.
+        /// </summary>
+        private void Start()
+        {
+            // Celui du HUD construit vit sous le HudController ; l'ancien, non.
+            if (GetComponentInParent<HudController>() != null) return;
+
+            ThreatPreviewButton[] relays = Object.FindObjectsByType<ThreatPreviewButton>(FindObjectsSortMode.None);
+            for (int i = 0; i < relays.Length; i++)
+            {
+                if (relays[i] != null && relays[i] != this
+                    && relays[i].GetComponentInParent<HudController>() != null)
+                {
+                    gameObject.SetActive(false);
+                    return;
+                }
+            }
         }
 
         private void OnDestroy()
@@ -87,7 +120,7 @@ namespace MNLTHII.Managers
         {
             _lastState = visible;
 
-            if (label != null) label.text = visible ? hideLabel : showLabel;
+            if (label != null) label.text = MNLTHII.UI.Rtl.Fix(visible ? hideLabel : showLabel);
 
             if (tintWhenActive && _image != null)
                 _image.color = visible ? activeColor : _restingColor;

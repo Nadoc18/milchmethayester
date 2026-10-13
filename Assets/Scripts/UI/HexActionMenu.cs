@@ -240,6 +240,12 @@ namespace MNLTHII.Managers
                 string refus = null;
                 if (action.kind == HexActionKind.Barren) refus = barrenLabel;
                 else if (action.outOfRange) refus = action.portalShadow ? portalShadowLabel : outOfRangeLabel;
+                // Les trois autres refus avaient le meme bouton gris muet : "deja au
+                // maximum", "un ennemi est dessus" et "pas assez d'Energie" se lisent
+                // maintenant sur le bouton lui-meme, sans ouvrir les details.
+                else if (action.kind == HexActionKind.MaxLevel) refus = MNLTHII.UI.HudLabelsRuntime.Get("useMaxLevel", useLabel);
+                else if (action.kind == HexActionKind.Occupied) refus = MNLTHII.UI.HudLabelsRuntime.Get("useOccupied", useLabel);
+                else if (usable && !action.affordable) refus = MNLTHII.UI.HudLabelsRuntime.Get("useTooExpensive", useLabel);
 
                 useText.text = string.IsNullOrEmpty(refus) ? useLabel : refus;
                 useText.color = canUse ? textColor : textDisabledColor;

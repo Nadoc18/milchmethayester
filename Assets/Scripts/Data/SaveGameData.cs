@@ -25,11 +25,12 @@ namespace MNLTHII.Data
 
         /// <summary>
         /// La bulle d'un Centre de Commandement. Nouveau champ : un fichier ecrit avant
-        /// son existence le relit a zero, et ProcessMountainsSequential lui rend alors
-        /// une bulle pleine plutot que de laisser le Centre nu. Le format reste en
-        /// version 1 - ajouter un champ ne casse aucune partie en cours.
+        /// son existence le laisse a -1, et le chargement rend alors une bulle pleine
+        /// plutot que de laisser le Centre nu. Zero, lui, veut dire "bulle percee" et
+        /// est restaure tel quel. Le format reste en version 1 - ajouter un champ ne
+        /// casse aucune partie en cours.
         /// </summary>
-        public int sh;
+        public int sh = -1;
 
         /// <summary>Tours ecoules depuis la creation (Shofars).</summary>
         public int ta;
@@ -143,6 +144,13 @@ namespace MNLTHII.Data
         // --- en-tete : ce que le menu affiche sans rien reconstruire ---
         public int turn = 1;
         public int difficulty = 1;
+
+        /// <summary>
+        /// La disposition du plateau (MapGenerator.CurrentLayout). Un fichier ecrit
+        /// avant son existence vaut 0 : la disposition d'origine, la seule qu'il
+        /// pouvait avoir.
+        /// </summary>
+        public int map = 0;
         public int energy;
         public int baseHP;
         public int baseMaxHP;

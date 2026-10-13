@@ -430,6 +430,9 @@ namespace MNLTHII.Managers
             if (!actionShots || _mode != Mode.None || tank == null) return false;
             if (turn == _lastShotTurn) return false;
 
+            // "Tout passer" : pas de plan au ralenti pour qui vient de demander la fin.
+            if (PhasePace.SkipPhaseRequested) return false;
+
             CameraDirector director = CameraDirector.Instance;
             if (director == null || !director.IsReady) return false;
 

@@ -70,7 +70,9 @@ namespace MNLTHII.Managers
     /// donc de cases ou les Tanks et les ennemis circulent. Sans cette regle, un site
     /// pouvait naitre injouable - ni defendable, ni attaquable.
     ///
-    /// Deux parties donnent exactement le meme dessin.
+    /// Deux parties sur la meme disposition donnent exactement le meme dessin ; il
+    /// existe quatre dispositions, choisies au menu, qui ne deplacent que les sites
+    /// (voir LayoutSeeds).
     ///
     /// Note d'optimisation : plus aucun tirage, plus aucune re-tentative. La carte est
     /// construite en un seul passage sur les 169 cases.
@@ -104,22 +106,11 @@ namespace MNLTHII.Managers
         };
 
         /// <summary>
-        /// LES SIX SITES, donnes par UNE case chacun. Les cinq autres copies sont
-        /// obtenues par rotation de 60 degres : la carte est donc forcement symetrique,
-        /// et il n'y a qu'une ligne a changer pour deplacer les six exemplaires d'un
-        /// site.
-        ///
-        /// Ces positions ont ete choisies pour que rien ne se touche et que chaque site
-        /// ait un role clair (voir le commentaire de la classe).
+        /// LES SITES, donnes par UNE case chacun, dans l'ordre de SiteTypes. Les cinq
+        /// autres copies sont obtenues par rotation de 60 degres : la carte est donc
+        /// forcement symetrique. Quatre jeux de graines existent, un par disposition :
+        /// voir LayoutSeeds ci-dessous.
         /// </summary>
-        private static readonly int[,] SiteSeeds =
-        {
-            { -3,  0,  3 },   // colline interieure : sur le couloir Base -> Shofar
-            { -4,  2,  2 },   // gaz : couvert par la colline interieure
-            { -5,  1,  4 },   // cristal : en avant de la ligne des collines
-            { -5,  4,  1 }    // centre de commandement : tete de pont
-        };
-
         private static readonly TypeOfHex[] SiteTypes =
         {
             TypeOfHex.hill,
@@ -127,6 +118,119 @@ namespace MNLTHII.Managers
             TypeOfHex.crystal,
             TypeOfHex.mountain
         };
+
+        // =================================================================
+        //  LES QUATRE DISPOSITIONS
+        // =================================================================
+        //
+        // MEME PLATEAU, PIECES DEPLACEES. Tout ce qui sert de repere ne bouge jamais :
+        // la Base au centre, les six Shofars aux pointes, le glacis de desert sur les
+        // deux derniers anneaux, la plaine partout ailleurs, la symetrie d'ordre 6,
+        // les memes quatre sortes de sites aux memes couleurs. Ce qui change d'une
+        // disposition a l'autre, c'est UNIQUEMENT la place des 24 sites sur les
+        // anneaux 3 a 5 - et donc ce qui est a portee de main et ce qu'il faut aller
+        // chercher.
+        //
+        // Les quatre dispositions sont les seules qui passent TOUTES les regles
+        // suivantes (verifie par enumeration des 30 placements possibles) :
+        //   - aucun site n'en touche un autre, ni la Base, ni un Shofar ;
+        //   - aucune usine, aucun Cristal, aucun Centre a moins de 3 cases d'un
+        //     Shofar (on ne s'installe pas chez lui) ;
+        //   - chaque usine est couverte par une colline a 2 cases (portee du Bunker) ;
+        //   - six Centres bulles actives ne peuvent jamais sceller la Base - c'est ce
+        //     qui interdit les Centres a l'anneau 4 ;
+        //   - un chemin existe de chaque Shofar a la Base.
+        //
+        //   0  HaHoma   (le mur)      collines sur l'axe (3), gaz derriere (4), cristal et centre loin (5).
+        //              La carte d'origine : on defend sur la ligne des collines.
+        //   1  HaGan    (le jardin)   gaz et cristal echanges : le cristal a 4, l'usine a 5 - a trois
+        //              cases d'un Shofar. On evolue chez soi, on gagne sa vie dehors.
+        //   2  HaMivtsar (la forteresse) gaz a 3 SUR l'axe, collines a 4 entre les axes. L'economie est
+        //              au pied de la Base et les Bunkers tirent en avant : defense
+        //              facile, mais tout ce qui fait avancer est loin.
+        //   3  HaMasa   (le voyage)   cristal a 3 sur l'axe, collines a 4, gaz a 5 : la porte est un
+        //              atelier, et il faut partir pour chaque sou.
+        private static readonly int[][,] LayoutSeeds =
+        {
+            new int[,] { { -3, 0, 3 }, { -4, 2, 2 }, { -5, 1, 4 }, { -5, 4, 1 } },
+            new int[,] { { -3, 0, 3 }, { -5, 1, 4 }, { -4, 2, 2 }, { -5, 4, 1 } },
+            new int[,] { { -4, 2, 2 }, { -3, 0, 3 }, { -5, 1, 4 }, { -5, 4, 1 } },
+            new int[,] { { -4, 2, 2 }, { -5, 1, 4 }, { -3, 0, 3 }, { -5, 4, 1 } }
+        };
+
+        /// <summary>Cles hud_labels.json (section mainMenu) du nom et de la description de chaque disposition.</summary>
+        public static readonly string[] LayoutNameKeys = { "mapWall", "mapGarden", "mapFortress", "mapJourney" };
+        public static readonly string[] LayoutBodyKeys = { "mapWallBody", "mapGardenBody", "mapFortressBody", "mapJourneyBody" };
+
+        public static int LayoutCount { get { return LayoutSeeds.Length; } }
+
+        private static int _layout;
+
+        /// <summary>
+        /// La disposition de la partie en cours. Choisie au menu principal, ecrite dans
+        /// la sauvegarde (SaveGameFile.map), relue au chargement. Hors bornes : la
+        /// premiere, celle d'origine.
+        /// </summary>
+        public static int CurrentLayout
+        {
+            get { return _layout; }
+            set { _layout = (value < 0 || value >= LayoutSeeds.Length) ? 0 : value; }
+        }
+
+        private static int[,] SiteSeeds { get { return LayoutSeeds[CurrentLayout]; } }
+
+        /// <summary>
+        /// Les regles de voisinage d'une disposition, verifiees par le TestRunner :
+        /// aucun site n'en touche un autre, ni la Base, ni un Shofar ; et rien de
+        /// payant (usine, Cristal, Centre) a moins de 3 cases d'un Shofar. Une graine
+        /// deplacee a la main passe par ici avant d'arriver en partie.
+        /// </summary>
+        public static bool LayoutIsSound(int index)
+        {
+            if (index < 0 || index >= LayoutSeeds.Length) return false;
+
+            int[,] seeds = LayoutSeeds[index];
+            int count = seeds.GetLength(0);
+
+            int[] q = new int[count * 6];
+            int[] r = new int[count * 6];
+            int[] s = new int[count * 6];
+            TypeOfHex[] types = new TypeOfHex[count * 6];
+            int n = 0;
+
+            for (int i = 0; i < count; i++)
+            {
+                int sq = seeds[i, 0], sr = seeds[i, 1], ss = seeds[i, 2];
+                for (int turn = 0; turn < 6; turn++)
+                {
+                    q[n] = sq; r[n] = sr; s[n] = ss; types[n] = SiteTypes[i]; n++;
+                    int nq = -sr, nr = -ss, ns = -sq;
+                    sq = nq; sr = nr; ss = ns;
+                }
+            }
+
+            for (int i = 0; i < n; i++)
+            {
+                int ring = Mathf.Max(Mathf.Abs(q[i]), Mathf.Max(Mathf.Abs(r[i]), Mathf.Abs(s[i])));
+                if (ring < 3 || ring >= GlacisRing) return false;   // touche la Base, ou dans le glacis
+
+                for (int j = i + 1; j < n; j++)
+                {
+                    int d = Mathf.Max(Mathf.Abs(q[i] - q[j]), Mathf.Max(Mathf.Abs(r[i] - r[j]), Mathf.Abs(s[i] - s[j])));
+                    if (d <= 1) return false;
+                }
+
+                for (int c = 0; c < 6; c++)
+                {
+                    int cq, cr, cs;
+                    GetPortalCorner(c, out cq, out cr, out cs);
+                    int d = Mathf.Max(Mathf.Abs(q[i] - cq), Mathf.Max(Mathf.Abs(r[i] - cr), Mathf.Abs(s[i] - cs)));
+                    if (d <= 1) return false;
+                    if (types[i] != TypeOfHex.hill && d < 3) return false;
+                }
+            }
+            return true;
+        }
 
         /// <summary>
         /// Premier anneau du glacis : a partir de lui, plus aucun site, rien que du
@@ -256,9 +360,9 @@ namespace MNLTHII.Managers
                 }
             }
 
-            Debug.LogFormat("[MapGenerator] Plateau fixe : {0} cases, {1} Shofars, {2} cases de Base, "
+            Debug.LogFormat("[MapGenerator] Plateau fixe (disposition {4}) : {0} cases, {1} Shofars, {2} cases de Base, "
                           + "{3} sites (collines, gaz, cristaux, centres).",
-                            map.Count, portals, bases, special.Count);
+                            map.Count, portals, bases, special.Count, CurrentLayout);
 
             return JsonConvert.SerializeObject(map);
         }

@@ -69,6 +69,12 @@ namespace MNLTHII.UI
             _target = transform;
             EnsureCamera();
 
+            // LA BARRE AU-DESSUS DU MODELE, PAS DEDANS. Une hauteur fixe traversait la
+            // tourelle des Tanks et le toit des batiments : on mesure le haut reel des
+            // renderers de la cible et on se place juste au-dessus. La valeur demandee
+            // reste un minimum pour les modeles tres plats.
+            _heightOffset = Mathf.Max(_heightOffset, MeasureTopAboveTarget() + ClearanceAboveModel);
+
             // ATTENTION : Canvas exige un RectTransform. Ajouter le composant Canvas a un
             // GameObject ordinaire fait REMPLACER son Transform par un RectTransform, et
             // l'ancien Transform est detruit. Toute reference prise avant cet ajout devient
@@ -114,6 +120,30 @@ namespace MNLTHII.UI
             _fillRect.anchoredPosition = new Vector2(-FillPixelWidth / 2f, 0f);
 
             FaceCamera();
+        }
+
+        /// <summary>Marge entre le sommet du modele et la barre, en unites monde.</summary>
+        private const float ClearanceAboveModel = 0.18f;
+
+        /// <summary>
+        /// Hauteur du point le plus haut des renderers de la cible, mesuree depuis sa
+        /// position. Appele une seule fois, a la creation de la barre : le tableau
+        /// alloue ici ne l'est jamais pendant le jeu.
+        /// </summary>
+        private float MeasureTopAboveTarget()
+        {
+            Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+            float top = float.NegativeInfinity;
+
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                Renderer r = renderers[i];
+                if (r == null || r is ParticleSystemRenderer || r is TrailRenderer || r is LineRenderer) continue;
+                if (r.bounds.max.y > top) top = r.bounds.max.y;
+            }
+
+            if (float.IsNegativeInfinity(top)) return 0f;
+            return top - transform.position.y;
         }
 
         private static void EnsureCamera()

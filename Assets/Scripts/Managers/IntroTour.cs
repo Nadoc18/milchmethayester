@@ -117,7 +117,12 @@ namespace MNLTHII.Managers
             if (GameManager.instance != null) GameManager.instance.canClickOrHover = false;
 
             // Ouverture : on ne part pas sur une case, on annonce ce qui va se passer.
-            yield return Stop(null, null, "introOpenTitle", "introOpenBody");
+            // {0} le nom de la disposition, {1} sa description : le joueur sait des
+            // la premiere carte sur quel plateau il joue.
+            int layout = MapGenerator.CurrentLayout;
+            yield return Stop(null, null, "introOpenTitle", "introOpenBody",
+                              MNLTHII.UI.HudLabelsRuntime.Get(MapGenerator.LayoutNameKeys[layout], ""),
+                              MNLTHII.UI.HudLabelsRuntime.Get(MapGenerator.LayoutBodyKeys[layout], ""));
 
             yield return Stop(TypeOfHex.Base, "Photos/Base", "introBaseTitle", "introBaseBody",
                               InteractionRules.BASE_HP,
@@ -238,8 +243,10 @@ namespace MNLTHII.Managers
                 }
             }
 
-            if (_title != null) _title.text = title;
-            if (_body != null) _body.text = body;
+            // Champs RTL : les chiffres des regles (40, 120, 3/4) passent par Rtl.Fix,
+            // sinon TMP les inverse.
+            if (_title != null) _title.text = MNLTHII.UI.Rtl.Fix(title);
+            if (_body != null) _body.text = MNLTHII.UI.Rtl.Fix(body);
             if (_counter != null) _counter.SetText("{0} / {1}", _step, _stepCount);
 
             SetPhoto(photoResource);
@@ -260,8 +267,8 @@ namespace MNLTHII.Managers
             string body = MNLTHII.UI.HudLabelsRuntime.Get("introStrategyBody");
             if (string.IsNullOrEmpty(body)) yield break;
 
-            if (_strategyTitle != null) _strategyTitle.text = title;
-            if (_strategyBody != null) _strategyBody.text = body;
+            if (_strategyTitle != null) _strategyTitle.text = MNLTHII.UI.Rtl.Fix(title);
+            if (_strategyBody != null) _strategyBody.text = MNLTHII.UI.Rtl.Fix(body);
             if (_strategyHint != null)
                 _strategyHint.text = MNLTHII.UI.HudLabelsRuntime.Get("introStrategyClose");
 
@@ -413,6 +420,7 @@ namespace MNLTHII.Managers
             Image back = card.gameObject.AddComponent<Image>();
             back.color = Panel;
             back.raycastTarget = false;
+            Dress(back, "UI/ui_plate_gold", new Color(1f, 1f, 1f, 0.96f));
 
             Image top = NewImage("Filet", card, Gold);
             RectTransform topRect = top.rectTransform;
@@ -489,6 +497,7 @@ namespace MNLTHII.Managers
             Image back = panel.gameObject.AddComponent<Image>();
             back.color = new Color(0.04f, 0.06f, 0.12f, 0.98f);
             back.raycastTarget = false;
+            Dress(back, "UI/ui_plate_cyan", new Color(1f, 1f, 1f, 0.97f));
 
             Image rule = NewImage("Filet", panel, Cyan);
             RectTransform ruleRect = rule.rectTransform;
@@ -548,6 +557,31 @@ namespace MNLTHII.Managers
             rect.pivot = new Vector2(0.5f, 0.5f);
             return rect;
         }
+
+        /// <summary>
+
+        /// Le theme electronique (Resources/UI, importe par le HudBuilder) : une plaque
+
+        /// chanfreinee a la place du rectangle plat. Absent, le rectangle reste.
+
+        /// </summary>
+
+        private static void Dress(Image image, string resource, Color color)
+
+        {
+
+            Sprite sprite = Resources.Load<Sprite>(resource);
+
+            if (sprite == null) return;
+
+            image.sprite = sprite;
+
+            image.type = Image.Type.Sliced;
+
+            image.color = color;
+
+        }
+
 
         private static Image NewImage(string name, Transform parent, Color color)
         {

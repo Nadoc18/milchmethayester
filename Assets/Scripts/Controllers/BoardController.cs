@@ -1200,9 +1200,11 @@ namespace MNLTHII
         // Les Cristaux (zone de soutien : soin, +PV max, evolution des Tanks) suivent
         // le meme reglage showRangeAuras que les Bunkers et les Centres.
 
-        private static readonly Color AuraMountain = new Color(1f, 0.3f, 0f);
-        private static readonly Color AuraHill = Color.yellow;
-        private static readonly Color AuraCrystal = Color.cyan;
+        // Les couleurs du theme, et pas des primaires : le jaune pur des Bunkers
+        // criait par-dessus tout le plateau. L'alpha est l'intensite de la zone.
+        private static readonly Color AuraMountain = new Color(0.30f, 0.94f, 0.86f, 0.70f);   // la bulle, cyan
+        private static readonly Color AuraHill = new Color(1f, 0.78f, 0.36f, 0.62f);          // la portee de tir, or
+        private static readonly Color AuraCrystal = new Color(0.50f, 0.83f, 1f, 0.55f);       // le soutien, bleu clair
 
         [Tooltip("Opacite de la zone de COMMANDEMENT d'un Centre (Garde + 1 case de mouvement), "
                + "dessinee plus legere que sa zone infranchissable.")]
@@ -1336,7 +1338,7 @@ namespace MNLTHII
                         PaintAura(mc.q, mc.r, repel, AuraMountain, 0);
                         if (command > repel)
                             PaintAura(mc.q, mc.r, command,
-                                      new Color(AuraMountain.r, AuraMountain.g, AuraMountain.b, commandZoneAlpha),
+                                      new Color(AuraMountain.r, AuraMountain.g, AuraMountain.b, commandZoneAlpha * AuraMountain.a),
                                       repel);
                         continue;
                     }

@@ -349,7 +349,12 @@ namespace MNLTHII.Managers
                 HexCoord targetCoord = (targetPawn != null) ? targetPawn.hexcoord : targetHex.positionInTheBoard;
                 if (targetCoord == null) continue;
 
-                int distance = BoardController.GetHexDistance(enemy.hexcoord, targetCoord);
+                // Meme mesure que l'IA (EnemyAI) : contre un Centre protege, la
+                // distance se compte jusqu'a la BULLE, pas jusqu'a la case. Sinon
+                // l'apercu annoncait un deplacement la ou l'ennemi va frapper la bulle.
+                int distance = (targetPawn != null)
+                               ? BoardController.GetHexDistance(enemy.hexcoord, targetCoord)
+                               : MNLTHII.Rules.InteractionRules.DistanceToTarget(enemy.hexcoord, targetHex);
                 Vector3 from = enemy.transform.position;
 
                 if (distance <= enemy.attackRange)
@@ -372,7 +377,10 @@ namespace MNLTHII.Managers
 
                     for (int step = 0; step < steps; step++)
                     {
-                        if (BoardController.GetHexDistance(walker, targetCoord) <= enemy.attackRange) break;
+                        int walkerDistance = (targetPawn != null)
+                                             ? BoardController.GetHexDistance(walker, targetCoord)
+                                             : MNLTHII.Rules.InteractionRules.DistanceToTarget(walker, targetHex);
+                        if (walkerDistance <= enemy.attackRange) break;
 
                         HexCoord candidate = board.GetNextStepTowards(walker, targetCoord, true);
                         if (candidate == null || candidate.CompareHexCoord(walker)) break;

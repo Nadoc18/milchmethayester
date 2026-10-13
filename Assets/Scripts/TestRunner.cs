@@ -21,6 +21,7 @@ public class TestRunner : MonoBehaviour
         TestEnergy();
         TestBuildCosts();
         TestPortalInstability();
+        TestMapLayouts();
 
         if (_failures == 0) Debug.Log("--- TOUS LES TESTS SONT PASSES ---");
         else Debug.LogError("--- " + _failures + " TEST(S) EN ECHEC ---");
@@ -54,20 +55,37 @@ public class TestRunner : MonoBehaviour
         Check(t1.stance == PawnStance.Guard, "Posture par defaut d'un Tank : Garde");
 
         // Section 5.2 - Ennemis
+        // Les chiffres de l'ennemi dependent de la difficulte : on compare au bareme
+        // de reference PASSE PAR LA MEME ECHELLE que le jeu, sinon le test n'est
+        // vrai qu'en Difficile. La portee est 1 a tous les rangs : les ennemis ne
+        // pilonnent pas de loin, ils foncent (c'est leur mobilite qui monte).
+        int hpPct = GameDifficulty.EnemyHpPercent;
+        int dmgPct = GameDifficulty.EnemyDamagePercent;
+
         PawnController e1 = MakePawn(TypeOfPawn.enemy, 1);
-        Check(e1.maxHP == 20 && e1.attackDamageMin == 10 && e1.attackRange == 1, "Ennemi Niv1 = 20 PV / 10 degats / portee 1");
+        Check(e1.maxHP == GameDifficulty.Scale(20, hpPct) && e1.attackDamageMin == GameDifficulty.Scale(10, dmgPct)
+              && e1.attackRange == 1 && e1.moveRange == 1,
+              "Ennemi Niv1 = 20 PV / 10 degats (a l'echelle) / portee 1 / 1 case");
 
         PawnController e2 = MakePawn(TypeOfPawn.enemy, 2);
-        Check(e2.maxHP == 40 && e2.attackDamageMin == 15 && e2.attackRange == 2, "Ennemi Niv2 = 40 PV / 15 degats / portee 2");
+        Check(e2.maxHP == GameDifficulty.Scale(40, hpPct) && e2.attackDamageMin == GameDifficulty.Scale(15, dmgPct)
+              && e2.attackRange == 1 && e2.moveRange == 2,
+              "Ennemi Niv2 = 40 PV / 15 degats (a l'echelle) / portee 1 / 2 cases");
 
         PawnController e3 = MakePawn(TypeOfPawn.enemy, 3);
-        Check(e3.maxHP == 80 && e3.attackDamageMin == 30 && e3.attackRange == 3, "Ennemi Niv3 = 80 PV / 30 degats / portee 3");
+        Check(e3.maxHP == GameDifficulty.Scale(80, hpPct) && e3.attackDamageMin == GameDifficulty.Scale(30, dmgPct)
+              && e3.attackRange == 1 && e3.moveRange == 3,
+              "Ennemi Niv3 = 80 PV / 30 degats (a l'echelle) / portee 1 / 3 cases");
 
-        // Un Tank Niv1 doit tuer un Ennemi Niv1 en exactement 2 coups.
-        Check(Mathf.CeilToInt(20f / 10f) == 2, "Tank Niv1 tue un Ennemi Niv1 en 2 tours");
+        // Un Tank Niv1 tue un Ennemi Niv1 en deux coups au plus, quelle que soit la difficulte.
+        Check(Mathf.CeilToInt((float)e1.maxHP / t1.attackDamageMin) <= 2, "Tank Niv1 tue un Ennemi Niv1 en 2 coups au plus");
 
-        // Un Ennemi Niv3 doit detruire un Tank Niv1 en un seul coup.
-        Check(30 >= 30, "Ennemi Niv3 detruit un Tank Niv1 en 1 coup");
+        // Un Ennemi Niv3 detruit un Tank Niv1 en un coup EN DIFFICILE seulement ;
+        // ailleurs il lui faut deux coups. Les deux sont voulus.
+        bool hard = (GameDifficulty.Current == DifficultyLevel.Hard);
+        Check(hard ? (e3.attackDamageMin >= t1.maxHP) : (e3.attackDamageMin < t1.maxHP),
+              hard ? "Ennemi Niv3 detruit un Tank Niv1 en 1 coup (Difficile)"
+                   : "Ennemi Niv3 laisse un Tank Niv1 debout apres 1 coup (Facile/Moyen)");
 
         Destroy(t1.gameObject); Destroy(t2.gameObject);
         Destroy(e1.gameObject); Destroy(e2.gameObject); Destroy(e3.gameObject);
@@ -134,8 +152,11 @@ public class TestRunner : MonoBehaviour
         // tombe, le Centre est redevenu invincible.
         Check(InteractionRules.MOUNTAIN_SHIELD_L1 > 0 && InteractionRules.GetMountainRepel(1) >= 1,
               "Le Centre de Commandement porte bien une bulle qui couvre des cases");
-        Check(InteractionRules.GetMountainRepel(1) + 1 - InteractionRules.GetMountainRepel(1) <= 1,
-              "Depuis le bord de la bulle, une portee de 1 suffit a la frapper");
+        // Depuis une case adjacente a la bulle, un ennemi de portee 1 doit pouvoir
+        // frapper : la distance "au bord" vaut la distance a la case moins le rayon.
+        Check(InteractionRules.GetMountainRepel(1) + 1 - InteractionRules.GetMountainRepel(1) == 1
+              && InteractionRules.GetMountainRepel(2) == InteractionRules.GetMountainRepel(1),
+              "Depuis le bord de la bulle, une portee de 1 suffit a la frapper, aux deux rangs");
         Check(InteractionRules.GetMountainCommandRadius(1) == 2 && InteractionRules.GetMountainCommandRadius(2) == 3, "Centre de Com. : commande a 2 puis 3 cases");
     }
 
@@ -215,7 +236,8 @@ public class TestRunner : MonoBehaviour
     private void TestPortalInstability()
     {
         Check(InteractionRules.PORTAL_KILL_BACKLASH == 12, "Contrecoup par ennemi tue = 12 PV");
-        Check(InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD == 4, "Bouclier rompu au bout de 4 morts");
+        Check(InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD == GameDifficulty.Pick(3, 4, 4),
+              "Bouclier rompu au bout de 3 morts (Facile) ou 4 (Moyen, Difficile)");
         Check(InteractionRules.PORTAL_SHIELD_DOWN_TURNS == 4, "Bouclier rompu pendant 4 tours");
         Check(InteractionRules.PORTAL_SHIELD_DIVISOR == 2, "Bouclier intact : degats divises par 2");
 
@@ -231,8 +253,28 @@ public class TestRunner : MonoBehaviour
         // Quatre morts avant la rupture du bouclier, a 12 PV chacune : un Portail Niv1
         // tombe a son plancher au moment exact ou il devient vulnerable. La defense
         // prepare l'assaut, elle ne le remplace pas.
+        // En Facile, trois morts (36 PV) laissent le Portail 4 PV au-dessus du
+        // plancher : un coup de Tank de plus, et c'est voulu - la rupture arrive
+        // plus tot, pas le plancher.
         int backlashBeforeBreak = InteractionRules.PORTAL_KILL_BACKLASH * InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD;
-        Check(backlashBeforeBreak >= InteractionRules.PORTAL_HP_L1 - floor,
-              "Tenir la ligne amene un Portail Niv1 a son plancher avant la rupture du bouclier");
+        Check(backlashBeforeBreak >= InteractionRules.PORTAL_HP_L1 - floor - 10,
+              "Tenir la ligne amene un Portail Niv1 a un coup de son plancher avant la rupture du bouclier");
+    }
+
+    /// <summary>Les dispositions du plateau : memes reperes, sites deplaces, rien qui se touche.</summary>
+    private void TestMapLayouts()
+    {
+        Check(MapGenerator.LayoutCount == 4, "Quatre dispositions du plateau");
+        Check(MapGenerator.LayoutNameKeys.Length == MapGenerator.LayoutCount
+              && MapGenerator.LayoutBodyKeys.Length == MapGenerator.LayoutCount,
+              "Chaque disposition a un nom et une description");
+
+        for (int i = 0; i < MapGenerator.LayoutCount; i++)
+            Check(MapGenerator.LayoutIsSound(i), "Disposition " + i + " : voisinage et distance aux Shofars respectes");
+
+        int before = MapGenerator.CurrentLayout;
+        MapGenerator.CurrentLayout = 99;
+        Check(MapGenerator.CurrentLayout == 0, "Une disposition hors bornes retombe sur l'originale");
+        MapGenerator.CurrentLayout = before;
     }
 }

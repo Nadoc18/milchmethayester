@@ -34,6 +34,12 @@ Shader "MNLTH/BoardCalm"
         _CalmBrightness ("Calm - Brightness", Range(0,2)) = 1
         _CalmEmissionDesaturate ("Calm - Emission Desaturation", Range(0,1)) = 0.6
         _CalmEmissionScale ("Calm - Emission Scale", Range(0,1)) = 0.55
+
+        // Colorisation : la case prend cette teinte en GARDANT son relief (sa
+        // luminance). Sert aux plaines, que la simple multiplication par une
+        // couleur ne rechauffait pas assez sur un modele gris-bleu.
+        _CalmTint ("Calm - Tint", Color) = (1,1,1,1)
+        _CalmTintStrength ("Calm - Tint Strength", Range(0,1)) = 0
     }
 
     SubShader
@@ -64,6 +70,8 @@ Shader "MNLTH/BoardCalm"
         half _CalmBrightness;
         half _CalmEmissionDesaturate;
         half _CalmEmissionScale;
+        half4 _CalmTint;
+        half _CalmTintStrength;
 
         struct Input
         {
@@ -91,6 +99,12 @@ Shader "MNLTH/BoardCalm"
         void surf (Input IN, inout SurfaceOutputStandard o)
         {
             fixed4 albedo = tex2D(_MainTex, IN.uv_MainTex) * _Color;
+
+            // Colorisation (plaines) : la teinte portee par la luminance du modele,
+            // un peu relevee pour que la case ne s'assombrisse pas.
+            half3 colorized = _CalmTint.rgb * saturate(Luma(albedo.rgb) * 1.6 + 0.08);
+            albedo.rgb = lerp(albedo.rgb, colorized, _CalmTintStrength);
+
             o.Albedo = Calm(albedo.rgb);
 
             half3 n = UnpackNormal(tex2D(_BumpMap, IN.uv_MainTex));

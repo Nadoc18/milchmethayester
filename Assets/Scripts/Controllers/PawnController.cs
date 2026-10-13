@@ -527,7 +527,7 @@ public class PawnController : MonoBehaviour
                         // d'ATTAQUE, et le joueur entendait donc frapper a chaque
                         // deplacement. Il a maintenant le sien.
                         sequence.Append(_transform.DOMove(destination.transform.position, MoveSeconds()))
-                                .SetEase(Ease.InCirc)
+                                .SetEase(Ease.InOutSine)
                                 .OnStart(_onMoveSfxCached);
                         sequence.OnComplete(_onMoveCompleteCached);
                     }
@@ -557,7 +557,7 @@ public class PawnController : MonoBehaviour
                                 .SetEase(Ease.InCirc)
                                 .OnStart(_onMoveSfxCached);
                         sequence.Append(_transform.DOMove(destination.transform.position, MoveSeconds()))
-                                .SetEase(Ease.InCirc);
+                                .SetEase(Ease.InOutSine);
                         sequence.OnComplete(_onMoveCompleteCached);
                     }
                 }

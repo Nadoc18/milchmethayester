@@ -902,7 +902,13 @@ namespace MNLTHII.Managers
                 HexCoord targetCoord = (targetPawn != null) ? targetPawn.hexcoord : targetHex.positionInTheBoard;
                 int distance = BoardController.GetHexDistance(tank.hexcoord, targetCoord);
 
-                if (distance <= tank.attackRange)
+                // Seule une cible HOSTILE se tire dessus : un point de garde allie
+                // (Base, Centre) n'est qu'une destination, jamais une cible. Sans ce
+                // test, un Tank de rang 2 poste a deux cases de son ancre tirait sur
+                // sa propre Base.
+                bool hostile = (targetPawn != null) || (targetHex != null && targetHex.type == TypeOfHex.portal);
+
+                if (hostile && distance <= tank.attackRange)
                 {
                     // Attaque : orientation puis resolution deterministe.
                     UnitActionCard.Attack(tank, targetPawn, targetHex);
@@ -925,10 +931,24 @@ namespace MNLTHII.Managers
                     tank.ApplySequenceAnimation(PawnController.TypeOfPawnInteractions.attack);
                     yield return _pace.For(PhasePace.UnitAim);
 
+                    // L'origine de la victime AVANT le coup : si elle meurt, son objet
+                    // est detruit, et c'est son Shofar qu'on va montrer se fissurer.
+                    HexCoord victimOrigin = (targetPawn != null && targetPawn.HasOriginPortal)
+                        ? new HexCoord(targetPawn.originPortalQ, targetPawn.originPortalR,
+                                       -targetPawn.originPortalQ - targetPawn.originPortalR)
+                        : null;
+
                     if (targetPawn != null) InteractionRules.ResolveCombat(tank, targetPawn);
                     else InteractionRules.ResolveCombat(tank, targetHex);
 
+                    bool killed = (victimOrigin != null) && (targetPawn == null || targetPawn.currentHP <= 0);
+
                     yield return _pace.For(PhasePace.UnitResolve);
+
+                    // LA FISSURE SE VOIT : un ennemi abattu, et la camera va voir le
+                    // Shofar qui vient d'en prendre une.
+                    if (killed && PortalManager.Instance != null)
+                        yield return StartCoroutine(PortalManager.Instance.CrackCameraCut(victimOrigin));
 
                     if (actionShot) yield return ImmersiveCamera.EndActionShot();
                 }
@@ -953,9 +973,13 @@ namespace MNLTHII.Managers
                         && BuildingManager.Instance.HasCommandSupport(tank.hexcoord))
                         steps += InteractionRules.MOUNTAIN_MOVE_BONUS;
 
+                    // Vers une cible hostile, on s'arrete des qu'elle est a portee de
+                    // tir ; vers un point de garde allie, on vient se poster a cote.
+                    int stopAt = hostile ? tank.attackRange : 1;
+
                     for (int s = 0; s < steps; s++)
                     {
-                        if (BoardController.GetHexDistance(tank.hexcoord, targetCoord) <= tank.attackRange) break;
+                        if (BoardController.GetHexDistance(tank.hexcoord, targetCoord) <= stopAt) break;
 
                         HexCoord nextCoord = board.GetNextStepTowards(tank.hexcoord, targetCoord, false);
                         if (nextCoord == null || nextCoord.CompareHexCoord(tank.hexcoord)) break;

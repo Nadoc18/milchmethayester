@@ -1779,6 +1779,18 @@ namespace MNLTHII.Rules
                 {
                     hex.ApplyDamage(amount);
                 }
+
+                // LA BASE QUI PREND UN COUP SE DIT EN TOUTES LETTRES. Le chiffre seul
+                // se confond avec n'importe quel degat ; "la Base" en rouge au-dessus
+                // de la case, c'est le signal que le joueur doit voir de loin.
+                if (hex.transform != null)
+                {
+                    MNLTHII.UI.DamagePopup.Show(hex.transform.position + Vector3.up * 1.2f,
+                                                amount, MNLTHII.UI.DamageKind.TakenByPlayer);
+                    MNLTHII.UI.DamagePopup.ShowLabel(hex.transform.position + Vector3.up * 1.2f,
+                                                     MNLTHII.UI.HudLabelsRuntime.Get("baseHitPopup", ""),
+                                                     new Color(1f, 0.30f, 0.37f), 0.35f);
+                }
                 return;
             }
 
@@ -1790,7 +1802,15 @@ namespace MNLTHII.Rules
                 hex.attacked = true;
 
                 int absorbed = amount;
+                bool hadShield = hex.shieldHP > 0;
                 amount = FilterMountainDamage(hex, amount);
+
+                // LA BULLE QUI CEDE SE DIT AUSSI : le dome s'eteint, mais sans un mot
+                // le joueur ne sait pas si c'est fini ou si elle va se refaire.
+                if (hadShield && hex.shieldHP <= 0 && hex.transform != null)
+                    MNLTHII.UI.DamagePopup.ShowLabel(hex.transform.position + Vector3.up * 1.6f,
+                                                     MNLTHII.UI.HudLabelsRuntime.Get("bubbleBrokenPopup", ""),
+                                                     new Color(0.30f, 0.94f, 0.86f), 0.4f);
 
                 if (amount <= 0)
                 {

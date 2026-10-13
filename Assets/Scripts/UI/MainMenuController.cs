@@ -75,6 +75,10 @@ namespace MNLTHII.Managers
         public Button loadGameButton;
         public TMPro.TextMeshProUGUI loadGameText;
 
+        [Header("Voile de nuit")]
+        [Tooltip("Bleu nuit translucide pose sur tout le diorama, derriere l'interface. Alpha 0 = aucun voile.")]
+        public Color nightVeil = new Color(0.03f, 0.05f, 0.12f, 0.52f);
+
         [Header("Couleurs")]
         public Color idleColor = new Color(0.49f, 0.63f, 1f, 0.07f);
         public Color selectedColor = new Color(1f, 0.78f, 0.36f, 0.20f);
@@ -97,12 +101,23 @@ namespace MNLTHII.Managers
         private Image _loadFill;
         private Image _loadFrame;
 
+        // --- la disposition du plateau ---
+        // Un seul bouton, qui tourne : quatre dispositions, c'est trop peu pour une
+        // rangee et trop pour un reglage cache. Le nom choisi se lit sur le bouton,
+        // la description prend la ligne sous le plateau le temps qu'on choisisse.
+        private const string MapPrefKey = "mnlth_map";
+        private int _map;
+        private Button _mapButton;
+        private TMPro.TextMeshProUGUI _mapText;
+        private UnityEngine.Events.UnityAction _mapCallback;
+
         private void Awake()
         {
             Instance = this;
             Time.timeScale = 1f;
 
             FillMissingLabels();
+            InstallBackdrop();
             InstallTitleImage();
 
             _cardCallbacks = new UnityEngine.Events.UnityAction[3];
@@ -129,6 +144,11 @@ namespace MNLTHII.Managers
             if (loadGameButton != null) loadGameButton.onClick.AddListener(_loadGameCallback);
 
             RefreshLoadButton();
+
+            // La disposition du plateau : la derniere choisie, ou celle d'origine.
+            _map = PlayerPrefs.GetInt(MapPrefKey, 0);
+            if (_map < 0 || _map >= MapGenerator.LayoutCount) _map = 0;
+            if (newGameButton != null) BuildMapButton();
 
             Select((int)GameDifficulty.Current);
         }
@@ -223,6 +243,64 @@ namespace MNLTHII.Managers
         /// voir l'image. Si le fichier n'est pas la, le titre ecrit reste : rien ne
         /// casse, on voit juste l'ancien titre.
         /// </summary>
+        /// <summary>
+        /// Un voile derriere toute l'interface : une vignette sombre qui ramene l'oeil
+        /// au centre, et une trame de lignes tres legere, comme un ecran. Les deux
+        /// vivent dans Resources/UI ; absents, rien n'est pose.
+        /// </summary>
+        private int _backdropCount;
+
+        private void InstallBackdrop()
+        {
+            Transform parent = (titleText != null) ? titleText.transform.parent : transform;
+            _backdropCount = 0;
+
+            // Le voile de nuit : un bleu nuit translucide sur tout le diorama. Le sable
+            // orange passe en penombre, les robots gardent leurs lumieres, et
+            // l'interface cyan / or ressort comme un ecran allume dans une salle sombre.
+            Image night = NewFullScreenImage("Nuit", parent, null);
+            night.color = nightVeil;
+            night.transform.SetAsFirstSibling();
+            _backdropCount++;
+
+            Sprite vignette = Resources.Load<Sprite>("UI/ui_vignette");
+            if (vignette != null)
+            {
+                Image veil = NewFullScreenImage("Vignette", parent, vignette);
+                veil.type = Image.Type.Simple;
+                veil.color = Color.white;
+                veil.transform.SetAsFirstSibling();
+                _backdropCount++;
+            }
+
+            Sprite scan = Resources.Load<Sprite>("UI/ui_scanlines");
+            if (scan != null)
+            {
+                Image lines = NewFullScreenImage("Trame", parent, scan);
+                lines.type = Image.Type.Tiled;
+                lines.color = new Color(1f, 1f, 1f, 0.35f);
+                lines.transform.SetAsFirstSibling();
+                _backdropCount++;
+            }
+        }
+
+        private static Image NewFullScreenImage(string name, Transform parent, Sprite sprite)
+        {
+            GameObject go = new GameObject(name, typeof(RectTransform));
+            go.layer = 5;
+            RectTransform rect = go.transform as RectTransform;
+            rect.SetParent(parent, false);
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            Image image = go.AddComponent<Image>();
+            image.sprite = sprite;
+            image.raycastTarget = false;
+            return image;
+        }
+
         private void InstallTitleImage()
         {
             if (titleImage != null) return;
@@ -246,19 +324,38 @@ namespace MNLTHII.Managers
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = new Vector2(0f, titleY);
-
             float width = (titleWidth > 100f) ? titleWidth : 1150f;
             float ratio = (sprite.rect.height > 1f) ? (sprite.rect.width / sprite.rect.height) : 5.86f;
-            rect.sizeDelta = new Vector2(width, width / ratio);
+            float height = width / ratio;
+
+            // LE TITRE TIENT ENTRE LE HAUT DE L'ECRAN ET LES CARTES. Le logo robot est
+            // une plaque bien plus haute que l'ancienne bande doree : avec les memes
+            // reglages, son haut sortait de l'ecran. On le contraint a la bande libre
+            // (du bord superieur, moins une marge, au-dessus de la rangee des
+            // difficultes), en le reduisant s'il le faut, et on le centre dedans.
+            const float topLimit = 528f;      // demi-hauteur de reference 540, moins une marge
+            const float bottomLimit = 236f;   // juste au-dessus des trois hexagones du haut
+            float maxHeight = topLimit - bottomLimit;
+            if (height > maxHeight)
+            {
+                height = maxHeight;
+                width = height * ratio;
+            }
+            float y = titleY;
+            if (y + height * 0.5f > topLimit) y = topLimit - height * 0.5f;
+            if (y - height * 0.5f < bottomLimit) y = bottomLimit + height * 0.5f;
+
+            rect.anchoredPosition = new Vector2(0f, y);
+            rect.sizeDelta = new Vector2(width, height);
 
             titleImage = go.AddComponent<Image>();
             titleImage.sprite = sprite;
             titleImage.preserveAspect = true;
             titleImage.raycastTarget = false;
 
-            // Derriere tout le reste : le titre ne doit jamais avaler un clic de bouton.
-            rect.SetAsFirstSibling();
+            // Derriere tout le reste (mais devant le voile de fond) : le titre ne doit
+            // jamais avaler un clic de bouton, ni passer sous la vignette.
+            rect.SetSiblingIndex(_backdropCount);
 
             if (titleText != null) titleText.gameObject.SetActive(false);
             if (hideSubtitleWithImage && subtitleText != null) subtitleText.gameObject.SetActive(false);
@@ -357,6 +454,110 @@ namespace MNLTHII.Managers
         }
 
         /// <summary>
+        /// Le bouton de la disposition du plateau, fabrique comme celui du chargement :
+        /// un clone du bouton de nouvelle partie, sur la case decorative en bas a
+        /// gauche (celle du chargement est en bas a droite). Chaque clic passe a la
+        /// disposition suivante.
+        /// </summary>
+        private void BuildMapButton()
+        {
+            RectTransform source = newGameButton.transform as RectTransform;
+            if (source == null) return;
+
+            Transform board = source.parent;
+            if (board == null) return;
+
+            Transform cell = board.Find("Case_-1_1");
+
+            Vector2 position;
+            if (cell != null)
+            {
+                RectTransform cellRect = cell as RectTransform;
+                position = (cellRect != null) ? cellRect.anchoredPosition
+                                              : source.anchoredPosition + new Vector2(-source.sizeDelta.x * 0.5f, -source.sizeDelta.y * 0.82f);
+                Destroy(cell.gameObject);
+            }
+            else
+            {
+                position = source.anchoredPosition + new Vector2(-source.sizeDelta.x * 0.5f, -source.sizeDelta.y * 0.82f);
+            }
+
+            GameObject clone = Instantiate(source.gameObject, board, false);
+            clone.name = "Disposition";
+
+            RectTransform rect = clone.transform as RectTransform;
+            if (rect != null)
+            {
+                rect.anchoredPosition = position;
+
+                if (difficultyButtons != null && difficultyButtons.Length > 0 && difficultyButtons[0] != null)
+                {
+                    RectTransform model = difficultyButtons[0].transform as RectTransform;
+                    if (model != null) rect.sizeDelta = model.sizeDelta;
+                }
+            }
+
+            Button button = clone.GetComponent<Button>();
+            if (button == null) { Destroy(clone); return; }
+
+            button.onClick.RemoveAllListeners();
+            _mapButton = button;
+
+            Color accent = (accentColors != null && accentColors.Length > 1)
+                ? accentColors[1] : new Color(1f, 0.78f, 0.36f);
+
+            Transform fill = clone.transform.Find("Fond");
+            if (fill != null)
+            {
+                Image image = fill.GetComponent<Image>();
+                if (image != null) image.color = new Color(accent.r, accent.g, accent.b, 0.16f);
+            }
+
+            Transform frame = clone.transform.Find("Contour");
+            if (frame != null)
+            {
+                Image image = frame.GetComponent<Image>();
+                if (image != null) image.color = accent;
+            }
+
+            _mapText = clone.GetComponentInChildren<TMPro.TextMeshProUGUI>();
+            if (_mapText != null)
+            {
+                _mapText.color = accent;
+                _mapText.fontSize *= 0.72f;   // "carte - nom" tient sur deux lignes courtes
+                _mapText.enableWordWrapping = true;
+                UI.TextFeatures.Disable(_mapText);
+            }
+
+            _mapCallback = CycleMap;
+            button.onClick.AddListener(_mapCallback);
+
+            RefreshMapLabel();
+        }
+
+        private void RefreshMapLabel()
+        {
+            if (_mapText == null) return;
+
+            string name = UI.HudLabelsRuntime.Get(MapGenerator.LayoutNameKeys[_map], "");
+            _mapText.text = string.Format(UI.HudLabelsRuntime.Get("menuMapFormat", "{0}"), name);
+        }
+
+        /// <summary>Disposition suivante. La description prend la ligne sous le plateau.</summary>
+        public void CycleMap()
+        {
+            if (_loading) return;
+
+            _map = (_map + 1) % MapGenerator.LayoutCount;
+            PlayerPrefs.SetInt(MapPrefKey, _map);
+
+            RefreshMapLabel();
+
+            if (selectedBodyText != null)
+                selectedBodyText.text = UI.HudLabelsRuntime.Get(MapGenerator.LayoutBodyKeys[_map], "");
+        }
+
+        /// <summary>
         /// Eteint le bouton quand il n'y a rien a reprendre. Un bouton qui ouvre une
         /// liste vide fait perdre un clic et laisse croire que la sauvegarde ne marche
         /// pas ; un bouton eteint dit la meme chose sans qu'on ait a cliquer.
@@ -400,6 +601,7 @@ namespace MNLTHII.Managers
             _loading = true;
 
             GameDifficulty.Current = (DifficultyLevel)_selected;
+            MapGenerator.CurrentLayout = _map;
             Time.timeScale = 1f;
 
             if (!Application.CanStreamedLevelBeLoaded(gameSceneName))

@@ -96,6 +96,9 @@ namespace MNLTHII.Managers
 
         private bool _waitingNext;
         private int _answer = -2;              // -2 : rien encore ; -1 : annule
+
+        /// <summary>Case a l'ecran -> index dans question.answers, retire a chaque question.</summary>
+        private readonly int[] _slotToAnswer = new int[MaxAnswers];
         private float _readyAt;
 
         private UnityEngine.Events.UnityAction[] _answerCallbacks;
@@ -127,7 +130,9 @@ namespace MNLTHII.Managers
 
             if (nextButton != null)
             {
-                _nextCallback = delegate { _waitingNext = false; };
+                // Un clic AVANT le delai de lecture n'est pas memorise : sinon un
+                // double-clic sautait l'enseignement suivant des que le delai tombait.
+                _nextCallback = delegate { if (Time.unscaledTime >= _readyAt) _waitingNext = false; };
                 nextButton.onClick.AddListener(_nextCallback);
             }
         }
@@ -171,12 +176,33 @@ namespace MNLTHII.Managers
         /// Joue l'ouverture du tour. La coroutine ne rend la main qu'une fois tout lu -
         /// TurnManager l'attend, puis ouvre la phase de depense.
         /// </summary>
+        /// <summary>
+        /// Mode trailer (TrailerDirector) : les enseignements ne s'affichent pas au
+        /// debut du tour, sauf quand le realisateur les demande lui-meme. Jamais
+        /// vrai en partie normale.
+        /// </summary>
+        public static bool AutoSkip;
+
+        /// <summary>Mode trailer : exige qu'un des enseignements tires porte une question.</summary>
+        public static bool ForceQuestion;
+
+        /// <summary>La case de la bonne reponse pour la question en cours (mode trailer).</summary>
+        public int CorrectSlot { get; private set; }
+
         public IEnumerator Play(int turn)
         {
+            if (AutoSkip) yield break;
+
             TeachingManager source = TeachingManager.Instance;
             if (source == null) yield break;
 
             _count = source.DrawTurn(_turn, turn, out _questionIndex);
+
+            // Trailer : on retire jusqu'a trouver une question (23 textes sur 31 en
+            // portent une, le sac melange en donne une presque a coup sur).
+            for (int retry = 0; ForceQuestion && _questionIndex < 0 && retry < 12; retry++)
+                _count = source.DrawTurn(_turn, turn, out _questionIndex);
+
             if (_count <= 0) yield break;
 
             if (panelRoot != null) panelRoot.SetActive(true);
@@ -221,9 +247,10 @@ namespace MNLTHII.Managers
 
             if (teaching == null) return;
 
-            if (sourceText != null) sourceText.text = teaching.source;
-            if (titleText != null) titleText.text = teaching.title;
-            if (bodyText != null) bodyText.text = teaching.text;
+            // Champs RTL : les chiffres et mots latins passent par Rtl.Fix.
+            if (sourceText != null) sourceText.text = MNLTHII.UI.Rtl.Fix(teaching.source);
+            if (titleText != null) titleText.text = MNLTHII.UI.Rtl.Fix(teaching.title);
+            if (bodyText != null) bodyText.text = MNLTHII.UI.Rtl.Fix(teaching.text);
 
             // Un nombre dans un champ RTL voit ses chiffres s'inverser : le compteur est
             // construit a part, en non-RTL, par le builder.
@@ -239,20 +266,55 @@ namespace MNLTHII.Managers
             if (resultRoot != null) resultRoot.SetActive(false);
             if (questionRoot != null) questionRoot.SetActive(true);
 
-            if (situationText != null) situationText.text = question.situation;
+            if (situationText != null) situationText.text = MNLTHII.UI.Rtl.Fix(question.situation);
+
+            // LES REPONSES SONT MELANGEES A CHAQUE AFFICHAGE.
+            //
+            // Dans le fichier, la bonne reponse etait TOUJOURS la derniere - six
+            // questions sur six. Un joueur le remarque a la deuxieme partie, et des
+            // lors il ne lit plus la question : il clique en bas. Toute la valeur de
+            // l'enseignement s'evapore.
+            //
+            // Le melange se fait ici et non dans le JSON, pour deux raisons. D'abord
+            // parce qu'un ordre fixe, meme bien choisi, se memorise des que la question
+            // revient. Ensuite parce que celui qui ecrit une question doit pouvoir
+            // mettre la bonne reponse ou il veut sans se demander ce que ca trahit.
+            //
+            // _slotToAnswer[case a l'ecran] = index dans question.answers. Tableau
+            // membre reutilise : aucune allocation par question.
+            int count = (question.answers != null) ? question.answers.Length : 0;
+            if (count > MaxAnswers) count = MaxAnswers;
+
+            // La bonne reponse doit etre parmi celles qu'on affiche : une question
+            // ecrite avec plus de reponses que de cases, et la bonne tout au bout,
+            // recompenserait sinon une mauvaise case.
+            if (question.correct < 0 || question.correct >= count) yield break;
+
+            for (int i = 0; i < count; i++) _slotToAnswer[i] = i;
+            for (int i = count - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                int tmp = _slotToAnswer[i]; _slotToAnswer[i] = _slotToAnswer[j]; _slotToAnswer[j] = tmp;
+            }
+
+            // La case ou la bonne reponse est tombee cette fois-ci.
+            int correctSlot = 0;
+            for (int i = 0; i < count; i++)
+                if (_slotToAnswer[i] == question.correct) { correctSlot = i; break; }
+            CorrectSlot = correctSlot;
 
             int shown = 0;
             if (answerButtons != null)
             {
                 for (int i = 0; i < answerButtons.Length; i++)
                 {
-                    bool visible = (question.answers != null && i < question.answers.Length);
+                    bool visible = (i < count);
 
                     if (answerButtons[i] != null) answerButtons[i].gameObject.SetActive(visible);
                     if (!visible) continue;
 
                     if (answerTexts != null && i < answerTexts.Length && answerTexts[i] != null)
-                        answerTexts[i].text = question.answers[i];
+                        answerTexts[i].text = MNLTHII.UI.Rtl.Fix(question.answers[_slotToAnswer[i]]);
 
                     if (answerBackgrounds != null && i < answerBackgrounds.Length && answerBackgrounds[i] != null)
                         answerBackgrounds[i].color = idleColor;
@@ -266,16 +328,16 @@ namespace MNLTHII.Managers
             _answer = -2;
             while (_answer == -2) yield return null;
 
-            bool right = (_answer == question.correct);
+            bool right = (_answer == correctSlot);
 
             // On marque la bonne reponse dans tous les cas : ce qui compte ici est
             // d'apprendre, pas de sanctionner.
-            if (answerBackgrounds != null && question.correct < answerBackgrounds.Length
-                && answerBackgrounds[question.correct] != null)
+            if (answerBackgrounds != null && correctSlot < answerBackgrounds.Length
+                && answerBackgrounds[correctSlot] != null)
             {
                 Color mark = correctColor;
                 mark.a = 0.28f;
-                answerBackgrounds[question.correct].color = mark;
+                answerBackgrounds[correctSlot].color = mark;
             }
 
             if (!right && _answer >= 0 && answerBackgrounds != null
@@ -315,14 +377,27 @@ namespace MNLTHII.Managers
             // c'est le seul moment ou le joueur veut savoir pourquoi.
             if (!right)
             {
-                resultBodyText.text = question.explain;
+                resultBodyText.text = MNLTHII.UI.Rtl.Fix(question.explain);
                 resultBodyText.color = neutralColor;
                 return;
             }
 
-            resultBodyText.text = (cracked != null)
-                                  ? source.Label("rewardBody")
-                                  : source.Label("noRewardBody");
+            // Bonne reponse : l'explication d'abord (c'est l'enseignement qui reste),
+            // puis la recompense, avec l'etat du Shofar fissure : "3/4" dit au joueur
+            // qu'un seul ennemi abattu suffira a le sonner.
+            string reward;
+            if (cracked != null)
+            {
+                int cracks = (MNLTHII.Managers.PortalManager.Instance != null)
+                             ? MNLTHII.Managers.PortalManager.Instance.GetInstability(cracked) : 0;
+                reward = string.Format(source.Label("rewardBody"), cracks,
+                                       MNLTHII.Rules.InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD);
+            }
+            else reward = source.Label("noRewardBody");
+
+            resultBodyText.text = MNLTHII.UI.Rtl.Fix(string.IsNullOrEmpty(question.explain)
+                                  ? reward
+                                  : question.explain + "\n" + reward);
             resultBodyText.color = neutralColor;
         }
 
