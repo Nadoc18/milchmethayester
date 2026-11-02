@@ -1,0 +1,213 @@
+﻿AUDIT GENERAL - Milchemet HaYetzer - 2026-10-29 19:00
+Resultat : VERT (aucun invariant viole, aucune erreur console)
+12 partie(s), 0 invariant(s) viole(s), 0 erreur(s)/exception(s) console, 98 remarque(s) sur les roles.
+
+PARTIES
+  1. Easy / plateau 0 / Joueur (usine, deux gardes, Bunker, puis l'assaut par paires) : VICTOIRE (tour 23) - 60 actions, 33 Tanks, 15/16 ennemis tues, 0 Shofar(s) restant(s), 0 retourne(s), sauvegarde fidele, image moyenne 6.8 ms, pire 704 ms
+      plateau final : Tanks 31 (garde 2, assaut 29, chasse 0, rang 2 : 0), ennemis 1, Bunkers 1, usines 8, Cristaux 0, Centres 6, Shofars tombes 6, retournes 0
+      jalons : premier bouclier rompu tour 16, premier Shofar tombe tour 12, ennemis en vie au maximum 6, Tanks perdus 2, Base au plus bas 194
+      courbe : t2: 2 Tanks / 1 ennemis, Base 200, 65 Energie, 6 Shofars | t5: 5 Tanks / 6 ennemis, Base 200, 65 Energie, 6 Shofars | t10: 11 Tanks / 5 ennemis, Base 194, 100 Energie, 6 Shofars | t15: 18 Tanks / 3 ennemis, Base 194, 110 Energie, 3 Shofars | t20: 23 Tanks / 1 ennemis, Base 194, 140 Energie, 1 Shofars (un bouclier rompu) | 
+      - role tour 12 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 13 : Tank en ASSAUT a 8 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 14 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 15 : Tank en ASSAUT a 9 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 15 : Tank en ASSAUT a 4 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 15 : ennemi rang 1 en (-1,7) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 16 : Tank en ASSAUT a 4 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 16 : Tank en ASSAUT a 5 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 17 : Tank en ASSAUT a 8 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 18 : Tank en ASSAUT a 6 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 19 : Tank en ASSAUT a 3 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 20 : Tank en ASSAUT a 4 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 20 : Tank en ASSAUT a 6 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 21 : Tank en ASSAUT a 8 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 21 : Tank en ASSAUT a 10 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 22 : Tank en ASSAUT a 9 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+  2. Medium / plateau 1 / Joueur (usine, deux gardes, Bunker, puis l'assaut par paires) : limite de 40 tours atteinte (partie toujours en cours) (tour 41) - 59 actions, 42 Tanks, 26/32 ennemis tues, 3 Shofar(s) restant(s), 0 retourne(s), sauvegarde fidele, image moyenne 6.6 ms, pire 221 ms
+      plateau final : Tanks 16 (garde 1, assaut 15, chasse 0, rang 2 : 0), ennemis 6, Bunkers 1, usines 5, Cristaux 0, Centres 6, Shofars tombes 3, retournes 0
+      jalons : premier bouclier rompu jamais, premier Shofar tombe tour 17, ennemis en vie au maximum 6, Tanks perdus 26, Base au plus bas 11
+      courbe : t2: 1 Tanks / 1 ennemis, Base 200, 44 Energie, 6 Shofars | t5: 4 Tanks / 4 ennemis, Base 200, 50 Energie, 6 Shofars | t10: 9 Tanks / 6 ennemis, Base 200, 60 Energie, 6 Shofars | t15: 9 Tanks / 6 ennemis, Base 200, 55 Energie, 6 Shofars | t20: 10 Tanks / 4 ennemis, Base 192, 40 Energie, 5 Shofars | t25: 9 Tanks / 3 ennemis, Base 165, 60 Energie, 4 Shofars | t30: 13 Tanks / 6 ennemis, Base 88, 100 Energie, 4 Shofars | t35: 18 Tanks / 6 ennemis, Base 11, 105 Energie, 3 Shofars | t40: 19 Tanks / 6 ennemis, Base 11, 110 Energie, 3 Shofars | 
+      - role tour 11 : Tank en ASSAUT a 5 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 11 : ennemi rang 1 en (-5,0) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 11 : Tank en ASSAUT a 5 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 12 : Tank en ASSAUT a 6 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 17 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 19 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 20 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 22 : Tank en ASSAUT a 6 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 25 : Tank en ASSAUT a 5 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 26 : Tank en ASSAUT a 5 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 30 : Tank en ASSAUT a 11 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 31 : Tank en ASSAUT a 12 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 31 : Tank en ASSAUT a 12 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 33 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 33 : Tank en ASSAUT a 6 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 34 : Tank en ASSAUT a 6 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 36 : ennemi rang 3 en (1,6) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 40 : ennemi rang 3 en (4,-1) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+  3. Hard / plateau 2 / Joueur (usine, deux gardes, Bunker, puis l'assaut par paires) : DEFAITE (tour 25) - 35 actions, 20 Tanks, 10/18 ennemis tues, 3 Shofar(s) restant(s), 0 retourne(s), sauvegarde fidele, image moyenne 6.4 ms, pire 226 ms
+      plateau final : Tanks 14 (garde 2, assaut 12, chasse 0, rang 2 : 0), ennemis 8, Bunkers 1, usines 4, Cristaux 0, Centres 3, Shofars tombes 3, retournes 0
+      jalons : premier bouclier rompu jamais, premier Shofar tombe tour 18, ennemis en vie au maximum 8, Tanks perdus 6, Base au plus bas 20
+      courbe : t2: 1 Tanks / 1 ennemis, Base 200, 45 Energie, 6 Shofars | t5: 3 Tanks / 4 ennemis, Base 200, 40 Energie, 6 Shofars | t10: 8 Tanks / 8 ennemis, Base 182, 40 Energie, 6 Shofars | t15: 9 Tanks / 8 ennemis, Base 173, 70 Energie, 6 Shofars | t20: 11 Tanks / 8 ennemis, Base 145, 75 Energie, 5 Shofars | t25: 14 Tanks / 8 ennemis, Base 20, 100 Energie, 4 Shofars | 
+      - role tour 11 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 13 : ennemi rang 1 en (-1,4) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 13 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 14 : Tank en ASSAUT a 8 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 18 : Tank en ASSAUT a 6 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 18 : ennemi rang 2 en (4,-1) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 21 : Tank en ASSAUT a 4 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 24 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 25 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 25 : Tank en ASSAUT a 8 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 25 : ennemi rang 1 en (3,-3) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+  4. Easy / plateau 3 / Conseiller (suit les conseils) : VICTOIRE (tour 26) - 73 actions, 22 Tanks, 20/21 ennemis tues, 0 Shofar(s) restant(s), 0 retourne(s), sauvegarde fidele, image moyenne 6.3 ms, pire 225 ms
+      plateau final : Tanks 22 (garde 14, assaut 5, chasse 3, rang 2 : 12), ennemis 1, Bunkers 6, usines 10, Cristaux 5, Centres 6, Shofars tombes 6, retournes 0
+      jalons : premier bouclier rompu tour 13, premier Shofar tombe tour 6, ennemis en vie au maximum 6, Tanks perdus 0, Base au plus bas 200
+      courbe : t2: 3 Tanks / 1 ennemis, Base 200, 55 Energie, 6 Shofars | t5: 5 Tanks / 6 ennemis, Base 200, 65 Energie, 6 Shofars | t10: 10 Tanks / 4 ennemis, Base 200, 115 Energie, 4 Shofars | t15: 14 Tanks / 2 ennemis, Base 200, 180 Energie, 4 Shofars (un bouclier rompu) | t20: 18 Tanks / 4 ennemis, Base 200, 210 Energie, 3 Shofars (un bouclier rompu) | t25: 20 Tanks / 1 ennemis, Base 200, 235 Energie, 1 Shofars | 
+      - role tour 11 : Tank en ASSAUT a 4 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 15 : Tank en ASSAUT a 4 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 16 : Tank en ASSAUT a 4 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 17 : Tank en CHASSE a 6 cases de l'ennemi le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 17 : Tank en CHASSE a 4 cases de l'ennemi le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 18 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 18 : Tank en CHASSE a 5 cases de l'ennemi le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 20 : Tank en ASSAUT a 8 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 24 : Tank en ASSAUT a 12 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 26 : Tank en ASSAUT a 4 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+  5. Medium / plateau 0 / Conseiller (suit les conseils) : limite de 40 tours atteinte (partie toujours en cours) (tour 41) - 141 actions, 43 Tanks, 45/46 ennemis tues, 1 Shofar(s) restant(s), 3 retourne(s), sauvegarde fidele, image moyenne 7.0 ms, pire 214 ms
+      plateau final : Tanks 29 (garde 23, assaut 6, chasse 0, rang 2 : 27), ennemis 1, Bunkers 9, usines 10, Cristaux 6, Centres 6, Shofars tombes 2, retournes 3
+      jalons : premier bouclier rompu tour 29, premier Shofar tombe tour 16, ennemis en vie au maximum 6, Tanks perdus 14, Base au plus bas 173
+      courbe : t2: 1 Tanks / 1 ennemis, Base 200, 44 Energie, 6 Shofars | t5: 1 Tanks / 3 ennemis, Base 200, 80 Energie, 6 Shofars | t10: 6 Tanks / 6 ennemis, Base 200, 90 Energie, 6 Shofars | t15: 9 Tanks / 6 ennemis, Base 184, 120 Energie, 6 Shofars | t20: 10 Tanks / 6 ennemis, Base 173, 195 Energie, 5 Shofars | t25: 11 Tanks / 6 ennemis, Base 173, 215 Energie, 4 Shofars | t30: 19 Tanks / 3 ennemis, Base 173, 320 Energie, 4 Shofars (un bouclier rompu) | t35: 20 Tanks / 5 ennemis, Base 173, 355 Energie, 2 Shofars | t40: 27 Tanks / 3 ennemis, Base 173, 420 Energie, 1 Shofars | 
+      - role tour 10 : ennemi rang 1 en (5,-2) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 19 : ennemi rang 3 en (0,-6) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 21 : ennemi rang 2 en (-4,6) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 21 : ennemi rang 2 en (-4,4) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 22 : Tank en ASSAUT a 9 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 25 : Tank en CHASSE a 2 cases de l'ennemi le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 25 : Tank en ASSAUT a 6 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 31 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 32 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 32 : Tank en ASSAUT a 11 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 37 : Tank en GARDE a 6 cases de tout ancrage (rayon de garde 4)
+  6. Hard / plateau 1 / Conseiller (suit les conseils) : limite de 40 tours atteinte (partie toujours en cours) (tour 41) - 81 actions, 34 Tanks, 40/46 ennemis tues, 5 Shofar(s) restant(s), 0 retourne(s), sauvegarde fidele, image moyenne 7.0 ms, pire 219 ms
+      plateau final : Tanks 11 (garde 9, assaut 1, chasse 1, rang 2 : 9), ennemis 6, Bunkers 0, usines 3, Cristaux 2, Centres 3, Shofars tombes 1, retournes 0
+      jalons : premier bouclier rompu jamais, premier Shofar tombe tour 12, ennemis en vie au maximum 8, Tanks perdus 23, Base au plus bas 65
+      courbe : t2: 0 Tanks / 1 ennemis, Base 200, 55 Energie, 6 Shofars | t5: 3 Tanks / 5 ennemis, Base 200, 85 Energie, 6 Shofars | t10: 10 Tanks / 8 ennemis, Base 200, 105 Energie, 6 Shofars | t15: 11 Tanks / 7 ennemis, Base 200, 120 Energie, 5 Shofars | t20: 10 Tanks / 8 ennemis, Base 200, 100 Energie, 5 Shofars | t25: 11 Tanks / 8 ennemis, Base 200, 65 Energie, 5 Shofars | t30: 9 Tanks / 8 ennemis, Base 119, 90 Energie, 5 Shofars | t35: 10 Tanks / 8 ennemis, Base 92, 105 Energie, 5 Shofars | t40: 10 Tanks / 8 ennemis, Base 65, 105 Energie, 5 Shofars | 
+      - role tour 12 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 12 : ennemi rang 1 en (5,-5) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 16 : Tank en CHASSE a 4 cases de l'ennemi le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 19 : ennemi rang 2 en (-5,2) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 24 : ennemi rang 3 en (-5,5) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 28 : Tank en CHASSE a 4 cases de l'ennemi le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 33 : ennemi rang 3 en (-4,1) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 41 : ennemi rang 3 en (6,-2) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+  7. Easy / plateau 2 / Tortue (Bunkers, Tanks en Garde) : limite de 40 tours atteinte (partie toujours en cours) (tour 41) - 22 actions, 20 Tanks, 38/44 ennemis tues, 6 Shofar(s) restant(s), 0 retourne(s), sauvegarde fidele, image moyenne 10.5 ms, pire 219 ms
+      plateau final : Tanks 8 (garde 8, assaut 0, chasse 0, rang 2 : 0), ennemis 6, Bunkers 0, usines 0, Cristaux 0, Centres 0, Shofars tombes 0, retournes 0
+      jalons : premier bouclier rompu tour 38, premier Shofar tombe jamais, ennemis en vie au maximum 6, Tanks perdus 12, Base au plus bas 32
+      courbe : t2: 0 Tanks / 1 ennemis, Base 200, 40 Energie, 6 Shofars | t5: 2 Tanks / 5 ennemis, Base 200, 20 Energie, 6 Shofars | t10: 4 Tanks / 5 ennemis, Base 194, 40 Energie, 6 Shofars | t15: 6 Tanks / 5 ennemis, Base 170, 20 Energie, 6 Shofars | t20: 8 Tanks / 5 ennemis, Base 170, 40 Energie, 6 Shofars | t25: 7 Tanks / 6 ennemis, Base 128, 20 Energie, 6 Shofars | t30: 7 Tanks / 6 ennemis, Base 110, 40 Energie, 6 Shofars | t35: 8 Tanks / 6 ennemis, Base 74, 20 Energie, 6 Shofars | t40: 8 Tanks / 6 ennemis, Base 32, 40 Energie, 6 Shofars (un bouclier rompu) | 
+  8. Medium / plateau 3 / Ruee (Tanks en Assaut des que possible) : DEFAITE (tour 14) - 6 actions, 6 Tanks, 2/8 ennemis tues, 5 Shofar(s) restant(s), 0 retourne(s), sauvegarde fidele, image moyenne 13.2 ms, pire 243 ms
+      plateau final : Tanks 6 (garde 0, assaut 6, chasse 0, rang 2 : 0), ennemis 6, Bunkers 0, usines 0, Cristaux 0, Centres 0, Shofars tombes 1, retournes 0
+      jalons : premier bouclier rompu jamais, premier Shofar tombe tour 11, ennemis en vie au maximum 6, Tanks perdus 0, Base au plus bas 24
+      courbe : t2: 2 Tanks / 1 ennemis, Base 200, 34 Energie, 6 Shofars | t5: 3 Tanks / 4 ennemis, Base 200, 30 Energie, 6 Shofars | t10: 4 Tanks / 6 ennemis, Base 152, 50 Energie, 6 Shofars | 
+      - role tour 11 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 11 : Tank en ASSAUT a 5 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 14 : ennemi rang 1 en (3,-2) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+  9. Hard / plateau 0 / Tortue (Bunkers, Tanks en Garde) : DEFAITE (tour 38) - 45 actions, 15 Tanks, 54/61 ennemis tues, 6 Shofar(s) restant(s), 0 retourne(s), sauvegarde fidele, image moyenne 14.2 ms, pire 268 ms
+      plateau final : Tanks 3 (garde 3, assaut 0, chasse 0, rang 2 : 0), ennemis 7, Bunkers 4, usines 5, Cristaux 0, Centres 0, Shofars tombes 0, retournes 0
+      jalons : premier bouclier rompu tour 20, premier Shofar tombe jamais, ennemis en vie au maximum 8, Tanks perdus 12, Base au plus bas 20
+      courbe : t2: 0 Tanks / 1 ennemis, Base 200, 25 Energie, 6 Shofars | t5: 0 Tanks / 4 ennemis, Base 200, 40 Energie, 6 Shofars | t10: 5 Tanks / 7 ennemis, Base 191, 40 Energie, 6 Shofars | t15: 8 Tanks / 7 ennemis, Base 182, 90 Energie, 6 Shofars | t20: 7 Tanks / 5 ennemis, Base 155, 85 Energie, 6 Shofars (un bouclier rompu) | t25: 3 Tanks / 8 ennemis, Base 155, 95 Energie, 6 Shofars | t30: 3 Tanks / 7 ennemis, Base 74, 95 Energie, 6 Shofars (un bouclier rompu) | t35: 1 Tanks / 3 ennemis, Base 20, 95 Energie, 6 Shofars | 
+      - role tour 19 : ennemi rang 1 en (5,-2) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+  10. Easy / plateau 1 / Economie (usines puis Cristal, Tanks en Chasse, evolutions) : limite de 40 tours atteinte (partie toujours en cours) (tour 41) - 60 actions, 12 Tanks, 22/28 ennemis tues, 6 Shofar(s) restant(s), 0 retourne(s), sauvegarde fidele, image moyenne 13.6 ms, pire 262 ms
+      plateau final : Tanks 10 (garde 0, assaut 0, chasse 10, rang 2 : 0), ennemis 6, Bunkers 0, usines 6, Cristaux 6, Centres 0, Shofars tombes 0, retournes 0
+      jalons : premier bouclier rompu tour 22, premier Shofar tombe jamais, ennemis en vie au maximum 6, Tanks perdus 2, Base au plus bas 200
+      courbe : t2: 0 Tanks / 1 ennemis, Base 200, 115 Energie, 6 Shofars | t5: 2 Tanks / 6 ennemis, Base 200, 215 Energie, 6 Shofars | t10: 4 Tanks / 6 ennemis, Base 200, 235 Energie, 6 Shofars | t15: 10 Tanks / 6 ennemis, Base 200, 890 Energie, 6 Shofars | t20: 10 Tanks / 6 ennemis, Base 200, 1650 Energie, 6 Shofars | t25: 10 Tanks / 6 ennemis, Base 200, 2535 Energie, 6 Shofars (un bouclier rompu) | t30: 10 Tanks / 6 ennemis, Base 200, 3325 Energie, 6 Shofars | t35: 10 Tanks / 6 ennemis, Base 200, 4085 Energie, 6 Shofars | t40: 9 Tanks / 6 ennemis, Base 200, 4770 Energie, 6 Shofars | 
+      - role tour 12 : Tank en CHASSE a 6 cases de l'ennemi le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 12 : ennemi rang 1 en (6,-1) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 13 : Tank en CHASSE a 4 cases de l'ennemi le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 13 : Tank en CHASSE a 4 cases de l'ennemi le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 16 : Tank en CHASSE a 2 cases de l'ennemi le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 17 : ennemi rang 1 en (5,-5) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 17 : Tank en CHASSE a 5 cases de l'ennemi le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 19 : Tank en CHASSE a 6 cases de l'ennemi le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 19 : Tank en CHASSE a 4 cases de l'ennemi le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 23 : Tank en CHASSE a 3 cases de l'ennemi le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 26 : Tank en CHASSE a 3 cases de l'ennemi le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 26 : ennemi rang 2 en (-5,5) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 29 : ennemi rang 2 en (-5,6) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 31 : Tank en CHASSE a 2 cases de l'ennemi le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 31 : ennemi rang 1 en (0,5) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+      - role tour 36 : ennemi rang 2 en (1,5) immobile depuis 3 tours sans cible au contact, avec une case libre a cote
+  11. Medium / plateau 2 / Chaos (actions et postures au hasard) : DEFAITE (tour 18) - 24 actions, 8 Tanks, 8/14 ennemis tues, 5 Shofar(s) restant(s), 0 retourne(s), sauvegarde fidele, image moyenne 5.2 ms, pire 227 ms
+      plateau final : Tanks 5 (garde 1, assaut 1, chasse 3, rang 2 : 0), ennemis 6, Bunkers 0, usines 3, Cristaux 0, Centres 0, Shofars tombes 1, retournes 0
+      jalons : premier bouclier rompu jamais, premier Shofar tombe tour 14, ennemis en vie au maximum 6, Tanks perdus 2, Base au plus bas 19
+      courbe : t2: 2 Tanks / 1 ennemis, Base 200, 19 Energie, 6 Shofars | t5: 2 Tanks / 4 ennemis, Base 200, 40 Energie, 6 Shofars | t10: 5 Tanks / 6 ennemis, Base 184, 40 Energie, 6 Shofars | t15: 7 Tanks / 6 ennemis, Base 104, 35 Energie, 5 Shofars | 
+      - role tour 14 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 15 : Tank en ASSAUT a 5 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+  12. Hard / plateau 3 / Ruee (Tanks en Assaut des que possible) : DEFAITE (tour 14) - 5 actions, 5 Tanks, 3/11 ennemis tues, 5 Shofar(s) restant(s), 0 retourne(s), sauvegarde fidele, image moyenne 4.3 ms, pire 228 ms
+      plateau final : Tanks 5 (garde 0, assaut 5, chasse 0, rang 2 : 0), ennemis 8, Bunkers 0, usines 0, Cristaux 0, Centres 0, Shofars tombes 1, retournes 0
+      jalons : premier bouclier rompu jamais, premier Shofar tombe tour 14, ennemis en vie au maximum 8, Tanks perdus 0, Base au plus bas 2
+      courbe : t2: 2 Tanks / 1 ennemis, Base 200, 20 Energie, 6 Shofars | t5: 3 Tanks / 4 ennemis, Base 200, 10 Energie, 6 Shofars | t10: 4 Tanks / 8 ennemis, Base 146, 20 Energie, 6 Shofars | 
+      - role tour 14 : Tank en ASSAUT a 7 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+      - role tour 14 : Tank en ASSAUT a 5 cases du Shofar le plus proche, sans s'en rapprocher depuis 4 tours
+
+JOURNAL
+=== PARTIE 1/12 : difficulte Easy, plateau 0, strategie Joueur (usine, deux gardes, Bunker, puis l'assaut par paires) ===
+Sauvegarde au tour 6 : 10 Energie, Base 200/200, 8 Tank(s), 5 ennemi(s), 6/6 Shofar(s). Rechargement...
+Rechargement fidele (tour 6).
+Partie 1 : VICTOIRE au tour 23 - 60 actions, 33 Tanks, 15/16 ennemis tues, 0 Shofar(s) restant(s), 0 invariant(s) viole(s), 16 remarque(s) de role, 0 erreur(s) console, pire image 704 ms.
+  Tanks 31 (garde 2, assaut 29, chasse 0, rang 2 : 0), ennemis 1, Bunkers 1, usines 8, Cristaux 0, Centres 6, Shofars tombes 6, retournes 0
+=== PARTIE 2/12 : difficulte Medium, plateau 1, strategie Joueur (usine, deux gardes, Bunker, puis l'assaut par paires) ===
+Sauvegarde au tour 6 : 12 Energie, Base 200/200, 6 Tank(s), 6 ennemi(s), 6/6 Shofar(s). Rechargement...
+Rechargement fidele (tour 6).
+Partie 2 : limite de 40 tours atteinte (partie toujours en cours) au tour 41 - 59 actions, 42 Tanks, 26/32 ennemis tues, 3 Shofar(s) restant(s), 0 invariant(s) viole(s), 18 remarque(s) de role, 0 erreur(s) console, pire image 221 ms.
+  Tanks 16 (garde 1, assaut 15, chasse 0, rang 2 : 0), ennemis 6, Bunkers 1, usines 5, Cristaux 0, Centres 6, Shofars tombes 3, retournes 0
+=== PARTIE 3/12 : difficulte Hard, plateau 2, strategie Joueur (usine, deux gardes, Bunker, puis l'assaut par paires) ===
+Sauvegarde au tour 6 : 0 Energie, Base 200/200, 5 Tank(s), 5 ennemi(s), 6/6 Shofar(s). Rechargement...
+Rechargement fidele (tour 6).
+Partie 3 : DEFAITE au tour 25 - 35 actions, 20 Tanks, 10/18 ennemis tues, 3 Shofar(s) restant(s), 0 invariant(s) viole(s), 11 remarque(s) de role, 0 erreur(s) console, pire image 226 ms.
+  Tanks 14 (garde 2, assaut 12, chasse 0, rang 2 : 0), ennemis 8, Bunkers 1, usines 4, Cristaux 0, Centres 3, Shofars tombes 3, retournes 0
+=== PARTIE 4/12 : difficulte Easy, plateau 3, strategie Conseiller (suit les conseils) ===
+Sauvegarde au tour 6 : 5 Energie, Base 200/200, 7 Tank(s), 6 ennemi(s), 5/6 Shofar(s). Rechargement...
+Rechargement fidele (tour 6).
+Partie 4 : VICTOIRE au tour 26 - 73 actions, 22 Tanks, 20/21 ennemis tues, 0 Shofar(s) restant(s), 0 invariant(s) viole(s), 10 remarque(s) de role, 0 erreur(s) console, pire image 225 ms.
+  Tanks 22 (garde 14, assaut 5, chasse 3, rang 2 : 12), ennemis 1, Bunkers 6, usines 10, Cristaux 5, Centres 6, Shofars tombes 6, retournes 0
+=== PARTIE 5/12 : difficulte Medium, plateau 0, strategie Conseiller (suit les conseils) ===
+Sauvegarde au tour 6 : 17 Energie, Base 200/200, 4 Tank(s), 5 ennemi(s), 6/6 Shofar(s). Rechargement...
+Rechargement fidele (tour 6).
+Partie 5 : limite de 40 tours atteinte (partie toujours en cours) au tour 41 - 141 actions, 43 Tanks, 45/46 ennemis tues, 1 Shofar(s) restant(s), 0 invariant(s) viole(s), 11 remarque(s) de role, 0 erreur(s) console, pire image 214 ms.
+  Tanks 29 (garde 23, assaut 6, chasse 0, rang 2 : 27), ennemis 1, Bunkers 9, usines 10, Cristaux 6, Centres 6, Shofars tombes 2, retournes 3
+=== PARTIE 6/12 : difficulte Hard, plateau 1, strategie Conseiller (suit les conseils) ===
+Sauvegarde au tour 6 : 20 Energie, Base 200/200, 6 Tank(s), 6 ennemi(s), 6/6 Shofar(s). Rechargement...
+Rechargement fidele (tour 6).
+Partie 6 : limite de 40 tours atteinte (partie toujours en cours) au tour 41 - 81 actions, 34 Tanks, 40/46 ennemis tues, 5 Shofar(s) restant(s), 0 invariant(s) viole(s), 8 remarque(s) de role, 0 erreur(s) console, pire image 219 ms.
+  Tanks 11 (garde 9, assaut 1, chasse 1, rang 2 : 9), ennemis 6, Bunkers 0, usines 3, Cristaux 2, Centres 3, Shofars tombes 1, retournes 0
+=== PARTIE 7/12 : difficulte Easy, plateau 2, strategie Tortue (Bunkers, Tanks en Garde) ===
+Sauvegarde au tour 6 : 0 Energie, Base 200/200, 3 Tank(s), 5 ennemi(s), 6/6 Shofar(s). Rechargement...
+Rechargement fidele (tour 6).
+Partie 7 : limite de 40 tours atteinte (partie toujours en cours) au tour 41 - 22 actions, 20 Tanks, 38/44 ennemis tues, 6 Shofar(s) restant(s), 0 invariant(s) viole(s), 0 remarque(s) de role, 0 erreur(s) console, pire image 219 ms.
+  Tanks 8 (garde 8, assaut 0, chasse 0, rang 2 : 0), ennemis 6, Bunkers 0, usines 0, Cristaux 0, Centres 0, Shofars tombes 0, retournes 0
+=== PARTIE 8/12 : difficulte Medium, plateau 3, strategie Ruee (Tanks en Assaut des que possible) ===
+Sauvegarde au tour 6 : 2 Energie, Base 200/200, 4 Tank(s), 6 ennemi(s), 6/6 Shofar(s). Rechargement...
+Rechargement fidele (tour 6).
+Partie 8 : DEFAITE au tour 14 - 6 actions, 6 Tanks, 2/8 ennemis tues, 5 Shofar(s) restant(s), 0 invariant(s) viole(s), 3 remarque(s) de role, 0 erreur(s) console, pire image 243 ms.
+  Tanks 6 (garde 0, assaut 6, chasse 0, rang 2 : 0), ennemis 6, Bunkers 0, usines 0, Cristaux 0, Centres 0, Shofars tombes 1, retournes 0
+=== PARTIE 9/12 : difficulte Hard, plateau 0, strategie Tortue (Bunkers, Tanks en Garde) ===
+Sauvegarde au tour 6 : 0 Energie, Base 200/200, 2 Tank(s), 5 ennemi(s), 6/6 Shofar(s). Rechargement...
+Rechargement fidele (tour 6).
+Partie 9 : DEFAITE au tour 38 - 45 actions, 15 Tanks, 54/61 ennemis tues, 6 Shofar(s) restant(s), 0 invariant(s) viole(s), 1 remarque(s) de role, 0 erreur(s) console, pire image 268 ms.
+  Tanks 3 (garde 3, assaut 0, chasse 0, rang 2 : 0), ennemis 7, Bunkers 4, usines 5, Cristaux 0, Centres 0, Shofars tombes 0, retournes 0
+=== PARTIE 10/12 : difficulte Easy, plateau 1, strategie Economie (usines puis Cristal, Tanks en Chasse, evolutions) ===
+Sauvegarde au tour 6 : 25 Energie, Base 200/200, 2 Tank(s), 6 ennemi(s), 6/6 Shofar(s). Rechargement...
+Rechargement fidele (tour 6).
+Partie 10 : limite de 40 tours atteinte (partie toujours en cours) au tour 41 - 60 actions, 12 Tanks, 22/28 ennemis tues, 6 Shofar(s) restant(s), 0 invariant(s) viole(s), 16 remarque(s) de role, 0 erreur(s) console, pire image 262 ms.
+  Tanks 10 (garde 0, assaut 0, chasse 10, rang 2 : 0), ennemis 6, Bunkers 0, usines 6, Cristaux 6, Centres 0, Shofars tombes 0, retournes 0
+=== PARTIE 11/12 : difficulte Medium, plateau 2, strategie Chaos (actions et postures au hasard) ===
+Sauvegarde au tour 6 : 27 Energie, Base 200/200, 3 Tank(s), 5 ennemi(s), 6/6 Shofar(s). Rechargement...
+Rechargement fidele (tour 6).
+Partie 11 : DEFAITE au tour 18 - 24 actions, 8 Tanks, 8/14 ennemis tues, 5 Shofar(s) restant(s), 0 invariant(s) viole(s), 2 remarque(s) de role, 0 erreur(s) console, pire image 227 ms.
+  Tanks 5 (garde 1, assaut 1, chasse 3, rang 2 : 0), ennemis 6, Bunkers 0, usines 3, Cristaux 0, Centres 0, Shofars tombes 1, retournes 0
+=== PARTIE 12/12 : difficulte Hard, plateau 3, strategie Ruee (Tanks en Assaut des que possible) ===
+Sauvegarde au tour 6 : 20 Energie, Base 200/200, 3 Tank(s), 5 ennemi(s), 6/6 Shofar(s). Rechargement...
+Rechargement fidele (tour 6).
+Partie 12 : DEFAITE au tour 14 - 5 actions, 5 Tanks, 3/11 ennemis tues, 5 Shofar(s) restant(s), 0 invariant(s) viole(s), 2 remarque(s) de role, 0 erreur(s) console, pire image 228 ms.
+  Tanks 5 (garde 0, assaut 5, chasse 0, rang 2 : 0), ennemis 8, Bunkers 0, usines 0, Cristaux 0, Centres 0, Shofars tombes 1, retournes 0

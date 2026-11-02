@@ -4,6 +4,7 @@ using UnityEngine;
 using MNLTHII;
 using MNLTHII.Managers;
 using MNLTHII.Rules;
+using MNLTHII.Dev;
 
 /// <summary>
 /// Le Yetzer Hara. GDD V3 - Section 2 : "l'IA avance impitoyablement vers ses cibles
@@ -106,7 +107,7 @@ public class EnemyAI : MonoBehaviour
 
     private void HandleTurnEnded(int turnNumber)
     {
-        Debug.Log("[EnemyAI] Tour " + turnNumber + " : le Yetzer Hara joue.");
+        GameLog.Say("[EnemyAI] Tour " + turnNumber + " : le Yetzer Hara joue.");
         StartCoroutine(ProcessEnemyUnitsSequential());
     }
 
@@ -170,10 +171,11 @@ public class EnemyAI : MonoBehaviour
                 enemy.attackCoord = targetCoord;
                 enemy.ApplySequenceAnimation(PawnController.TypeOfPawnInteractions.attack);
 
-                // Le trait de laser a ete retire : il ne s'affichait pas. La lecture du
-                // tir repose maintenant sur ce qui se voit vraiment - la camera qui
-                // cadre le duel, l'effet d'impact sur la cible, et le chiffre de degats
-                // qui s'envole au-dessus d'elle.
+                // LE LASER ROUGE-ORANGE : il part maintenant et met UnitAim a arriver,
+                // donc le coup (ResolveCombat, juste apres l'attente) tombe quand sa
+                // tete touche la cible. Trace par ShotTracer, le shader du projet :
+                // l'ancien laser (shader Legacy, absent du build) restait invisible.
+                MNLTHII.Managers.CombatTracer.Fire(enemy, targetPawn, targetHex);
 
                 yield return _pace.For(MNLTHII.Managers.PhasePace.UnitAim);
 
@@ -407,7 +409,7 @@ public class EnemyAI : MonoBehaviour
 
     private void PassTurnToPlayer()
     {
-        Debug.Log("[EnemyAI] Fin de la phase ennemie.");
+        GameLog.Say("[EnemyAI] Fin de la phase ennemie.");
         if (TurnManager.Instance != null) TurnManager.Instance.StartNextTurn();
     }
 }

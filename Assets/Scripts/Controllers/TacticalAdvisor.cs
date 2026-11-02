@@ -13,7 +13,7 @@ public class TacticalAdvisor : MonoBehaviour
     {
         if (GameManager.instance == null || GameManager.instance.hexClicked == null)
         {
-            if (promptText != null) promptText.text = "Sélectionnez une case pour recevoir un conseil tactique.";
+            if (promptText != null) promptText.text = "Selectionnez une case pour recevoir un conseil tactique.";
             lastCheckedHex = null;
             return;
         }
@@ -50,31 +50,31 @@ public class TacticalAdvisor : MonoBehaviour
 
         if (enemyNearby)
         {
-            promptText.text = "MENACE IMMINENTE : Un ennemi est très proche ! Produisez un Tank en urgence pour vous défendre.";
+            promptText.text = "MENACE IMMINENTE : Un ennemi est tres proche ! Produisez un Tank en urgence pour vous defendre.";
             return;
         }
 
         // 2. Check Hex Type specifics
         if (hex.type == TypeOfHex.mountain)
         {
-            promptText.text = "STRATÉGIE : Les Montagnes génèrent plus d'énergie bonus. Gardez-les sous votre contrôle !";
+            promptText.text = "STRATEGIE : Les Montagnes generent plus d'energie bonus. Gardez-les sous votre controle !";
             return;
         }
         
         if (hex.type == TypeOfHex.crystal)
         {
-            promptText.text = "STRATÉGIE : Les Cristaux réduisent le coût d'invocation sur les cases adjacentes.";
+            promptText.text = "STRATEGIE : Les Cristaux reduisent le cout d'invocation sur les cases adjacentes.";
             return;
         }
 
         // 3. General advice
         if (hex.level == 0)
         {
-            promptText.text = "TACTIQUE : Cette case est niveau 0. Accumulez des points de connaissance (en répondant aux questions) pour l'améliorer.";
+            promptText.text = "TACTIQUE : Cette case est niveau 0. Accumulez des points de connaissance (en repondant aux questions) pour l'ameliorer.";
         }
         else
         {
-            promptText.text = "TACTIQUE : Case sécurisée. Continuez d'étendre votre contrôle sur le plateau.";
+            promptText.text = "TACTIQUE : Case securisee. Continuez d'etendre votre controle sur le plateau.";
         }
     }
 }

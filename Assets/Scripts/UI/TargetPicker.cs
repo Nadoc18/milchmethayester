@@ -118,11 +118,17 @@ namespace MNLTHII.Managers
 
             BuildUI();
             ShowMarkers();
+            HideOtherUi();
 
             _active = true;
             enabled = true;
             return true;
         }
+
+        // Pendant le choix d'une cible il n'y a qu'une chose a faire : le plateau, les
+        // cibles marquees, et UNE phrase. Tout le reste s'efface (ScreenUiHider).
+        private void HideOtherUi() { ScreenUiHider.Hide(_canvas); }
+        private void RestoreOtherUi() { ScreenUiHider.Restore(); }
 
         // =================================================================
         //  LES CIBLES POSSIBLES
@@ -290,7 +296,7 @@ namespace MNLTHII.Managers
 
                 _canvas = canvasGo.GetComponent<Canvas>();
                 _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-                _canvas.sortingOrder = 57;
+                _canvas.sortingOrder = 500;   // au-dessus de tout : c'est la seule chose a lire
 
                 CanvasScaler scaler = canvasGo.GetComponent<CanvasScaler>();
                 scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -301,30 +307,30 @@ namespace MNLTHII.Managers
                 _group.interactable = false;
                 _group.blocksRaycasts = false;
 
-                Image band = NewImage("Bande", canvasGo.transform, new Color(0.02f, 0.03f, 0.07f, 0.85f));
+                Image band = NewImage("Bande", canvasGo.transform, new Color(0.02f, 0.03f, 0.07f, 0.88f));
                 RectTransform bandRect = band.rectTransform;
                 bandRect.anchorMin = new Vector2(0f, 1f);
                 bandRect.anchorMax = new Vector2(1f, 1f);
                 bandRect.pivot = new Vector2(0.5f, 1f);
-                bandRect.anchoredPosition = new Vector2(0f, -40f);
-                bandRect.sizeDelta = new Vector2(0f, 150f);
+                bandRect.anchoredPosition = new Vector2(0f, -60f);
+                bandRect.sizeDelta = new Vector2(0f, 200f);
 
                 TMPro.TMP_FontAsset font = FindFont();
 
-                _title = NewText("Titre", bandRect, font, 52f, Color.white);
+                _title = NewText("Titre", bandRect, font, 72f, Color.white);
                 RectTransform titleRect = _title.rectTransform;
                 titleRect.anchorMin = new Vector2(0.5f, 0.5f);
                 titleRect.anchorMax = new Vector2(0.5f, 0.5f);
-                titleRect.anchoredPosition = new Vector2(0f, 24f);
-                titleRect.sizeDelta = new Vector2(1600f, 70f);
+                titleRect.anchoredPosition = new Vector2(0f, 30f);
+                titleRect.sizeDelta = new Vector2(1700f, 96f);
                 _title.fontStyle = TMPro.FontStyles.Bold;
 
-                _hint = NewText("Aide", bandRect, font, 28f, new Color(0.62f, 0.70f, 0.86f));
+                _hint = NewText("Aide", bandRect, font, 34f, new Color(0.80f, 0.86f, 1f));
                 RectTransform hintRect = _hint.rectTransform;
                 hintRect.anchorMin = new Vector2(0.5f, 0.5f);
                 hintRect.anchorMax = new Vector2(0.5f, 0.5f);
-                hintRect.anchoredPosition = new Vector2(0f, -32f);
-                hintRect.sizeDelta = new Vector2(1500f, 44f);
+                hintRect.anchoredPosition = new Vector2(0f, -44f);
+                hintRect.sizeDelta = new Vector2(1600f, 50f);
             }
 
             if (_title != null)
@@ -470,6 +476,7 @@ namespace MNLTHII.Managers
             _tank = null;
 
             ClearCandidates();
+            RestoreOtherUi();
 
             if (_canvas != null && _canvas.gameObject.activeSelf) _canvas.gameObject.SetActive(false);
         }

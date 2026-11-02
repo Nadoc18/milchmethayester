@@ -1,0 +1,22 @@
+0.0 s  depart de la bobine (prises avec HUD)
+1.3 s  prise 1 tour d'horizon
+16.3 s  fin de la prise 1 tour d'horizon
+17.6 s  prise 2 le Tank
+35.3 s  fin de la prise 2 le Tank
+36.5 s  prise 3 le Bunker
+62.7 s  fin de la prise 3 le Bunker
+64.0 s  prise 4 la vague
+98.3 s  fin de la prise 4 la vague
+99.6 s  prise 5 la bulle
+162.2 s  fin de la prise 5 la bulle
+163.5 s  prise 6 le bouclier et la chute
+235.5 s  fin de la prise 6 le bouclier et la chute
+236.7 s  prise 7 la chute a l'ouest
+279.8 s  fin de la prise 7 la chute a l'ouest
+281.0 s  prise 8 at'hapkha
+292.2 s  fin de la prise 8 at'hapkha
+293.5 s  prise 9 l'enseignement
+311.0 s  fin de la prise 9 l'enseignement
+312.3 s  prise 10 la fin
+315.3 s  fin de la prise 10 la fin
+317.3 s  fin de la bobine

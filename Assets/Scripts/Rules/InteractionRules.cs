@@ -1,6 +1,7 @@
 using UnityEngine;
 using MNLTHII;
 using MNLTHII.Managers;
+using MNLTHII.Dev;
 
 namespace MNLTHII.Rules
 {
@@ -19,7 +20,10 @@ namespace MNLTHII.Rules
         Blocked_NotPlayerPhase,
 
         /// <summary>Trop loin de tout ce qui donne le droit de batir ici.</summary>
-        Blocked_OutOfRange
+        Blocked_OutOfRange,
+
+        /// <summary>L'armee est au complet : le commandement ne coordonne pas un Tank de plus.</summary>
+        Blocked_TankCap
     }
 
     /// <summary>
@@ -66,7 +70,7 @@ namespace MNLTHII.Rules
         /// vouloir dire quelque chose.
         /// </summary>
         /// <remarks>Selon la difficulte (voir GameDifficulty) : 110 / 90 / 70.</remarks>
-        public static int STARTING_ENERGY { get { return GameDifficulty.Pick(110, 90, 70); } }
+        public static int STARTING_ENERGY { get { return GameDifficulty.Pick(150, 90, 80); } }
 
         /// <summary>
         /// LE PLANCHER. Verse en debut de tour quoi qu'il arrive, meme si le joueur a
@@ -80,7 +84,7 @@ namespace MNLTHII.Rules
         /// survivre et reconstruire une usine, jamais de quoi jouer.
         /// </summary>
         /// <remarks>Selon la difficulte : 15 / 12 / 10.</remarks>
-        public static int BASE_INCOME_PER_TURN { get { return GameDifficulty.Pick(15, 12, 10); } }
+        public static int BASE_INCOME_PER_TURN { get { return GameDifficulty.Pick(20, 12, 10); } }
 
         /// <summary>Bonne reponse au Trivia de debut de tour.</summary>
         public const int TRIVIA_ENERGY_REWARD = 25;
@@ -164,6 +168,119 @@ namespace MNLTHII.Rules
         /// patience. C'est redevenu un choix, ce n'etait plus une evidence.
         /// </summary>
         public const int TANK_CREATION_COST = 40;
+
+        /// <summary>
+        /// COMBIEN DE TANKS A LA FOIS. Sans plafond, une partie riche finissait en
+        /// nuee : quarante, cent Tanks qui font la queue devant le meme Shofar, un
+        /// plateau illisible, et plus aucune decision - on posait, c'est tout.
+        ///
+        /// Le commandement a une limite. La Base coordonne TANK_CAP_BASE Tanks, et
+        /// chaque Centre de Commandement debout en ajoute TANK_CAP_PER_COMMAND_L1
+        /// (rang 2 : TANK_CAP_PER_COMMAND_L2). Au plafond, l'Energie va ailleurs :
+        /// evolutions au Cristal, Bunkers, usines, un Centre de plus - c'est la que
+        /// la partie devient une strategie, et c'est aussi ce qui rend le Centre
+        /// desirable pour autre chose que sa bulle.
+        ///
+        /// Facile en coordonne plus : la partie doit s'y gagner vite.
+        /// </summary>
+        public static int TANK_CAP_BASE { get { return GameDifficulty.Pick(10, 9, 8); } }
+        public const int TANK_CAP_PER_COMMAND_L1 = 2;
+        public const int TANK_CAP_PER_COMMAND_L2 = 4;
+
+        /// <summary>
+        /// CE QUE LES CENTRES PEUVENT AJOUTER, EN TOUT. Sans ce plafond du plafond,
+        /// six Centres poussaient le commandement a vingt-deux Tanks et on retombait
+        /// dans la nuee qu'on venait d'interdire - le plafond montait a chaque
+        /// batiment, donc il n'existait plus.
+        ///
+        /// A +6, deux ou trois Centres suffisent a l'ouvrir en grand : le quatrieme
+        /// se batit pour sa tete de pont, sa bulle et le pas de plus qu'il donne aux
+        /// Tanks, et plus pour grossir l'armee. Un batiment doit avoir une raison, pas
+        /// un rendement sans fin.
+        /// </summary>
+        public const int TANK_CAP_FROM_COMMAND_MAX = 6;
+
+        /// <summary>
+        /// REPARER LA BASE : le puits de depense de la fin de partie.
+        ///
+        /// Mesure dans l'audit : une partie riche finissait avec 4770 d'Energie en
+        /// caisse. Une fois les usines montees, les Cristaux poses et le commandement au
+        /// complet, l'Energie ne payait plus rien - donc le revenu ne voulait plus rien
+        /// dire, et la moitie de la partie se jouait sans decision economique.
+        ///
+        /// Un clic sur la Base rend BASE_REPAIR_AMOUNT PV pour BASE_REPAIR_COST. Le
+        /// prix est volontairement MAUVAIS - 50 pour 25 PV, quand un Tank coute 40 -
+        /// parce que reparer ne doit jamais etre la bonne premiere depense : c'est ce
+        /// qu'on fait avec l'argent qui dort, ou quand on a pris une vague dans la
+        /// figure et qu'il faut survivre encore cinq tours. Une Base pleine ne se
+        /// repare pas, et le bouton le dit.
+        /// </summary>
+        public const int BASE_REPAIR_COST = 50;
+        public const int BASE_REPAIR_AMOUNT = 25;
+
+        /// <summary>La Base a-t-elle des PV a reprendre ?</summary>
+        public static bool BaseNeedsRepair()
+        {
+            BuildingManager buildings = BuildingManager.Instance;
+            if (buildings == null) return false;
+            return buildings.GetBaseHP() > 0 && buildings.GetBaseHP() < buildings.GetBaseMaxHP();
+        }
+
+        /// <summary>
+        /// Repare la Base contre de l'Energie. On ne facture qu'apres avoir verifie
+        /// qu'il y avait quelque chose a rendre : payer pour rien n'est pas un choix.
+        /// </summary>
+        public static TriviaOutcome RepairBase()
+        {
+            BuildingManager buildings = BuildingManager.Instance;
+            if (buildings == null || !BaseNeedsRepair()) return TriviaOutcome.EnergyOnly;
+
+            EnergyManager energy = EnergyManager.Instance;
+            if (energy == null || !energy.TrySpend(BASE_REPAIR_COST))
+                return TriviaOutcome.Blocked_NotEnoughEnergy;
+
+            buildings.RepairBase(BASE_REPAIR_AMOUNT);
+            return TriviaOutcome.BuildingUpgraded;
+        }
+
+        /// <summary>Le plafond de Tanks en ce moment : la Base plus les Centres debout.</summary>
+        public static int TankCap()
+        {
+            int cap = TANK_CAP_BASE;
+            BoardController board = BoardController.instance;
+            if (board == null || board.HexagonsInBoard == null) return cap;
+
+            int fromCommand = 0;
+            for (int i = 0; i < board.HexagonsInBoard.Count; i++)
+            {
+                Hexagon h = board.HexagonsInBoard[i];
+                if (h == null || h.type != TypeOfHex.mountain || h.level < 1 || h.currentHP <= 0) continue;
+                fromCommand += (h.level >= 2) ? TANK_CAP_PER_COMMAND_L2 : TANK_CAP_PER_COMMAND_L1;
+            }
+            if (fromCommand > TANK_CAP_FROM_COMMAND_MAX) fromCommand = TANK_CAP_FROM_COMMAND_MAX;
+            return cap + fromCommand;
+        }
+
+        /// <summary>Les Tanks du joueur encore en vie sur le plateau.</summary>
+        public static int CountTanks()
+        {
+            BoardController board = BoardController.instance;
+            if (board == null || board.PawnsInBoard == null) return 0;
+
+            int n = 0;
+            for (int i = 0; i < board.PawnsInBoard.Count; i++)
+            {
+                PawnController p = board.PawnsInBoard[i];
+                if (p != null && !p.IsEnemy && p.currentHP > 0) n++;
+            }
+            return n;
+        }
+
+        /// <summary>Reste-t-il une place dans le commandement pour un Tank de plus ?</summary>
+        public static bool CanAddTank()
+        {
+            return CountTanks() < TankCap();
+        }
 
         /// <summary>
         /// Prix d'un changement de posture sur un Tank DEJA POSE. Choisir la posture
@@ -566,7 +683,7 @@ namespace MNLTHII.Rules
             if (hex.shieldHP <= 0)
             {
                 hex.shieldHP = 0;
-                Debug.LogFormat("[Centre] La bulle de ({0},{1}) vient de ceder.",
+                GameLog.Say("[Centre] La bulle de ({0},{1}) vient de ceder.",
                                 hex.positionInTheBoard.q, hex.positionInTheBoard.r);
             }
 
@@ -588,6 +705,52 @@ namespace MNLTHII.Rules
         /// <summary>Cases de deplacement gagnees par un Tank dans le rayon.</summary>
         public const int MOUNTAIN_MOVE_BONUS = 1;
 
+        /// <summary>
+        /// UNE CASE DE PLUS QUAND ON EST EN HESTEHARUT (Assaut). C'est la correction la
+        /// plus importante de la passe : sans elle, l'Assaut est une posture qui ne peut
+        /// pas faire son travail.
+        ///
+        /// La geometrie, mesuree sur les quatre plateaux : les Shofars sont a sept ou
+        /// huit cases de la Base, et une fenetre de bouclier rompu dure cinq ou six
+        /// tours. Un Tank rang 1 avance d'une case : il met huit tours a traverser,
+        /// donc il arrive TOUJOURS apres la fermeture. L'audit le disait quatre-vingt-dix
+        /// fois - "Tank en ASSAUT a 7 cases, sans s'en rapprocher" - et ce n'etait ni un
+        /// embouteillage ni un bug de chemin : il ramait, simplement.
+        ///
+        /// Avec ce bonus, un rang 1 en Assaut fait deux cases, un rang 2 en fait trois,
+        /// et quatre sous un Centre de Commandement. La fenetre devient exploitable, et
+        /// les trois postures deviennent enfin trois choses differentes : la Garde tient,
+        /// la Chasse nettoie, l'Assaut TRAVERSE.
+        ///
+        /// Ce bonus ne vaut que pour le deplacement vers la cible d'assaut : il ne rend
+        /// ni les degats, ni la portee, ni les PV meilleurs.
+        /// </summary>
+        public const int ASSAULT_MOVE_BONUS = 1;
+
+        /// <summary>
+        /// Combien de cases ce Tank parcourt ce tour-ci : sa mobilite de rang, plus
+        /// l'Assaut, plus le commandement d'un Centre.
+        ///
+        /// Un seul endroit pour ce calcul, parce que deux endroits divergent toujours :
+        /// le deplacement (TurnManager) et le chiffre affiche sur la carte d'unite
+        /// (UnitActionCard) lisent la meme ligne, donc le joueur voit exactement ce que
+        /// le Tank va faire.
+        /// </summary>
+        public static int GetTankSteps(PawnController tank)
+        {
+            if (tank == null || tank.IsEnemy) return 1;
+
+            int steps = (tank.moveRange > 0) ? tank.moveRange : 1;
+
+            if (tank.stance == PawnStance.Assault) steps += ASSAULT_MOVE_BONUS;
+
+            BuildingManager buildings = BuildingManager.Instance;
+            if (buildings != null && tank.hexcoord != null && buildings.HasCommandSupport(tank.hexcoord))
+                steps += MOUNTAIN_MOVE_BONUS;
+
+            return steps;
+        }
+
         // ---------------- Section 4 : Portails ----------------
         /// <summary>
         /// Nombre de Shofars au depart : un par coin du plateau hexagonal. Sert de
@@ -597,7 +760,8 @@ namespace MNLTHII.Rules
         /// </summary>
         public const int PORTAL_COUNT = 6;
 
-        public const int PORTAL_HP_L1 = 50;
+        /// <remarks>Selon la difficulte : 40 / 50 / 50. En Facile, deux morts et un coup de Tank suffisent.</remarks>
+        public static int PORTAL_HP_L1 { get { return GameDifficulty.Pick(40, 50, 50); } }
         public const int PORTAL_HP_L2 = 100;
         /// <summary>
         /// Tours de survie avant qu'un portail ne passe au Niveau 2. Les six portails
@@ -605,7 +769,11 @@ namespace MNLTHII.Rules
         /// faisaient, le tour 12 effacait d'un coup tout le travail du joueur.
         /// </summary>
         /// <remarks>Selon la difficulte : 20 / 16 / 12.</remarks>
-        public static int PORTAL_EVOLVE_AFTER_TURNS { get { return GameDifficulty.Pick(20, 16, 12); } }
+        /// <remarks>
+        /// Selon la difficulte : 30 / 18 / 14. En Facile, une partie doit se gagner
+        /// AVANT que les Shofars ne doublent de PV : le rang 2 n'y arrive quasiment pas.
+        /// </remarks>
+        public static int PORTAL_EVOLVE_AFTER_TURNS { get { return GameDifficulty.Pick(30, 18, 16); } }
 
         /// <summary>Decalage, en tours, entre l'evolution de deux portails voisins.</summary>
         public const int PORTAL_EVOLVE_STAGGER = 3;
@@ -640,12 +808,24 @@ namespace MNLTHII.Rules
         /// arrive. L'affaiblir assez pour changer le debut de partie l'aurait rendu
         /// inutile contre les rangs 2 et 3 en fin de partie.
         /// </summary>
-        /// <remarks>Selon la difficulte : 5 / 4 / 3, MOINS l'acceleration ci-dessous.</remarks>
+        /// <remarks>
+        /// Selon la difficulte : 4 / 5 / 5, MOINS l'acceleration ci-dessous. En Facile
+        /// les ennemis sont faibles (60 %) mais nombreux : ce sont leurs morts qui
+        /// ouvrent les Shofars, et une partie Facile doit s'ouvrir vite.
+        ///
+        /// L'AUDIT A TRANCHE, EN DEUX PASSES. A 5 / 4 / 3 avec 8 / 12 / 16 ennemis en
+        /// vie, personne ne gagnait. A 7 tours en Facile, plus personne ne mourait -
+        /// mais plus aucun bouclier ne tombait non plus : les fissures viennent des
+        /// morts, et sans ennemis il n'y a rien a tuer. Le rythme des arrivees est
+        /// donc le meme en Facile et en Moyen ; ce qui change, c'est le plafond
+        /// d'ennemis en vie, leur force, et le nombre de morts qui ouvrent un Shofar.
+        /// En Difficile, 4 au lieu de 3 : a 3, la Base tombait au tour 13 quoi qu'on fasse.
+        /// </remarks>
         public static int PORTAL_SPAWN_INTERVAL
         {
             get
             {
-                int interval = GameDifficulty.Pick(5, 4, 3) - SpawnAcceleration();
+                int interval = GameDifficulty.Pick(4, 5, 5) - SpawnAcceleration();
                 return (interval < PORTAL_SPAWN_INTERVAL_FLOOR) ? PORTAL_SPAWN_INTERVAL_FLOOR : interval;
             }
         }
@@ -678,7 +858,12 @@ namespace MNLTHII.Rules
         /// toutes en rang 2 en vaut une deuxieme et touche le plancher. L'evolution
         /// d'une usine redevient une decision, au lieu d'un gain sans facture.
         /// </summary>
-        public const int SPAWN_ACCEL_PER_INCOME = 60;
+        /// <remarks>
+        /// Selon la difficulte : 150 / 90 / 60. En Facile, l'economie ne doit pas
+        /// punir : un joueur qui monte ses usines ne doit pas voir le Yetzer Hara
+        /// accelerer d'autant, sinon construire est un piege.
+        /// </remarks>
+        public static int SPAWN_ACCEL_PER_INCOME { get { return GameDifficulty.Pick(150, 90, 60); } }
 
         /// <summary>Le cycle ne descend jamais sous ce seuil, quelle que soit la richesse.</summary>
         public const int PORTAL_SPAWN_INTERVAL_FLOOR = 2;
@@ -730,18 +915,19 @@ namespace MNLTHII.Rules
         /// <summary>Distance a laquelle ces premiers ennemis sont poses, en cases.</summary>
         public const int INITIAL_ENEMY_DISTANCE = 5;
         /// <summary>Nombre maximum d'ennemis deployes par tour, tous portails confondus.</summary>
-        /// <remarks>Selon la difficulte : 2 / 3 / 4.</remarks>
-        public static int MAX_SPAWNS_PER_TURN { get { return GameDifficulty.Pick(2, 3, 4); } }
+        /// <remarks>Selon la difficulte : 2 / 2 / 3 (une vague annoncee passe outre).</remarks>
+        public static int MAX_SPAWNS_PER_TURN { get { return GameDifficulty.Pick(2, 2, 3); } }
         /// <summary>Plafond d'ennemis simultanement presents sur la carte.</summary>
-        /// <remarks>Selon la difficulte : 8 / 12 / 16.</remarks>
-        public static int MAX_ACTIVE_ENEMIES { get { return GameDifficulty.Pick(8, 12, 16); } }
+        /// <remarks>Selon la difficulte : 6 / 6 / 8. C'est LE levier de la pression : l'audit perdait a 12-16 ennemis en vie.</remarks>
+        public static int MAX_ACTIVE_ENEMIES { get { return GameDifficulty.Pick(6, 6, 8); } }
 
         // ------- Instabilite des Portails (le coeur de l'equilibrage) -------
         /// <summary>
         /// Degats encaisses par le portail d'origine a chaque ennemi qu'il a deploye et
         /// qui meurt. Tuer, c'est deja attaquer la source.
         /// </summary>
-        public const int PORTAL_KILL_BACKLASH = 12;
+        /// <remarks>Selon la difficulte : 16 / 14 / 10. En Facile, chaque mort pese : tenir la ligne fait vraiment tomber le Shofar.</remarks>
+        public static int PORTAL_KILL_BACKLASH { get { return GameDifficulty.Pick(16, 14, 10); } }
 
         /// <summary>
         /// Plancher, en pourcentage des PV max, sous lequel le contrecoup ne peut pas
@@ -749,7 +935,8 @@ namespace MNLTHII.Rules
         /// plancher, une partie purement defensive gagnait toute seule en quarante
         /// tours, sans que le joueur ait jamais a prendre le moindre risque.
         /// </summary>
-        public const int PORTAL_BACKLASH_FLOOR_PERCENT = 20;
+        /// <remarks>Selon la difficulte : 10 / 15 / 20 %.</remarks>
+        public static int PORTAL_BACKLASH_FLOOR_PERCENT { get { return GameDifficulty.Pick(10, 15, 20); } }
 
         /// <summary>Nombre de morts qui font sauter le bouclier d'un portail.</summary>
         /// <summary>
@@ -769,24 +956,39 @@ namespace MNLTHII.Rules
         /// morts ne compte pas : c'est justement le joueur qui accumule des morts sans
         /// jamais aller conclure que cette regle vise.
         /// </summary>
-        public const int PORTAL_CALM_TURNS = 3;
+        /// <remarks>Selon la difficulte : 5 / 3 / 3 tours de calme avant que le Shofar ne se refasse.</remarks>
+        public static int PORTAL_CALM_TURNS { get { return GameDifficulty.Pick(5, 3, 3); } }
         public const int PORTAL_REGEN_PER_TURN = 8;
 
         /// <summary>Tours de calme entre deux points d'instabilite effaces.</summary>
         public const int PORTAL_CALM_PER_INSTABILITY_LOST = 2;
 
-        /// <remarks>Selon la difficulte : 3 / 4 / 4.</remarks>
-        public static int PORTAL_KILLS_TO_BREAK_SHIELD { get { return GameDifficulty.Pick(3, 4, 4); } }
+        /// <remarks>
+        /// Selon la difficulte : 2 / 3 / 4. En Facile, deux morts suffisent : c'est
+        /// la boucle "tenir, fissurer, aller fermer" qu'on veut faire sentir vite.
+        /// </remarks>
+        public static int PORTAL_KILLS_TO_BREAK_SHIELD { get { return GameDifficulty.Pick(2, 3, 4); } }
 
-        /// <summary>Duree, en tours, pendant laquelle le bouclier reste tombe.</summary>
-        public const int PORTAL_SHIELD_DOWN_TURNS = 4;
+        /// <summary>
+        /// Duree, en tours, pendant laquelle le bouclier reste tombe : 6 / 5 / 4 selon
+        /// la difficulte. Un Shofar est a sept cases de la Base et un Tank rang 1 avance
+        /// d'une case par tour : a quatre tours, la fenetre se refermait avant qu'un
+        /// Tank parti de chez lui n'arrive. En Facile elle laisse le temps de venir.
+        /// </summary>
+        public static int PORTAL_SHIELD_DOWN_TURNS { get { return GameDifficulty.Pick(6, 5, 5); } }
 
         /// <summary>
         /// Diviseur applique aux degats recus tant que le bouclier tient. A 2, un Tank
         /// Niveau 1 ne place que 5 degats sur un portail stable, contre 10 une fois le
         /// bouclier tombe : la fenetre d'assaut vaut la peine d'etre preparee.
         /// </summary>
-        public const int PORTAL_SHIELD_DIVISOR = 2;
+        /// <remarks>
+        /// Selon la difficulte : 1 / 2 / 2. En Facile, le bouclier ne divise pas les
+        /// degats : il ne fait qu'empecher le Shofar de tomber tout seul sous le
+        /// contrecoup. Deux Tanks au contact ferment un Shofar de 40 PV en deux tours,
+        /// sans attendre que ses ennemis meurent. La fissure reste la pedagogie.
+        /// </remarks>
+        public static int PORTAL_SHIELD_DIVISOR { get { return GameDifficulty.Pick(1, 2, 2); } }
 
         /// <summary>Ennemis supplementaires lors d'une vague annoncee (surge).</summary>
         public const int SURGE_EXTRA_SPAWNS = 2;
@@ -1051,7 +1253,7 @@ namespace MNLTHII.Rules
                 BoardController.instance.RefreshAllAuras();
             }
 
-            Debug.LogFormat("[Rules] Shofar retourne en ({0},{1}) : il verse {2} par tour.",
+            GameLog.Say("[Rules] Shofar retourne en ({0},{1}) : il verse {2} par tour.",
                             hex.positionInTheBoard.q, hex.positionInTheBoard.r, TURNED_PORTAL_INCOME);
 
             return TriviaOutcome.BuildingUpgraded;
@@ -1367,6 +1569,10 @@ namespace MNLTHII.Rules
             // C'est le dernier point avant la depense.
             if (!CanBuildAt(hex.positionInTheBoard)) return TriviaOutcome.Blocked_OutOfRange;
 
+            // Le plafond passe avant le prix : "l'armee est au complet" se repare en
+            // batissant un Centre, pas en attendant de l'Energie.
+            if (!CanAddTank()) return TriviaOutcome.Blocked_TankCap;
+
             EnergyManager energy = EnergyManager.Instance;
             if (energy == null || !energy.TrySpend(TANK_CREATION_COST))
                 return TriviaOutcome.Blocked_NotEnoughEnergy;
@@ -1454,7 +1660,7 @@ namespace MNLTHII.Rules
             if (HasCrystalSupport(tank.hexcoord)) return TriviaOutcome.EnergyOnly;
 
             tank.seekCrystal = true;
-            Debug.Log("[Rules] Un Tank part rejoindre le Cristal le plus proche.");
+            GameLog.Say("[Rules] Un Tank part rejoindre le Cristal le plus proche.");
             return TriviaOutcome.StanceChanged;
         }
 
@@ -1590,6 +1796,7 @@ namespace MNLTHII.Rules
                     // On ne pose que sur le terrain qu'on tient : autour de la Base,
                     // d'un Tank deja la, ou d'un Centre de Commandement.
                     if (!CanBuildAt(hex.positionInTheBoard)) return TriviaOutcome.Blocked_OutOfRange;
+                    if (!CanAddTank()) return TriviaOutcome.Blocked_TankCap;
 
                     if (energy == null || !energy.TrySpend(TANK_CREATION_COST))
                         return TriviaOutcome.Blocked_NotEnoughEnergy;
@@ -1624,6 +1831,10 @@ namespace MNLTHII.Rules
                 case TypeOfHex.Destroyed:
                     return TurnPortal(hex);
 
+                // LA BASE : on la repare. Voir BASE_REPAIR_COST.
+                case TypeOfHex.Base:
+                    return RepairBase();
+
                 default:
                     return TriviaOutcome.EnergyOnly;
             }
@@ -1632,7 +1843,7 @@ namespace MNLTHII.Rules
         public static void EvolveTank(PawnController pawn)
         {
             if (pawn == null || BoardController.instance == null) return;
-            Debug.Log("[Rules] Evolution d'un Tank en Niveau 2.");
+            GameLog.Say("[Rules] Evolution d'un Tank en Niveau 2.");
             if (FXManager.Instance != null) FXManager.Instance.SpawnCrystalBuffFX(pawn.transform.position);
             BoardController.instance.UpgradePawnVisual(pawn, 2);
         }
@@ -1651,7 +1862,7 @@ namespace MNLTHII.Rules
             if (FXManager.Instance != null)
                 FXManager.Instance.SpawnBuildingUpgradeFX(hex.transform.position);
 
-            Debug.LogFormat("[Rules] {0} ({1},{2}) passe au niveau interne {3} (GDD Niv {4})",
+            GameLog.Say("[Rules] {0} ({1},{2}) passe au niveau interne {3} (GDD Niv {4})",
                             hex.type, hex.positionInTheBoard.q, hex.positionInTheBoard.r, hex.level, hex.level + 1);
 
             if (BoardController.instance != null)
@@ -1710,6 +1921,11 @@ namespace MNLTHII.Rules
 
             if (counterAttacks)
             {
+                // LA RIPOSTE SE VOIT : le trait repart du defenseur vers l'attaquant,
+                // dans la couleur de SON camp. Sans lui, l'attaquant perdait des PV
+                // sans qu'on voie d'ou venait le coup.
+                MNLTHII.Managers.CombatTracer.Fire(defender, attacker, null);
+
                 attacker.ApplyDamage(GetPawnDamage(defender));
 
                 if (attacker.currentHP > 0 && fx != null)
@@ -1869,7 +2085,7 @@ namespace MNLTHII.Rules
         {
             if (hex == null) return;
 
-            Debug.LogFormat("[Rules] Structure detruite : {0} niveau {1}", hex.type, hex.level);
+            GameLog.Say("[Rules] Structure detruite : {0} niveau {1}", hex.type, hex.level);
 
             if (hex.type == TypeOfHex.portal)
             {

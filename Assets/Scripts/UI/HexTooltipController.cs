@@ -21,7 +21,14 @@ namespace MNLTHII.Managers
         /// dont la reponse est "rien", et il faut le DIRE. Sans ce cas, le panneau se
         /// fermait sans un mot et le joueur croyait a une case qui ne repond pas.
         /// </summary>
-        Barren
+        Barren,
+
+        /// <summary>
+        /// La Base, abimee : un clic rend des PV contre de l'Energie. C'est la seule
+        /// action du jeu qui ne change rien sur le plateau, et le seul endroit ou
+        /// depenser quand tout le reste est deja construit.
+        /// </summary>
+        BaseRepair
     }
 
     /// <summary>
@@ -55,6 +62,14 @@ namespace MNLTHII.Managers
         /// venir un Tank pour rien.
         /// </summary>
         public bool portalShadow;
+
+        /// <summary>
+        /// Refus parce que l'armee est au complet (InteractionRules.TankCap). Ni la
+        /// distance ni le prix : il manque un Centre de Commandement, ou un Tank doit
+        /// tomber avant qu'un autre naisse. Un mot a part, pour la meme raison que
+        /// portalShadow : chaque refus se repare autrement.
+        /// </summary>
+        public bool tankCap;
 
         /// <summary>
         /// Posture que le clic donnera, quand kind vaut StanceChange. Sans elle
@@ -184,6 +199,18 @@ namespace MNLTHII.Managers
                         result.kind = HexActionKind.Barren;
                         return result;
 
+                    // LA BASE. Abimee, elle se repare ; pleine, elle n'a rien a vendre.
+                    case TypeOfHex.Base:
+                        if (!InteractionRules.BaseNeedsRepair())
+                        {
+                            result.kind = HexActionKind.MaxLevel;
+                            return result;
+                        }
+                        result.kind = HexActionKind.BaseRepair;
+                        result.cost = InteractionRules.BASE_REPAIR_COST;
+                        result.targetLevel = 1;
+                        break;
+
                     default:
                         return result;
                 }
@@ -202,6 +229,15 @@ namespace MNLTHII.Managers
                     // Le bouton s'eteint comme pour un prix trop eleve : tous les
                     // ecrans qui testent deja "affordable" refusent sans rien savoir
                     // de la nouvelle regle.
+                    result.affordable = false;
+                    return result;
+                }
+
+                // L'armee au complet : meme chemin que la portee, le bouton s'eteint
+                // et dit pourquoi.
+                if (result.kind == HexActionKind.TankCreate && !InteractionRules.CanAddTank())
+                {
+                    result.tankCap = true;
                     result.affordable = false;
                     return result;
                 }
@@ -575,6 +611,12 @@ namespace MNLTHII.Managers
                 subtitleText.gameObject.SetActive(true);
                 subtitleText.text = MNLTHII.UI.HudLabelsRuntime.Get(
                     action.portalShadow ? "portalShadowWhy" : "outOfRangeWhy");
+            }
+            else if (subtitleText != null && action.tankCap)
+            {
+                subtitleText.gameObject.SetActive(true);
+                subtitleText.text = string.Format(MNLTHII.UI.HudLabelsRuntime.Get("tankCapWhy"),
+                                                  InteractionRules.CountTanks(), InteractionRules.TankCap());
             }
             else if (subtitleText != null)
             {
@@ -993,6 +1035,11 @@ namespace MNLTHII.Managers
                     }
                     break;
 
+                case HexActionKind.BaseRepair:
+                    phrase = string.Format(MNLTHII.UI.HudLabelsRuntime.Get("repairBaseEffect"),
+                                           InteractionRules.BASE_REPAIR_AMOUNT, InteractionRules.BASE_REPAIR_COST);
+                    break;
+
                 case HexActionKind.TankCreate: phrase = MNLTHII.UI.HudLabelsRuntime.Get("effectTankCreate", effectTankCreate); break;
                 case HexActionKind.TankEvolve: phrase = MNLTHII.UI.HudLabelsRuntime.Get("effectTankEvolve", effectTankEvolve); break;
                 case HexActionKind.Barren: phrase = MNLTHII.UI.HudLabelsRuntime.Get("barrenBody"); break;
@@ -1173,6 +1220,7 @@ namespace MNLTHII.Managers
                 case HexActionKind.MaxLevel: return labelMaxLevel;
                 case HexActionKind.Occupied: return labelOccupied;
                 case HexActionKind.Barren: return MNLTHII.UI.HudLabelsRuntime.Get("barrenTitle");
+                case HexActionKind.BaseRepair: return MNLTHII.UI.HudLabelsRuntime.Get("repairBaseTitle");
 
                 case HexActionKind.Build:
                     switch (hex.type)

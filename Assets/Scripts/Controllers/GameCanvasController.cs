@@ -659,7 +659,7 @@ public class GameCanvasController : MonoBehaviour
                 break;
             case StateOfGame.waitingForChallenge:
                 StopAllCoroutines();
-                _stateOfGameText.text = "CHALLENGE\n HASN’T STARTED YET";
+                _stateOfGameText.text = "CHALLENGE\n HASN'T STARTED YET";
                 _stateOfGameText.color = Color.white;
                 _stateOfGameText.fontSize = 35;
                 _gameStateAnimator.SetBool("GameState", true);

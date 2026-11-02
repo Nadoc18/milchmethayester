@@ -64,10 +64,14 @@ namespace MNLTHII.Managers
         public float shieldScale = 1.25f;
 
         [Header("Pastilles de fissure")]
-        [Tooltip("Hauteur des pastilles au-dessus du pied du Shofar (la barre de vie est a 1.3).")]
-        public float pipHeight = 1.05f;
-        public float pipSize = 0.11f;
-        public float pipSpacing = 0.15f;
+        // AU-DESSUS DU SHOFAR, ET GROSSES. A mi-hauteur du pilier, les pastilles se
+        // perdaient dedans et derriere lui ; elles flottent maintenant au-dessus du
+        // sommet du modele, la ou la barre de vie prendra leur place une fois la
+        // bulle rompue (voir Hexagon.RefreshHealthBar).
+        [Tooltip("Hauteur des pastilles au-dessus du SOMMET du modele du Shofar.")]
+        public float pipHeight = 0.30f;
+        public float pipSize = 0.22f;
+        public float pipSpacing = 0.28f;
         public Color pipEmpty = new Color(1f, 1f, 1f, 0.28f);
         // Les fissures passent au jaune : l'orange est maintenant la couleur de la
         // bulle, et deux oranges cote a cote ne se distinguent plus.
@@ -93,6 +97,11 @@ namespace MNLTHII.Managers
             /// <summary>Fin du coup de loupe sur les pastilles (une fissure vient d'etre prise).</summary>
             public float pulseUntil;
             public Vector3 pipRowScale = Vector3.one;
+            // Le flash de la bulle quand une fissure vient d'etre prise.
+            public float flashUntil;
+            public float rimBase;
+            // La barre de vie du Shofar a-t-elle deja ete alignee sur l'etat de la bulle ?
+            public bool barSynced;
 
             /// <summary>Le disque au sol d'un Centre : les cases que la bulle interdit.</summary>
             public Renderer zone;
@@ -160,7 +169,7 @@ namespace MNLTHII.Managers
 
             if (rim != null)
             {
-                _domeMaterial = new Material(rim) { name = "Bouclier de Shofar" };
+                _domeMaterial = new Material(rim) { name = "Bouclier de Shofar", enableInstancing = true };
                 _domeMaterial.SetColor(RimColorId, shieldColor);
                 _domeMaterial.SetFloat(RimPowerId, shieldPower);
                 _domeMaterial.SetFloat(RimStrengthId, shieldStrength);
@@ -168,7 +177,10 @@ namespace MNLTHII.Managers
 
             if (decal != null)
             {
-                _pipMaterial = new Material(decal) { name = "Pastilles de fissure" };
+                // Jusqu'a quatre pastilles par Shofar, six Shofars : meme quad, meme
+                // materiau, couleur par instance. Instanciees, c'est un appel au lieu
+                // de vingt-quatre.
+                _pipMaterial = new Material(decal) { name = "Pastilles de fissure", enableInstancing = true };
                 _pipMaterial.SetTexture(MainTexId, DiscTexture());
                 _pipMaterial.SetFloat(SrcBlendId, (float)BlendMode.SrcAlpha);
                 _pipMaterial.SetFloat(DstBlendId, (float)BlendMode.OneMinusSrcAlpha);
@@ -236,6 +248,21 @@ namespace MNLTHII.Managers
                         float grow = 1f + CrackPulseGrow * Mathf.Sin(k * Mathf.PI);
                         v.pipRow.localScale = v.pipRowScale * grow;
                     }
+                }
+
+                // LE FLASH DE LA BULLE : elle s'embrase puis revient a sa lueur, pour
+                // que la fissure se lise comme un COUP et pas comme un chiffre.
+                if (v.flashUntil > 0f && v.dome != null && v.dome.enabled && v.portal.type == TypeOfHex.portal)
+                {
+                    float remaining = v.flashUntil - Time.unscaledTime;
+                    float k = (remaining <= 0f) ? 0f : Mathf.Clamp01(remaining / CrackFlashSeconds);
+                    if (remaining <= 0f) v.flashUntil = 0f;
+
+                    v.dome.GetPropertyBlock(_block);
+                    _block.SetColor(RimColorId, Color.Lerp(shieldColor, Color.white, 0.75f * k));
+                    _block.SetFloat(RimStrengthId, v.rimBase * (1f + CrackFlashBoost * k));
+                    _block.SetFloat(RimPowerId, shieldPower);
+                    v.dome.SetPropertyBlock(_block);
                 }
 
                 if (!v.broken) continue;
@@ -378,6 +405,17 @@ namespace MNLTHII.Managers
             int downTurns = portals.GetShieldDownTurns(v.portal);
             bool broken = downTurns > 0;
 
+            // PASTILLES OU BARRE DE VIE, JAMAIS LES DEUX : des que la bulle change
+            // d'etat (ou la premiere fois qu'on voit ce Shofar), la barre se realigne.
+            // Au chargement, la barre pouvait etre posee avant que PortalManager
+            // n'existe ; ce rappel la remet d'equerre.
+            if (!v.barSynced || v.broken != broken)
+            {
+                v.barSynced = true;
+                v.broken = broken;
+                v.portal.RefreshHealthBar();
+            }
+
             v.broken = broken;
 
             // --- la bulle : presente tant que le bouclier tient, et plus faible a
@@ -389,15 +427,18 @@ namespace MNLTHII.Managers
                 if (!broken)
                 {
                     float left = 1f - Mathf.Clamp01((float)kills / Mathf.Max(1, needed));
+                    v.rimBase = shieldStrength * (0.3f + 0.7f * left);
                     v.dome.GetPropertyBlock(_block);
                     _block.SetColor(RimColorId, shieldColor);
-                    _block.SetFloat(RimStrengthId, shieldStrength * (0.3f + 0.7f * left));
+                    _block.SetFloat(RimStrengthId, v.rimBase);
                     _block.SetFloat(RimPowerId, shieldPower);
                     v.dome.SetPropertyBlock(_block);
                 }
             }
 
-            // --- les pastilles : fissures (orange), ou tours restants (rouge) ---
+            // --- les pastilles : les fissures, tant que la bulle tient. Bulle rompue,
+            //     elles s'effacent et c'est la barre de vie qui prend la place (voir
+            //     Hexagon.RefreshHealthBar) : une seule jauge a la fois sur le Shofar. ---
             for (int p = 0; p < v.pips.Length; p++)
             {
                 Renderer r = v.pips[p];
@@ -405,9 +446,7 @@ namespace MNLTHII.Managers
 
                 if (broken)
                 {
-                    bool lit = p < downTurns;
-                    if (r.enabled != lit) r.enabled = lit;
-                    // La couleur (clignotante) est posee dans LateUpdate.
+                    if (r.enabled) r.enabled = false;
                 }
                 else
                 {
@@ -440,6 +479,8 @@ namespace MNLTHII.Managers
 
         private const float CrackPulseSeconds = 0.9f;
         private const float CrackPulseGrow = 0.9f;
+        private const float CrackFlashSeconds = 0.7f;
+        private const float CrackFlashBoost = 2.5f;
 
         /// <summary>
         /// Une fissure vient d'etre prise sur ce Shofar : la rangee de pastilles
@@ -454,6 +495,32 @@ namespace MNLTHII.Managers
             _nextRefresh = 0f;   // relecture immediate au prochain LateUpdate
             if (v.pulseUntil <= 0f) v.pipRowScale = v.pipRow.localScale;
             v.pulseUntil = Time.unscaledTime + CrackPulseSeconds;
+        }
+
+        /// <summary>
+        /// LE COUP SE MARQUE. Appele par PortalManager quand le libelle de fissure
+        /// monte (la camera est sur le Shofar) : la bulle flashe en blanc, la rangee
+        /// de pastilles gonfle, et un impact eclate au sommet du Shofar. Avant, une
+        /// pastille changeait de couleur en silence et personne ne voyait le coup.
+        /// </summary>
+        public void CrackImpact(Hexagon portal)
+        {
+            if (portal == null) return;
+
+            PulseCracks(portal);
+
+            Visual v = Find(portal);
+            if (v != null) v.flashUntil = Time.unscaledTime + CrackFlashSeconds;
+
+            FXManager fx = FXManager.Instance;
+            if (fx != null)
+            {
+                Vector3 top = (v != null && v.pipRow != null)
+                              ? v.pipRow.position
+                              : portal.transform.position + Vector3.up * 1.2f;
+                fx.SpawnHitFX(top);
+                fx.SpawnAttackFX(portal.transform.position + Vector3.up * 0.6f);
+            }
         }
 
         private Visual Find(Hexagon hex)
@@ -607,7 +674,10 @@ namespace MNLTHII.Managers
             rowGo.layer = 2;
             v.pipRow = rowGo.transform;
             v.pipRow.SetParent(v.root, false);
-            v.pipRow.position = portal.transform.position + Vector3.up * pipHeight;
+            // Au-dessus du SOMMET du modele, pas a une hauteur fixe depuis le pied.
+            v.pipRow.position = new Vector3(portal.transform.position.x,
+                                            bounds.max.y + pipHeight,
+                                            portal.transform.position.z);
 
             v.pips = new Renderer[count];
             float start = -(count - 1) * pipSpacing * 0.5f;

@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using UnityEngine;
 using EZCameraShake;
 using UnityEngine.UI;
+using MNLTHII.Dev;
 
 namespace MNLTHII
 {
@@ -58,7 +59,7 @@ namespace MNLTHII
 
         if (getPawnByCoord(parentHex.positionInTheBoard) != null)
         {
-            Debug.Log("[Board] Case deja occupee : creation annulee.");
+            GameLog.Say("[Board] Case deja occupee : creation annulee.");
             return null;
         }
 
@@ -595,7 +596,7 @@ namespace MNLTHII
                     m_boardHexData = JsonConvert.DeserializeObject<List<HexagonData>>(p_JsonData);
                     if (m_boardHexData != null) {
                         StartCoroutine(FillBoard(m_boardHexData));
-                        Debug.Log("Board updated with JSON: " + p_JsonData);
+                        GameLog.Say("Board updated with JSON: " + p_JsonData);
                     }
                 } catch (System.Exception e) {
                     Debug.LogError("Failed to parse board JSON: " + e.Message);
@@ -1443,7 +1444,7 @@ namespace MNLTHII
                 if (_pawn != null && _pawn.energy <= 0 && _pawn.typeOfPawn != TypeOfPawn.Bunker)
                 {
                     if (_pawn)
-                        Debug.Log("Clean " + _pawn.typeOfPawn + " : q" + _pawn.hexcoord.q + " , r: " + _pawn.hexcoord.r + " , s: " + _pawn.hexcoord.s);
+                        GameLog.Say("Clean " + _pawn.typeOfPawn + " : q" + _pawn.hexcoord.q + " , r: " + _pawn.hexcoord.r + " , s: " + _pawn.hexcoord.s);
                     if (_pawn)
                         if (MNLTHII.Managers.FXManager.Instance != null) MNLTHII.Managers.FXManager.Instance.SpawnDestructionFX(_pawn.transform.position);
                     if (_pawn)
@@ -1474,7 +1475,7 @@ namespace MNLTHII
 
                 if (_hex != null && _hex.energy <= 0 && _hex.level > 0)
                 {
-                    Debug.Log("Clean " + _hex.type + " : q" + _hex.positionInTheBoard.q + " , r: " + _hex.positionInTheBoard.r + " , s: " + _hex.positionInTheBoard.s);
+                    GameLog.Say("Clean " + _hex.type + " : q" + _hex.positionInTheBoard.q + " , r: " + _hex.positionInTheBoard.r + " , s: " + _hex.positionInTheBoard.s);
 
 
 
@@ -1499,7 +1500,7 @@ namespace MNLTHII
                     {
                         if (_pawnToKeep)
                             _pawnToKeep.transform.parent = hexagonDestroyedAttached.transform;
-                        Debug.Log("Keep The destroy Base or Portal");
+                        GameLog.Say("Keep The destroy Base or Portal");
                         hexagonsInBoard.Add(hexagonDestroyedAttached);
                     }
                     _hexagonToRemove.Add(_hex);
@@ -1702,7 +1703,7 @@ namespace MNLTHII
         {
             foreach (Hexagon _hex in hexagonsInBoard)
             {
-                Debug.Log("Clean map for zones");
+                GameLog.Say("Clean map for zones");
 
                 Transform _zoneFX;
                 if (_hex)
@@ -1762,10 +1763,10 @@ namespace MNLTHII
         /// </summary>
         private void RefreshViewPatterns()
         {
-            Debug.Log("Refresh ");
+            GameLog.Say("Refresh ");
             foreach (HexCoord _hexPattern in _instanceGM.PatternsCoord)
             {
-                Debug.Log("List not empty");
+                GameLog.Say("List not empty");
                 Hexagon _hex = getHexByCoord(_hexPattern);
                 if (_hex != null && _hex.hoverPatternFX != null) _hex.hoverPatternFX.SetActive(true);
             }

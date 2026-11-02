@@ -30,26 +30,39 @@ Shader "MNLTH/GroundDecal"
             CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+
+            // Un disque par pion (ombre + anneau), des pastilles par Shofar, la fleche
+            // de selection : tous le meme quad, tous le meme materiau. _Color est
+            // declaree par instance parce que ces disques recoivent leur couleur par
+            // MaterialPropertyBlock (pastilles, fleche).
+            #pragma multi_compile_instancing
             #include "UnityCG.cginc"
 
             sampler2D _MainTex;
-            fixed4 _Color;
+
+            UNITY_INSTANCING_BUFFER_START(Props)
+                UNITY_DEFINE_INSTANCED_PROP(fixed4, _Color)
+            UNITY_INSTANCING_BUFFER_END(Props)
 
             struct appdata
             {
                 float4 vertex : POSITION;
                 float2 uv : TEXCOORD0;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct v2f
             {
                 float4 pos : SV_POSITION;
                 float2 uv : TEXCOORD0;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             v2f vert (appdata v)
             {
                 v2f o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                UNITY_TRANSFER_INSTANCE_ID(v, o);
                 o.pos = UnityObjectToClipPos(v.vertex);
                 o.uv = v.uv;
                 return o;
@@ -57,7 +70,8 @@ Shader "MNLTH/GroundDecal"
 
             fixed4 frag (v2f i) : SV_Target
             {
-                fixed4 c = tex2D(_MainTex, i.uv) * _Color;
+                UNITY_SETUP_INSTANCE_ID(i);
+                fixed4 c = tex2D(_MainTex, i.uv) * UNITY_ACCESS_INSTANCED_PROP(Props, _Color);
                 return c;
             }
             ENDCG

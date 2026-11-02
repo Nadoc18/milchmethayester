@@ -116,6 +116,12 @@ namespace MNLTHII.Managers
 
             if (GameManager.instance != null) GameManager.instance.canClickOrHover = false;
 
+            // LE HUD S'EFFACE pendant la visite. On presente le plateau : l'Energie, le
+            // rail et les boutons n'ont rien a y faire, ils cachent ce qu'on montre et
+            // melangent ce qu'on explique avec ce qu'on ne peut pas encore faire.
+            Canvas own = (_canvasObject != null) ? _canvasObject.GetComponent<Canvas>() : null;
+            ScreenUiHider.Hide(own);
+
             // Ouverture : on ne part pas sur une case, on annonce ce qui va se passer.
             // {0} le nom de la disposition, {1} sa description : le joueur sait des
             // la premiere carte sur quel plateau il joue.
@@ -141,7 +147,7 @@ namespace MNLTHII.Managers
                               InteractionRules.COST_GAS_L2, InteractionRules.GAS_INCOME_L2,
                               InteractionRules.SPAWN_ACCEL_PER_INCOME);
 
-            yield return Stop(TypeOfHex.hill, "Photos/Bunker1", "introBunkerTitle", "introBunkerBody",
+            yield return Stop(TypeOfHex.hill, "Photos/bunker_1", "introBunkerTitle", "introBunkerBody",
                               InteractionRules.COST_BUNKER_L1, InteractionRules.BUNKER_DAMAGE_L1,
                               InteractionRules.BUNKER_TARGETS_L1, InteractionRules.BUNKER_RANGE,
                               InteractionRules.COST_BUNKER_L2, InteractionRules.BUNKER_DAMAGE_L2,
@@ -178,7 +184,10 @@ namespace MNLTHII.Managers
 
             // Les deux etapes du Tanya. Elle vient APRES le Shofar : on ne peut
             // parler de retourner un Shofar qu'a qui vient d'apprendre ce que c'est.
-            yield return Stop(null, "Photos/Portal2", "introTurnTitle", "introTurnBody",
+            // Pas de photo ici : l'ancienne (un embleme vert sur son socle) ne montrait
+            // pas un Shofar retourne. La camera revient sur un Shofar et la fleche le
+            // designe : c'est de lui qu'on parle.
+            yield return Stop(TypeOfHex.portal, null, "introTurnTitle", "introTurnBody",
                               InteractionRules.COST_TURN_PORTAL,
                               InteractionRules.TURNED_PORTAL_INCOME);
 
@@ -196,6 +205,8 @@ namespace MNLTHII.Managers
                               GameDifficulty.Scale(40, hp), GameDifficulty.Scale(15, dmg),
                               GameDifficulty.Scale(80, hp), GameDifficulty.Scale(30, dmg));
 
+            HexPointer.HideHint();
+            ScreenUiHider.Restore();
             CameraDirector.ReleaseCamera();
 
             // Echap saute la VISITE, pas la strategie : c'est l'ecran qui vaut le plus,
@@ -223,9 +234,17 @@ namespace MNLTHII.Managers
             if (hex != null)
             {
                 CameraDirector.FocusPoint(hex.transform.position);
+
+                // LA FLECHE. Cadrer la case ne suffisait pas : au milieu de cent
+                // soixante-neuf hexagones, on ne savait pas de laquelle on parlait. La
+                // meme fleche qui rebondit sur une case cliquee se pose dessus, le temps
+                // de la carte, et c'est elle qu'on regarde.
+                HexPointer.ShowHint(hex, new Color(1f, 0.82f, 0.36f, 1f));
+
                 yield return Wait(travelWait);
-                if (_skipped) yield break;
+                if (_skipped) { HexPointer.HideHint(); yield break; }
             }
+            else HexPointer.HideHint();
 
             string title = MNLTHII.UI.HudLabelsRuntime.Get(titleKey);
             string body = MNLTHII.UI.HudLabelsRuntime.Get(bodyKey);
@@ -254,6 +273,8 @@ namespace MNLTHII.Managers
             yield return Fade(_group.alpha, 1f);
             yield return WaitForClick();
             yield return Fade(1f, 0f);
+
+            HexPointer.HideHint();
         }
 
         // =================================================================

@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using MNLTHII.Rules;
+using MNLTHII.Dev;
 
 namespace MNLTHII.Managers
 {
@@ -235,6 +236,10 @@ namespace MNLTHII.Managers
                 case AdvisorActionKind.EvolveTank:
                     return titleEvolve;
 
+                // Titre lu a l'execution : il n'existe pas dans les HUD deja construits.
+                case AdvisorActionKind.SeekCrystal:
+                    return MNLTHII.UI.HudLabelsRuntime.Get("titleSeekCrystal", titleEvolve);
+
                 case AdvisorActionKind.Build:
                     if (suggestion.hex == null) return titleBuild;
                     if (suggestion.hex.type == TypeOfHex.hill) return titleBunker;
@@ -259,9 +264,19 @@ namespace MNLTHII.Managers
 
         private string ReasonFor(AdvisorSuggestion suggestion)
         {
-            if (reasons == null) return "";
-            if (suggestion.reason < 0 || suggestion.reason >= reasons.Length) return "";
-            return reasons[suggestion.reason];
+            if (suggestion.reason < 0) return "";
+
+            if (reasons != null && suggestion.reason < reasons.Length)
+            {
+                string phrase = reasons[suggestion.reason];
+                if (!string.IsNullOrEmpty(phrase)) return phrase;
+            }
+
+            // Le tableau de l'inspecteur date de la derniere construction du HUD : une
+            // raison ajoutee depuis n'y est pas. On va la chercher a l'execution dans
+            // hud_labels.json (advisor.reasonsRuntime), ce qui evite d'avoir a
+            // reconstruire tout le HUD - et donc de perdre les reglages faits a la main.
+            return MNLTHII.UI.HudLabelsRuntime.Get("advisorReason" + suggestion.reason, "");
         }
 
         private Color AccentFor(AdvisorSuggestion suggestion)
@@ -303,6 +318,12 @@ namespace MNLTHII.Managers
             // seulement un endroit a regarder.
             bool isBuild = (suggestion.kind == AdvisorActionKind.Build);
 
+            // LA FLECHE SUR LA CASE DU CONSEIL. La camera va regarder un endroit,
+            // mais pour une construction rien ne disait LAQUELLE des cases : le
+            // joueur voyait un coin de plateau sans savoir ou poser. La fleche prend
+            // la couleur de la carte, pour relier les deux d'un coup d'oeil.
+            HexPointer.ShowHint(suggestion.hex, AccentFor(suggestion));
+
             if (ghostOnHover && ThreatPreview.Instance != null && !isBuild)
             {
                 bool attacks = (suggestion.focus != null)
@@ -323,6 +344,7 @@ namespace MNLTHII.Managers
 
         private void ClearPreview()
         {
+            HexPointer.HideHint();
             if (ThreatPreview.Instance != null) ThreatPreview.Instance.HideHint();
             CameraDirector.ReleaseCamera();
         }
@@ -369,9 +391,13 @@ namespace MNLTHII.Managers
                 case AdvisorActionKind.Build:
                     outcome = InteractionRules.ApplyPlayerAction(suggestion.hex);
                     break;
+
+                case AdvisorActionKind.SeekCrystal:
+                    outcome = InteractionRules.OrderTankToCrystal(suggestion.tank);
+                    break;
             }
 
-            Debug.LogFormat("[Conseiller] {0} -> {1}.", suggestion.kind, outcome);
+            GameLog.Say("[Conseiller] {0} -> {1}.", suggestion.kind, outcome);
 
             if (TurnManager.Instance != null) TurnManager.Instance.NotifyAdvisorAction(outcome);
             else Refresh();

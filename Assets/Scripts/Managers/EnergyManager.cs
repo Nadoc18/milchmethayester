@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using MNLTHII.Dev;
 
 namespace MNLTHII.Managers
 {
@@ -39,7 +40,7 @@ namespace MNLTHII.Managers
             if (amount == 0) return;
             currentEnergy += amount;
             if (currentEnergy < 0) currentEnergy = 0;
-            Debug.LogFormat("[Energy] +{0} -> {1}", amount, currentEnergy);
+            GameLog.Say("[Energy] +{0} -> {1}", amount, currentEnergy);
             RefreshUI();
             if (OnEnergyChanged != null) OnEnergyChanged.Invoke(currentEnergy);
         }
@@ -55,11 +56,11 @@ namespace MNLTHII.Managers
             if (cost <= 0) return true;
             if (currentEnergy < cost)
             {
-                Debug.LogFormat("[Energy] Insuffisant : {0} / {1} requis.", currentEnergy, cost);
+                GameLog.Say("[Energy] Insuffisant : {0} / {1} requis.", currentEnergy, cost);
                 return false;
             }
             currentEnergy -= cost;
-            Debug.LogFormat("[Energy] -{0} -> {1}", cost, currentEnergy);
+            GameLog.Say("[Energy] -{0} -> {1}", cost, currentEnergy);
             RefreshUI();
             if (OnEnergyChanged != null) OnEnergyChanged.Invoke(currentEnergy);
             return true;

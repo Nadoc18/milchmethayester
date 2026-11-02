@@ -49,6 +49,26 @@ namespace MNLTHII.Managers
         public Image ruleTop;
         public Image ruleBottom;
 
+        [Tooltip("Le fond plein ecran. Opaque a l'ouverture de la partie (il cache le plateau qui se construit), translucide aux tours suivants.")]
+        public Image curtain;
+        [Tooltip("Les textes seuls, pour les faire apparaitre sur un rideau deja opaque.")]
+        public CanvasGroup content;
+
+        [Range(0f, 1f)] public float veilAlpha = 0.78f;
+
+        /// <summary>
+        /// L'OUVERTURE DE LA PARTIE. Avant, on voyait le plateau se construire, PUIS
+        /// l'annonce du tour 1 venait par-dessus : l'ordre etait a l'envers. Maintenant
+        /// LocalGameEngine leve ce drapeau avant que la scene ne s'affiche ; le panneau
+        /// se reveille rideau ferme, annonce le tour, et le rideau se leve sur un
+        /// plateau deja pret. Les deux secondes et demie de construction du plateau
+        /// passent derriere le rideau au lieu de s'etaler sous les yeux du joueur.
+        /// </summary>
+        public static bool OpeningPending;
+
+        /// <summary>L'ouverture vient d'annoncer ce tour : StartTurn ne le refait pas.</summary>
+        private static bool _skipNext;
+
         // =================================================================
         //  LIBELLES
         // =================================================================
@@ -80,6 +100,44 @@ namespace MNLTHII.Managers
 
             if (group == null && panelRoot != null) group = panelRoot.GetComponent<CanvasGroup>();
 
+            if (OpeningPending) ShowCurtain();
+            else Hide();
+        }
+
+        /// <summary>Rideau ferme, textes invisibles : le plateau derriere ne se voit pas.</summary>
+        private void ShowCurtain()
+        {
+            if (panelRoot == null) return;
+            panelRoot.SetActive(true);
+            if (group != null) group.alpha = 1f;
+            if (curtain != null) curtain.color = new Color(curtain.color.r, curtain.color.g, curtain.color.b, 1f);
+            if (content != null) content.alpha = 0f;
+        }
+
+        /// <summary>
+        /// L'annonce d'ouverture : sur le rideau opaque, le numero du tour apparait,
+        /// tient, puis tout se leve ensemble sur le plateau. Pas de revenu ici : il
+        /// n'a pas encore ete verse.
+        /// </summary>
+        public IEnumerator PlayOpening(int turn)
+        {
+            OpeningPending = false;
+            if (panelRoot == null) yield break;
+
+            ShowCurtain();
+
+            if (turnLabelText != null) turnLabelText.text = turnLabel;
+            if (turnNumberText != null) turnNumberText.SetText(numberFormat, turn);
+            if (incomeLabelText != null) incomeLabelText.gameObject.SetActive(false);
+            if (incomeValueText != null) incomeValueText.gameObject.SetActive(false);
+
+            // Les textes montent sur le rideau...
+            yield return FadeGroup(content, 0f, 1f, MNLTHII.Managers.PhasePace.Seconds(MNLTHII.Managers.PhasePace.TurnAnnounceFadeIn));
+            yield return _pace.For(MNLTHII.Managers.PhasePace.TurnAnnounceHold);
+            // ...puis le rideau se leve, textes compris.
+            yield return FadeGroup(group, 1f, 0f, MNLTHII.Managers.PhasePace.Seconds(MNLTHII.Managers.PhasePace.TurnAnnounceFadeOut) * 1.6f);
+
+            _skipNext = true;
             Hide();
         }
 
@@ -95,6 +153,14 @@ namespace MNLTHII.Managers
         public IEnumerator Play(int turn, int passiveIncome)
         {
             if (panelRoot == null) yield break;
+
+            // L'ouverture vient de l'annoncer : on ne le dit pas deux fois.
+            if (_skipNext) { _skipNext = false; yield break; }
+
+            // Aux tours suivants le rideau est un voile : le plateau reste visible
+            // derriere, assombri.
+            if (curtain != null) curtain.color = new Color(curtain.color.r, curtain.color.g, curtain.color.b, veilAlpha);
+            if (content != null) content.alpha = 1f;
 
             if (turnLabelText != null) turnLabelText.text = turnLabel;
             if (turnNumberText != null) turnNumberText.SetText(numberFormat, turn);
@@ -128,12 +194,17 @@ namespace MNLTHII.Managers
         /// </summary>
         private IEnumerator Fade(float from, float to, float duration)
         {
-            if (group == null) yield break;
+            yield return FadeGroup(group, from, to, duration);
+        }
 
-            if (duration <= 0f) { group.alpha = to; yield break; }
+        private IEnumerator FadeGroup(CanvasGroup target, float from, float to, float duration)
+        {
+            if (target == null) yield break;
+
+            if (duration <= 0f) { target.alpha = to; yield break; }
 
             float elapsed = 0f;
-            group.alpha = from;
+            target.alpha = from;
 
             while (elapsed < duration)
             {
@@ -146,11 +217,11 @@ namespace MNLTHII.Managers
                 // elle demarre et s'arrete sec.
                 t = t * t * (3f - 2f * t);
 
-                group.alpha = Mathf.Lerp(from, to, t);
+                target.alpha = Mathf.Lerp(from, to, t);
                 yield return null;
             }
 
-            group.alpha = to;
+            target.alpha = to;
         }
 
         public void Hide()

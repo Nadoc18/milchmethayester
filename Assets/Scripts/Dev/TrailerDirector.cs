@@ -4,6 +4,7 @@ using UnityEngine;
 using MNLTHII;
 using MNLTHII.Managers;
 using MNLTHII.Rules;
+using MNLTHII.UI;
 
 namespace MNLTHII.Dev
 {
@@ -34,7 +35,17 @@ namespace MNLTHII.Dev
     ///        deux, le temps de chaque prise ecrit dans la console. Une seule touche,
     ///        un seul enregistrement, et on coupe sur les noirs.
     ///   F12  tout remettre a zero (la scene est rechargee, le realisateur revient)
-    ///   H    cacher / montrer le HUD
+    ///   H    prises PROPRES (sans HUD) ou prises avec le HUD
+    ///
+    /// PRISES PROPRES (par defaut) : tout l'habillage disparait de l'image. Les
+    /// plaques du HUD, la barre de phase, le bandeau d'etape, l'ouverture du tour,
+    /// les barres de vie et les marques de posture sont eteints a chaque image ;
+    /// seuls restent le plateau, les pions, les effets, les chiffres qui flottent
+    /// et, pour les prises qui parlent d'eux, le choix du Tank, l'enseignement et
+    /// l'ecran de fin. Rien n'est detruit : H rallume tout.
+    ///
+    /// La bobine ecrit ses temps de coupe dans Trailer/timecodes.txt, a cote du
+    /// dossier Assets, en plus de la console.
     ///
     /// Les prises s'enchainent sur le meme plateau : F6 puis F7 puis F8 forment une
     /// suite. F12 entre deux prises pour repartir propre.
@@ -42,16 +53,26 @@ namespace MNLTHII.Dev
     public class TrailerDirector : MonoBehaviour
     {
         public const string PrefKey = "mnlth_trailer";
+        public const string CleanPrefKey = "mnlth_trailer_clean";
 
         public static TrailerDirector Instance { get; private set; }
 
         private bool _busy;
-        private bool _hudHidden;
         private bool _blackout;
-        private Texture2D _black;
+        private GameObject _blackCard;
         private float _reelStart;
         private string _status = "";
         private GUIStyle _style;
+
+        // Prises propres : ce qui a ete eteint, pour tout rallumer avec H.
+        private bool _clean;
+        private float _nextSweep;
+        private readonly List<Canvas> _mutedCanvases = new List<Canvas>();
+        private readonly List<CanvasGroup> _mutedGroups = new List<CanvasGroup>();
+        private readonly List<string> _timecodes = new List<string>();
+
+        /// <summary>Sous le HUD, ce qui reste visible en prise propre : le sujet de la prise.</summary>
+        private static readonly string[] KeepOnHud = { "ChoixDuTank", "Enseignement", "FinDePartie", "Impact" };
 
         // =================================================================
         //  NAISSANCE
@@ -91,12 +112,128 @@ namespace MNLTHII.Dev
             TeachingPanel.ForceQuestion = false;
             SaveManager.Store = new NullStore();
 
-            Debug.Log("[Trailer] Realisateur actif. F1..F10 : prises, F12 : remise a zero, H : HUD.");
+            _clean = PlayerPrefs.GetInt(CleanPrefKey, 1) == 1;
+
+            Debug.Log("[Trailer] Realisateur actif. F1..F10 : prises, F11 : bobine, F12 : remise a zero, H : HUD. Prises "
+                      + (_clean ? "PROPRES (sans HUD)." : "avec le HUD."));
         }
 
         private void OnDestroy()
         {
             if (Instance == this) Instance = null;
+            RestoreUi();
+        }
+
+        /// <summary>
+        /// Prise propre : a chaque image, l'habillage est eteint. Un balayage toutes
+        /// les 0,25 s ramasse ce qui vient de naitre (barres de vie, marques, bandeaux) ;
+        /// entre deux balayages, on maintient seulement ce qu'on connait deja.
+        /// </summary>
+        private void LateUpdate()
+        {
+            if (!_clean) return;
+
+            if (Time.unscaledTime >= _nextSweep)
+            {
+                _nextSweep = Time.unscaledTime + 0.25f;
+                Sweep();
+            }
+
+            for (int i = _mutedCanvases.Count - 1; i >= 0; i--)
+            {
+                Canvas c = _mutedCanvases[i];
+                if (c == null) { _mutedCanvases.RemoveAt(i); continue; }
+                if (c.enabled) c.enabled = false;
+            }
+            for (int i = _mutedGroups.Count - 1; i >= 0; i--)
+            {
+                CanvasGroup g = _mutedGroups[i];
+                if (g == null) { _mutedGroups.RemoveAt(i); continue; }
+                if (g.alpha != 0f) { g.alpha = 0f; g.blocksRaycasts = false; g.interactable = false; }
+            }
+        }
+
+        private void Sweep()
+        {
+            Canvas[] canvases = FindObjectsByType<Canvas>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            for (int i = 0; i < canvases.Length; i++)
+            {
+                Canvas canvas = canvases[i];
+                if (canvas == null) continue;
+                if (_blackCard != null && canvas.gameObject == _blackCard) continue;
+                // Les canvas emboites (sous-canvas) suivent leur parent : on ne traite que les racines.
+                if (!canvas.isRootCanvas) continue;
+
+                // Le HUD principal : on eteint bloc par bloc, le sujet de la prise reste.
+                if (canvas.GetComponent<HudController>() != null)
+                {
+                    MuteHudBlocks(canvas.transform);
+                    continue;
+                }
+
+                // Les chiffres qui flottent (degats, fissures) font partie de l'action : on les garde.
+                Transform parent = canvas.transform.parent;
+                if (parent != null && parent.name == "DamagePopups") continue;
+                if (canvas.GetComponent<DamagePopup>() != null) continue;
+
+                if (!_mutedCanvases.Contains(canvas)) _mutedCanvases.Add(canvas);
+            }
+        }
+
+        private void MuteHudBlocks(Transform canvasRoot)
+        {
+            for (int i = 0; i < canvasRoot.childCount; i++)
+            {
+                Transform child = canvasRoot.GetChild(i);
+                if (child.name == "HUD")
+                {
+                    for (int j = 0; j < child.childCount; j++)
+                    {
+                        Transform block = child.GetChild(j);
+                        if (System.Array.IndexOf(KeepOnHud, block.name) >= 0) continue;
+                        MuteGroup(block);
+                    }
+                }
+                else
+                {
+                    MuteGroup(child);   // la barre de la vue immersive, et tout autre habillage pose a cote
+                }
+            }
+        }
+
+        private void MuteGroup(Transform t)
+        {
+            CanvasGroup g = t.GetComponent<CanvasGroup>();
+            if (g == null) g = t.gameObject.AddComponent<CanvasGroup>();
+            if (!_mutedGroups.Contains(g)) _mutedGroups.Add(g);
+        }
+
+        /// <summary>Tout rallumer : les canvas eteints et les blocs du HUD.</summary>
+        private void RestoreUi()
+        {
+            for (int i = 0; i < _mutedCanvases.Count; i++)
+                if (_mutedCanvases[i] != null) _mutedCanvases[i].enabled = true;
+            _mutedCanvases.Clear();
+
+            for (int i = 0; i < _mutedGroups.Count; i++)
+            {
+                CanvasGroup g = _mutedGroups[i];
+                if (g == null) continue;
+                g.alpha = 1f;
+                g.blocksRaycasts = true;
+                g.interactable = true;
+            }
+            _mutedGroups.Clear();
+        }
+
+        private void ToggleClean()
+        {
+            _clean = !_clean;
+            PlayerPrefs.SetInt(CleanPrefKey, _clean ? 1 : 0);
+            PlayerPrefs.Save();
+            if (_clean) _nextSweep = 0f;
+            else RestoreUi();
+            Debug.Log("[Trailer] Prises " + (_clean ? "PROPRES : le HUD est eteint." : "avec le HUD."));
         }
 
         // =================================================================
@@ -104,7 +241,7 @@ namespace MNLTHII.Dev
         // =================================================================
         private void Update()
         {
-            if (Input.GetKeyDown(KeyCode.H)) ToggleHud();
+            if (Input.GetKeyDown(KeyCode.H)) ToggleClean();
             if (Input.GetKeyDown(KeyCode.F12)) { Reset(); return; }
 
             if (_busy) return;
@@ -133,7 +270,8 @@ namespace MNLTHII.Dev
             if (_busy) yield break;
             _busy = true;
             _reelStart = Time.realtimeSinceStartup;
-            Debug.Log("[Trailer] BOBINE : depart.");
+            _timecodes.Clear();
+            Note("0.0 s  depart de la bobine (prises " + (_clean ? "propres" : "avec HUD") + ")");
 
             yield return StartCoroutine(Take("1 tour d'horizon", ShotOrbit()));
             yield return StartCoroutine(Take("2 le Tank", ShotTank()));
@@ -147,9 +285,34 @@ namespace MNLTHII.Dev
             yield return StartCoroutine(Take("10 la fin", ShotGameOver()));
 
             yield return StartCoroutine(Blackout(2.0f));
-            Debug.LogFormat("[Trailer] BOBINE : fin a {0:0.0} s.", Time.realtimeSinceStartup - _reelStart);
+            Note(string.Format("{0:0.0} s  fin de la bobine", Time.realtimeSinceStartup - _reelStart));
+            WriteTimecodes();
             _status = "";
             _busy = false;
+        }
+
+        private void Note(string line)
+        {
+            _timecodes.Add(line);
+            Debug.Log("[Trailer] " + line);
+        }
+
+        /// <summary>Trailer/timecodes.txt a cote du dossier Assets (ou dans les donnees du jeu, hors editeur).</summary>
+        private void WriteTimecodes()
+        {
+            try
+            {
+                string dir = System.IO.Path.Combine(Application.dataPath, "../Trailer");
+                if (!Application.isEditor) dir = System.IO.Path.Combine(Application.persistentDataPath, "Trailer");
+                System.IO.Directory.CreateDirectory(dir);
+                string path = System.IO.Path.Combine(dir, "timecodes.txt");
+                System.IO.File.WriteAllLines(path, _timecodes.ToArray());
+                Debug.Log("[Trailer] Temps de coupe ecrits dans " + System.IO.Path.GetFullPath(path));
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[Trailer] Temps de coupe non ecrits : " + e.Message);
+            }
         }
 
         private IEnumerator Take(string name, IEnumerator shot)
@@ -157,16 +320,38 @@ namespace MNLTHII.Dev
             yield return StartCoroutine(Blackout(1.2f));
             yield return StartCoroutine(WaitReady());
             _status = name;
-            Debug.LogFormat("[Trailer] {0:0.0} s  prise {1}", Time.realtimeSinceStartup - _reelStart, name);
+            Note(string.Format("{0:0.0} s  prise {1}", Time.realtimeSinceStartup - _reelStart, name));
             yield return StartCoroutine(shot);
             yield return Wait(1.0f);
+            Note(string.Format("{0:0.0} s  fin de la prise {1}", Time.realtimeSinceStartup - _reelStart, name));
         }
 
         private IEnumerator Blackout(float seconds)
         {
-            _blackout = true;
+            SetBlack(true);
             yield return Wait(seconds);
-            _blackout = false;
+            SetBlack(false);
+        }
+
+        /// <summary>
+        /// Le carton noir est un vrai Canvas au-dessus de tout : le Recorder le voit a
+        /// coup sur, la ou un dessin OnGUI pouvait lui echapper.
+        /// </summary>
+        private void SetBlack(bool on)
+        {
+            _blackout = on;
+            if (_blackCard == null)
+            {
+                _blackCard = new GameObject("Noir du trailer", typeof(Canvas), typeof(UnityEngine.UI.Image));
+                Canvas canvas = _blackCard.GetComponent<Canvas>();
+                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                canvas.sortingOrder = 32000;
+                UnityEngine.UI.Image img = _blackCard.GetComponent<UnityEngine.UI.Image>();
+                img.color = Color.black;
+                img.raycastTarget = true;
+                _blackCard.SetActive(false);
+            }
+            if (_blackCard.activeSelf != on) _blackCard.SetActive(on);
         }
 
         private void Run(IEnumerator shot, string name)
@@ -199,19 +384,7 @@ namespace MNLTHII.Dev
         /// <summary>L'aide a l'ecran, seulement entre deux prises : le Recorder ne la voit pas pendant une prise.</summary>
         private void OnGUI()
         {
-            if (_blackout)
-            {
-                if (_black == null)
-                {
-                    _black = new Texture2D(1, 1);
-                    _black.SetPixel(0, 0, Color.black);
-                    _black.Apply();
-                }
-                GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), _black);
-                return;
-            }
-
-            if (_busy) return;
+            if (_blackout || _busy) return;
 
             if (_style == null)
             {
@@ -220,7 +393,7 @@ namespace MNLTHII.Dev
                 _style.normal.textColor = new Color(1f, 0.85f, 0.4f);
             }
 
-            GUI.Label(new Rect(16, 12, 1200, 30), "TRAILER  F11 = TOUT ENCHAINER   |   F1 orbite  F2 vague  F3 bunker  F4 bulle  F5 tank  F6 bouclier  F7 chute  F8 ruine  F9 lecon  F10 fin  F12 reset  H hud", _style);
+            GUI.Label(new Rect(16, 12, 1200, 30), "TRAILER  F11 = TOUT ENCHAINER   |   F1 orbite  F2 vague  F3 bunker  F4 bulle  F5 tank  F6 bouclier  F7 chute  F8 ruine  F9 lecon  F10 fin  F12 reset  H hud (" + (_clean ? "prises propres" : "avec HUD") + ")", _style);
             if (!string.IsNullOrEmpty(_status)) GUI.Label(new Rect(16, 36, 600, 30), _status, _style);
         }
 
@@ -350,12 +523,6 @@ namespace MNLTHII.Dev
             if (CameraDirector.Instance != null) CameraDirector.Instance.Release();
         }
 
-        private void ToggleHud()
-        {
-            _hudHidden = !_hudHidden;
-            SetHud(!_hudHidden);
-        }
-
         private static void SetHud(bool visible)
         {
             ImmersiveCamera immersive = ImmersiveCamera.Instance;
@@ -382,7 +549,6 @@ namespace MNLTHII.Dev
             Hexagon center = Hex(0, 0);
             if (director == null || cam == null || center == null) yield break;
 
-            bool hudWasHidden = _hudHidden;
             SetHud(false);
 
             Vector3 pivot = center.transform.position;
@@ -412,7 +578,7 @@ namespace MNLTHII.Dev
 
             director.EndOverride(1.2f);
             yield return Wait(1.4f);
-            if (!hudWasHidden) SetHud(true);
+            SetHud(true);
         }
 
         /// <summary>F2 : trois emissaires sortent du Shofar est, puis la phase ennemie les fait marcher.</summary>

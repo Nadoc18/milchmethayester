@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using MNLTHII;
 using MNLTHII.Rules;
+using MNLTHII.Dev;
 
 namespace MNLTHII.Managers
 {
@@ -33,6 +34,9 @@ namespace MNLTHII.Managers
 
         private void Awake()
         {
+            // Rideau ferme des la premiere image : voir TurnAnnouncePanel.OpeningPending.
+            TurnAnnouncePanel.OpeningPending = true;
+
             if (gameObject.GetComponent<TurnManager>() == null) gameObject.AddComponent<TurnManager>();
             if (gameObject.GetComponent<EnemyAI>() == null) gameObject.AddComponent<EnemyAI>();
             if (gameObject.GetComponent<FXManager>() == null) gameObject.AddComponent<FXManager>();
@@ -62,7 +66,7 @@ namespace MNLTHII.Managers
 
         private void InitializeLocalGame()
         {
-            Debug.Log("LocalGameEngine: construction de la partie locale...");
+            GameLog.Say("LocalGameEngine: construction de la partie locale...");
 
             if (_boardController == null)
             {
@@ -130,7 +134,16 @@ namespace MNLTHII.Managers
             if (GameManager.OnStateOfGameChanged != null)
                 GameManager.OnStateOfGameChanged.Invoke(StateOfGame.inGame);
 
-            if (TurnManager.Instance != null) TurnManager.Instance.ResumeSavedTurn(saved.turn);
+            StartCoroutine(OpenLoadedGame(saved.turn));
+        }
+
+        /// <summary>Une partie reprise s'ouvre comme une partie neuve : le tour annonce, puis le plateau.</summary>
+        private IEnumerator OpenLoadedGame(int turn)
+        {
+            if (TurnAnnouncePanel.Instance != null)
+                yield return StartCoroutine(TurnAnnouncePanel.Instance.PlayOpening(turn));
+
+            if (TurnManager.Instance != null) TurnManager.Instance.ResumeSavedTurn(turn);
         }
 
         private void SetupInitialState()
@@ -162,7 +175,7 @@ namespace MNLTHII.Managers
                 GameManager.OnStateOfGameChanged.Invoke(StateOfGame.inGame);
 
             int portals = PortalManager.Instance != null ? PortalManager.Instance.CountPortals() : 0;
-            Debug.Log("LocalGameEngine: partie prete. " + portals + " portails a detruire.");
+            GameLog.Say("LocalGameEngine: partie prete. " + portals + " portails a detruire.");
 
             StartCoroutine(OpenNewGame());
         }
@@ -176,6 +189,10 @@ namespace MNLTHII.Managers
         /// </summary>
         private IEnumerator OpenNewGame()
         {
+            // Le rideau d'ouverture : "tour 1" sur fond du theme, PUIS le plateau.
+            if (TurnAnnouncePanel.Instance != null)
+                yield return StartCoroutine(TurnAnnouncePanel.Instance.PlayOpening(1));
+
             if (playIntroTour) yield return StartCoroutine(IntroTour.Play());
 
             if (TurnManager.Instance != null)
@@ -186,11 +203,16 @@ namespace MNLTHII.Managers
             }
         }
 
+        // TOUCHE DE DEBUG, EDITEUR SEULEMENT. Dans un build, un joueur qui appuyait
+        // sur R en pleine partie voyait son plateau rase et reconstruit : tout ce
+        // qu'il avait bati disparaissait. L'outil reste pour l'editeur, il ne sort
+        // jamais en production.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         private void Update()
         {
             if (Input.GetKeyDown(KeyCode.R))
             {
-                Debug.Log("LocalGameEngine: reconstruction complete du plateau...");
+                GameLog.Say("LocalGameEngine: reconstruction complete du plateau...");
                 if (_boardController != null)
                 {
                     CancelInvoke(nameof(SetupInitialState));
@@ -200,6 +222,7 @@ namespace MNLTHII.Managers
                 }
             }
         }
+#endif
 
         // =================================================================
         //  CLIC JOUEUR -> PHASE DE DEPENSE -> REGLES
@@ -214,7 +237,7 @@ namespace MNLTHII.Managers
             TurnManager turns = TurnManager.Instance;
             if (turns == null || !turns.IsSpendingPhase) return;
 
-            Debug.Log("LocalGameEngine: clic sur l'hexagone (" + hexCoord.q + "," + hexCoord.r + "," + hexCoord.s + ")");
+            GameLog.Say("LocalGameEngine: clic sur l'hexagone (" + hexCoord.q + "," + hexCoord.r + "," + hexCoord.s + ")");
 
             turns.HandleSpendingClick(hexCoord);
         }
@@ -227,13 +250,13 @@ namespace MNLTHII.Managers
         {
             if (!correct)
             {
-                Debug.Log("LocalGameEngine: aucune action demandee.");
+                GameLog.Say("LocalGameEngine: aucune action demandee.");
                 return TriviaOutcome.EnergyOnly;
             }
 
             Hexagon hex = (_boardController != null) ? _boardController.getHexByCoord(hexCoord) : null;
             TriviaOutcome outcome = InteractionRules.ApplyPlayerAction(hex);
-            Debug.Log("LocalGameEngine: resultat -> " + outcome);
+            GameLog.Say("LocalGameEngine: resultat -> " + outcome);
             return outcome;
         }
 

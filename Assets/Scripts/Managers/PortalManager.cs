@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using MNLTHII;
 using MNLTHII.Rules;
+using MNLTHII.Dev;
 
 namespace MNLTHII.Managers
 {
@@ -182,10 +183,15 @@ namespace MNLTHII.Managers
             int slot = GetSlot(portal.positionInTheBoard, true);
             if (slot < 0) return;
 
+            // BOUCLIER DEJA ROMPU : rien a fissurer. Compter encore ferait repartir
+            // le Shofar deja fissure quand sa bulle se refait, et l'audit voyait des
+            // Shofars "fissures ET rompus" en meme temps.
+            if (_shieldDown[slot] > 0) return;
+
             _kills[slot] += amount;
             _calmTurns[slot] = 0;
 
-            Debug.LogFormat("[Portal] ({0},{1}) se fissure : {2}/{3}.",
+            GameLog.Say("[Portal] ({0},{1}) se fissure : {2}/{3}.",
                             portal.positionInTheBoard.q, portal.positionInTheBoard.r,
                             _kills[slot], InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD);
 
@@ -243,6 +249,10 @@ namespace MNLTHII.Managers
 
             MNLTHII.UI.DamagePopup.ShowLabel(portal.transform.position + Vector3.up * 0.4f, label,
                                              broke ? BrokenColor : CrackColor);
+
+            // LE COUP SE VOIT : au moment ou le libelle monte (la camera est la), la
+            // bulle flashe, les pastilles gonflent et un impact eclate au sommet.
+            if (PortalStatusVisual.Instance != null) PortalStatusVisual.Instance.CrackImpact(portal);
         }
 
         private IEnumerator FallbackCue(HexCoord coord, int slot, int ticket)
@@ -435,7 +445,10 @@ namespace MNLTHII.Managers
             int slot = GetSlot(portal.positionInTheBoard, true);
             if (slot < 0) return;
 
-            _kills[slot]++;
+            // Bouclier deja rompu : le contrecoup frappe toujours, mais il n'y a plus
+            // de bulle a fissurer - les morts ne s'accumulent pas pour la prochaine.
+            bool shieldDown = _shieldDown[slot] > 0;
+            if (!shieldDown) _kills[slot]++;
 
             // Le contrecoup ignore le bouclier (c'est une blessure interne) mais il
             // ne peut pas fermer le portail : il s'arrete a un plancher de PV. Tenir
@@ -454,15 +467,16 @@ namespace MNLTHII.Managers
             // barre baisser a l'autre bout du plateau sans savoir pourquoi.
             if (PortalTether.Instance != null) PortalTether.Instance.Discharge(enemy, portal, applied);
 
-            Debug.LogFormat("[Portal] Contrecoup sur ({0},{1}) : -{2} PV ({3}/{4} PV), instabilite {5}/{6}.",
+            GameLog.Say("[Portal] Contrecoup sur ({0},{1}) : -{2} PV ({3}/{4} PV), instabilite {5}/{6}.",
                             portal.positionInTheBoard.q, portal.positionInTheBoard.r,
                             applied, portal.currentHP, portal.maxHP,
                             _kills[slot], InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD);
 
-            if (_kills[slot] >= InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD) BreakShield(portal, slot);
+            if (!shieldDown && _kills[slot] >= InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD) BreakShield(portal, slot);
 
             // Le libelle attend la camera (CrackCameraCut), ou monte seul un peu plus tard.
-            CrackCue(portal, slot, false);
+            // Bouclier deja rompu : rien de neuf a dire, le contrecoup s'est vu sur la barre.
+            if (!shieldDown) CrackCue(portal, slot, false);
 
             portal.RefreshHealthBar();
         }
@@ -472,7 +486,7 @@ namespace MNLTHII.Managers
             _kills[slot] = 0;
             _shieldDown[slot] = InteractionRules.PORTAL_SHIELD_DOWN_TURNS;
 
-            Debug.LogFormat("[Portal] BOUCLIER ROMPU en ({0},{1}) : vulnerable et muet pendant {2} tours.",
+            GameLog.Say("[Portal] BOUCLIER ROMPU en ({0},{1}) : vulnerable et muet pendant {2} tours.",
                             portal.positionInTheBoard.q, portal.positionInTheBoard.r,
                             InteractionRules.PORTAL_SHIELD_DOWN_TURNS);
 
@@ -603,8 +617,14 @@ namespace MNLTHII.Managers
                 {
                     _shieldDown[slot]--;
                     if (_shieldDown[slot] == 0)
-                        Debug.LogFormat("[Portal] Le bouclier de ({0},{1}) s'est reforme.",
+                    {
+                        GameLog.Say("[Portal] Le bouclier de ({0},{1}) s'est reforme.",
                                         portal.positionInTheBoard.q, portal.positionInTheBoard.r);
+
+                        // La bulle est revenue : la barre de vie s'efface, les
+                        // pastilles reprennent (voir Hexagon.RefreshHealthBar).
+                        portal.RefreshHealthBar();
+                    }
 
                     // Un portail sonne ne deploie rien : c'est la contrepartie du bouclier rompu.
                     continue;
@@ -701,7 +721,7 @@ namespace MNLTHII.Managers
                 _announcedCoord.r = portal.positionInTheBoard.r;
                 _announcedCoord.s = portal.positionInTheBoard.s;
 
-                Debug.LogFormat("[Portal] ALERTE : le portail ({0},{1}) prepare une vague de {2} ennemis pour le tour {3}.",
+                GameLog.Say("[Portal] ALERTE : le portail ({0},{1}) prepare une vague de {2} ennemis pour le tour {3}.",
                                 _announcedCoord.q, _announcedCoord.r,
                                 1 + InteractionRules.SURGE_EXTRA_SPAWNS, turn + 1);
 
@@ -775,7 +795,7 @@ namespace MNLTHII.Managers
             portal.currentHP = newHP;
             portal.energy = newHP;
 
-            Debug.LogFormat("[Portal] Un portail evolue au Niveau 2 ({0}/{1} PV, degats reportes).",
+            GameLog.Say("[Portal] Un portail evolue au Niveau 2 ({0}/{1} PV, degats reportes).",
                             newHP, InteractionRules.PORTAL_HP_L2);
 
             if (FXManager.Instance != null) FXManager.Instance.SpawnEnemyFX(portal.transform.position);
@@ -792,9 +812,18 @@ namespace MNLTHII.Managers
             float roll = UnityEngine.Random.value;
             int level;
 
-            if (turn < 7) level = 1;
-            else if (turn < 13) level = (roll < 0.70f) ? 1 : 2;
-            else level = (roll < 0.45f) ? 1 : ((roll < 0.85f) ? 2 : 3);
+            // LA MONTEE EN RANG SUIT LA DIFFICULTE. En Facile les rangs 2 arrivent au
+            // tour 10 et les rangs 3 au tour 18, rares ; en Difficile des le tour 5 et
+            // le tour 10, frequents. Avant, tout le monde avait la courbe du milieu.
+            int rank2From = GameDifficulty.Pick(10, 8, 7);
+            int rank3From = GameDifficulty.Pick(18, 14, 13);
+            float rank2Share = GameDifficulty.Pick(25, 30, 40) / 100f;      // part de rang 2 avant les rangs 3
+            float rank1Late = GameDifficulty.Pick(55, 45, 30) / 100f;       // part de rang 1 une fois les rangs 3 la
+            float rank3Late = GameDifficulty.Pick(10, 15, 25) / 100f;       // part de rang 3
+
+            if (turn < rank2From) level = 1;
+            else if (turn < rank3From) level = (roll < 1f - rank2Share) ? 1 : 2;
+            else level = (roll < rank1Late) ? 1 : ((roll < 1f - rank3Late) ? 2 : 3);
 
             if (portal.level >= 2)
             {
@@ -825,7 +854,7 @@ namespace MNLTHII.Managers
             Hexagon target = FindFreeNeighbour(portal);
             if (target == null)
             {
-                Debug.Log("[Portal] Aucune case libre autour du portail, deploiement reporte.");
+                GameLog.Say("[Portal] Aucune case libre autour du portail, deploiement reporte.");
                 return null;
             }
 
@@ -838,7 +867,7 @@ namespace MNLTHII.Managers
                 enemy.SetOriginPortal(portal.positionInTheBoard);
 
                 totalEnemiesSpawned++;
-                Debug.LogFormat("[Portal] Deploiement d'un ennemi Niveau {0} en ({1},{2}).",
+                GameLog.Say("[Portal] Deploiement d'un ennemi Niveau {0} en ({1},{2}).",
                                 enemyLevel, target.positionInTheBoard.q, target.positionInTheBoard.r);
                 if (FXManager.Instance != null) FXManager.Instance.SpawnEnemyFX(enemy.transform.position);
 
@@ -905,7 +934,7 @@ namespace MNLTHII.Managers
 
             portal.RefreshHealthBar();
 
-            Debug.LogFormat("[Portal] ({0},{1}) se refait : {2}/{3} PV, instabilite {4}/{5}. "
+            GameLog.Say("[Portal] ({0},{1}) se refait : {2}/{3} PV, instabilite {4}/{5}. "
                           + "Personne ne l'a frappe depuis {6} tours.",
                             portal.positionInTheBoard.q, portal.positionInTheBoard.r,
                             portal.currentHP, portal.maxHP,

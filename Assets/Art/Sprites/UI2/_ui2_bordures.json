@@ -1,0 +1,860 @@
+{
+ "ui2_btn_primary_a.png": {
+  "w": 821,
+  "h": 322,
+  "border_LBRT": [
+   72,
+   69,
+   70,
+   58
+  ],
+  "sliced": true
+ },
+ "ui2_btn_primary_b.png": {
+  "w": 828,
+  "h": 327,
+  "border_LBRT": [
+   83,
+   80,
+   82,
+   79
+  ],
+  "sliced": true
+ },
+ "ui2_btn_teal_dim.png": {
+  "w": 768,
+  "h": 264,
+  "border_LBRT": [
+   38,
+   30,
+   38,
+   38
+  ],
+  "sliced": true
+ },
+ "ui2_btn_dark_steel.png": {
+  "w": 821,
+  "h": 316,
+  "border_LBRT": [
+   55,
+   54,
+   53,
+   54
+  ],
+  "sliced": true
+ },
+ "ui2_btn_dark_steel_light.png": {
+  "w": 827,
+  "h": 323,
+  "border_LBRT": [
+   76,
+   75,
+   76,
+   78
+  ],
+  "sliced": true
+ },
+ "ui2_btn_dark_flat.png": {
+  "w": 768,
+  "h": 263,
+  "border_LBRT": [
+   27,
+   26,
+   27,
+   28
+  ],
+  "sliced": true
+ },
+ "ui2_btn_danger_filled.png": {
+  "w": 839,
+  "h": 338,
+  "border_LBRT": [
+   86,
+   85,
+   84,
+   86
+  ],
+  "sliced": true
+ },
+ "ui2_btn_danger_dark.png": {
+  "w": 819,
+  "h": 314,
+  "border_LBRT": [
+   74,
+   75,
+   72,
+   76
+  ],
+  "sliced": true
+ },
+ "ui2_badge_square_red.png": {
+  "w": 273,
+  "h": 270,
+  "border_LBRT": [
+   68,
+   67,
+   65,
+   67
+  ],
+  "sliced": true
+ },
+ "ui2_chip_steel.png": {
+  "w": 385,
+  "h": 181,
+  "border_LBRT": [
+   63,
+   65,
+   62,
+   63
+  ],
+  "sliced": true
+ },
+ "ui2_chip_cyan.png": {
+  "w": 384,
+  "h": 182,
+  "border_LBRT": [
+   63,
+   64,
+   66,
+   64
+  ],
+  "sliced": true
+ },
+ "ui2_chip_gold.png": {
+  "w": 388,
+  "h": 183,
+  "border_LBRT": [
+   67,
+   64,
+   68,
+   68
+  ],
+  "sliced": true
+ },
+ "ui2_chip_red.png": {
+  "w": 388,
+  "h": 185,
+  "border_LBRT": [
+   68,
+   68,
+   68,
+   69
+  ],
+  "sliced": true
+ },
+ "ui2_tag_steel.png": {
+  "w": 184,
+  "h": 106,
+  "border_LBRT": [
+   24,
+   24,
+   24,
+   24
+  ],
+  "sliced": true
+ },
+ "ui2_tag_red.png": {
+  "w": 186,
+  "h": 110,
+  "border_LBRT": [
+   27,
+   28,
+   28,
+   27
+  ],
+  "sliced": true
+ },
+ "ui2_panel_steel_large.png": {
+  "w": 937,
+  "h": 577,
+  "border_LBRT": [
+   38,
+   36,
+   40,
+   39
+  ],
+  "sliced": true
+ },
+ "ui2_panel_cyan.png": {
+  "w": 765,
+  "h": 316,
+  "border_LBRT": [
+   62,
+   59,
+   64,
+   58
+  ],
+  "sliced": true
+ },
+ "ui2_panel_red.png": {
+  "w": 770,
+  "h": 322,
+  "border_LBRT": [
+   68,
+   66,
+   68,
+   66
+  ],
+  "sliced": true
+ },
+ "ui2_plate_circuit_wide.png": {
+  "w": 1559,
+  "h": 262,
+  "border_LBRT": [
+   22,
+   20,
+   21,
+   56
+  ],
+  "sliced": true
+ },
+ "ui2_panel_red_wide.png": {
+  "w": 949,
+  "h": 323,
+  "border_LBRT": [
+   68,
+   65,
+   69,
+   68
+  ],
+  "sliced": true
+ },
+ "ui2_card_steel.png": {
+  "w": 463,
+  "h": 633,
+  "border_LBRT": [
+   26,
+   25,
+   27,
+   25
+  ],
+  "sliced": true
+ },
+ "ui2_card_cyan.png": {
+  "w": 506,
+  "h": 672,
+  "border_LBRT": [
+   63,
+   63,
+   62,
+   63
+  ],
+  "sliced": true
+ },
+ "ui2_card_red.png": {
+  "w": 508,
+  "h": 679,
+  "border_LBRT": [
+   67,
+   68,
+   64,
+   69
+  ],
+  "sliced": true
+ },
+ "ui2_panel_gold_wide.png": {
+  "w": 946,
+  "h": 320,
+  "border_LBRT": [
+   65,
+   63,
+   65,
+   64
+  ],
+  "sliced": true
+ },
+ "ui2_pill_steel_a.png": {
+  "w": 612,
+  "h": 138,
+  "border_LBRT": [
+   32,
+   31,
+   32,
+   32
+  ],
+  "sliced": true
+ },
+ "ui2_pill_red_a.png": {
+  "w": 613,
+  "h": 141,
+  "border_LBRT": [
+   47,
+   45,
+   47,
+   48
+  ],
+  "sliced": true
+ },
+ "ui2_pill_red_b.png": {
+  "w": 614,
+  "h": 141,
+  "border_LBRT": [
+   46,
+   47,
+   47,
+   48
+  ],
+  "sliced": true
+ },
+ "ui2_pill_steel_flat.png": {
+  "w": 584,
+  "h": 110,
+  "border_LBRT": [
+   18,
+   17,
+   18,
+   18
+  ],
+  "sliced": true
+ },
+ "ui2_pill_steel_b.png": {
+  "w": 612,
+  "h": 136,
+  "border_LBRT": [
+   32,
+   31,
+   32,
+   31
+  ],
+  "sliced": true
+ },
+ "ui2_pill_red_c.png": {
+  "w": 614,
+  "h": 139,
+  "border_LBRT": [
+   47,
+   47,
+   46,
+   46
+  ],
+  "sliced": true
+ },
+ "ui2_pill_steel_flat_inner.png": {
+  "w": 584,
+  "h": 109,
+  "border_LBRT": [
+   31,
+   30,
+   31,
+   29
+  ],
+  "sliced": true
+ },
+ "ui2_pill_gold_a.png": {
+  "w": 611,
+  "h": 137,
+  "border_LBRT": [
+   46,
+   47,
+   45,
+   45
+  ],
+  "sliced": true
+ },
+ "ui2_gauge_cyan_half.png": {
+  "w": 610,
+  "h": 95,
+  "border_LBRT": [
+   36,
+   38,
+   141,
+   37
+  ],
+  "sliced": false
+ },
+ "ui2_gauge_cyan_full.png": {
+  "w": 600,
+  "h": 94,
+  "border_LBRT": [
+   34,
+   38,
+   22,
+   37
+  ],
+  "sliced": false
+ },
+ "ui2_pill_gold_b.png": {
+  "w": 610,
+  "h": 114,
+  "border_LBRT": [
+   46,
+   47,
+   48,
+   45
+  ],
+  "sliced": true
+ },
+ "ui2_bar_cyan_s.png": {
+  "w": 273,
+  "h": 67,
+  "border_LBRT": [
+   23,
+   29,
+   22,
+   29
+  ],
+  "sliced": true
+ },
+ "ui2_bar_teal_thin.png": {
+  "w": 241,
+  "h": 22,
+  "border_LBRT": [
+   12,
+   4,
+   12,
+   4
+  ],
+  "sliced": true
+ },
+ "ui2_gauge_red_half.png": {
+  "w": 608,
+  "h": 95,
+  "border_LBRT": [
+   37,
+   38,
+   207,
+   37
+  ],
+  "sliced": false
+ },
+ "ui2_gauge_red_full.png": {
+  "w": 609,
+  "h": 96,
+  "border_LBRT": [
+   36,
+   40,
+   35,
+   38
+  ],
+  "sliced": false
+ },
+ "ui2_tick_white.png": {
+  "w": 38,
+  "h": 81,
+  "border_LBRT": [
+   4,
+   17,
+   4,
+   36
+  ],
+  "sliced": false
+ },
+ "ui2_bar_cyan_m.png": {
+  "w": 274,
+  "h": 66,
+  "border_LBRT": [
+   24,
+   29,
+   22,
+   28
+  ],
+  "sliced": true
+ },
+ "ui2_bar_teal_m.png": {
+  "w": 244,
+  "h": 46,
+  "border_LBRT": [
+   12,
+   20,
+   12,
+   20
+  ],
+  "sliced": true
+ },
+ "ui2_bar_red_m.png": {
+  "w": 273,
+  "h": 68,
+  "border_LBRT": [
+   23,
+   30,
+   22,
+   29
+  ],
+  "sliced": true
+ },
+ "ui2_bar_grey_thin.png": {
+  "w": 244,
+  "h": 23,
+  "border_LBRT": [
+   12,
+   10,
+   12,
+   10
+  ],
+  "sliced": true
+ },
+ "ui2_gauge_gold_half.png": {
+  "w": 606,
+  "h": 95,
+  "border_LBRT": [
+   35,
+   29,
+   272,
+   29
+  ],
+  "sliced": false
+ },
+ "ui2_gauge_gold_full.png": {
+  "w": 608,
+  "h": 93,
+  "border_LBRT": [
+   36,
+   36,
+   36,
+   37
+  ],
+  "sliced": false
+ },
+ "ui2_bar_cyan_l.png": {
+  "w": 278,
+  "h": 79,
+  "border_LBRT": [
+   25,
+   30,
+   24,
+   30
+  ],
+  "sliced": true
+ },
+ "ui2_bar_teal_l.png": {
+  "w": 249,
+  "h": 60,
+  "border_LBRT": [
+   12,
+   20,
+   12,
+   23
+  ],
+  "sliced": true
+ },
+ "ui2_bar_red_l.png": {
+  "w": 281,
+  "h": 79,
+  "border_LBRT": [
+   26,
+   30,
+   26,
+   30
+  ],
+  "sliced": true
+ },
+ "ui2_bar_grey_m.png": {
+  "w": 243,
+  "h": 31,
+  "border_LBRT": [
+   12,
+   12,
+   12,
+   12
+  ],
+  "sliced": true
+ },
+ "ui2_frame_steel_thin.png": {
+  "w": 788,
+  "h": 120,
+  "border_LBRT": [
+   4,
+   4,
+   4,
+   4
+  ],
+  "sliced": true
+ },
+ "ui2_deco_circuit_a.png": {
+  "w": 314,
+  "h": 36,
+  "border_LBRT": [
+   92,
+   4,
+   141,
+   4
+  ],
+  "sliced": false
+ },
+ "ui2_deco_circuit_b.png": {
+  "w": 458,
+  "h": 34,
+  "border_LBRT": [
+   53,
+   4,
+   58,
+   4
+  ],
+  "sliced": false
+ },
+ "ui2_divider_steel_dots.png": {
+  "w": 791,
+  "h": 25,
+  "border_LBRT": [
+   12,
+   4,
+   12,
+   4
+  ],
+  "sliced": false
+ },
+ "ui2_divider_steel_b.png": {
+  "w": 796,
+  "h": 25,
+  "border_LBRT": [
+   15,
+   4,
+   16,
+   4
+  ],
+  "sliced": false
+ },
+ "ui2_divider_hex_ends.png": {
+  "w": 791,
+  "h": 25,
+  "border_LBRT": [
+   28,
+   4,
+   27,
+   4
+  ],
+  "sliced": false
+ },
+ "ui2_divider_chevrons.png": {
+  "w": 800,
+  "h": 28,
+  "border_LBRT": [
+   4,
+   4,
+   4,
+   4
+  ],
+  "sliced": false
+ },
+ "ui2_bracket_cyan_top.png": {
+  "w": 766,
+  "h": 99,
+  "border_LBRT": [
+   344,
+   4,
+   4,
+   4
+  ],
+  "sliced": false
+ },
+ "ui2_divider_cyan_circuit.png": {
+  "w": 790,
+  "h": 36,
+  "border_LBRT": [
+   195,
+   4,
+   196,
+   4
+  ],
+  "sliced": false
+ },
+ "ui2_divider_chevrons_b.png": {
+  "w": 797,
+  "h": 40,
+  "border_LBRT": [
+   4,
+   4,
+   4,
+   4
+  ],
+  "sliced": false
+ },
+ "ui2_tab_red_a.png": {
+  "w": 395,
+  "h": 144,
+  "border_LBRT": [
+   49,
+   45,
+   49,
+   45
+  ],
+  "sliced": true
+ },
+ "ui2_tab_red_b.png": {
+  "w": 410,
+  "h": 143,
+  "border_LBRT": [
+   49,
+   41,
+   46,
+   48
+  ],
+  "sliced": true
+ },
+ "ui2_tab_orange.png": {
+  "w": 414,
+  "h": 144,
+  "border_LBRT": [
+   49,
+   44,
+   48,
+   47
+  ],
+  "sliced": true
+ },
+ "ui2_tab_gold.png": {
+  "w": 412,
+  "h": 143,
+  "border_LBRT": [
+   48,
+   41,
+   46,
+   44
+  ],
+  "sliced": true
+ },
+ "ui2_tab_steel.png": {
+  "w": 386,
+  "h": 129,
+  "border_LBRT": [
+   18,
+   18,
+   17,
+   29
+  ],
+  "sliced": true
+ },
+ "ui2_tab_steel_b.png": {
+  "w": 386,
+  "h": 119,
+  "border_LBRT": [
+   17,
+   18,
+   17,
+   19
+  ],
+  "sliced": true
+ },
+ "ui2_tab_red_a_on.png": {
+  "w": 395,
+  "h": 144,
+  "border_LBRT": [
+   50,
+   44,
+   47,
+   43
+  ],
+  "sliced": true
+ },
+ "ui2_tab_red_b_on.png": {
+  "w": 411,
+  "h": 145,
+  "border_LBRT": [
+   48,
+   43,
+   47,
+   42
+  ],
+  "sliced": true
+ },
+ "ui2_tab_orange_on.png": {
+  "w": 412,
+  "h": 145,
+  "border_LBRT": [
+   46,
+   50,
+   46,
+   39
+  ],
+  "sliced": true
+ },
+ "ui2_tab_gold_on.png": {
+  "w": 411,
+  "h": 144,
+  "border_LBRT": [
+   46,
+   45,
+   44,
+   41
+  ],
+  "sliced": true
+ },
+ "ui2_tab_steel_on.png": {
+  "w": 385,
+  "h": 118,
+  "border_LBRT": [
+   18,
+   18,
+   18,
+   18
+  ],
+  "sliced": true
+ },
+ "ui2_tab_steel_b_on.png": {
+  "w": 386,
+  "h": 118,
+  "border_LBRT": [
+   18,
+   18,
+   18,
+   20
+  ],
+  "sliced": true
+ },
+ "ui2_chevron_gold.png": {
+  "w": 169,
+  "h": 176,
+  "border_LBRT": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "sliced": false
+ },
+ "ui2_marker_guard.png": {
+  "w": 69,
+  "h": 76,
+  "border_LBRT": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "sliced": false
+ },
+ "ui2_marker_assault.png": {
+  "w": 82,
+  "h": 84,
+  "border_LBRT": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "sliced": false
+ },
+ "ui2_marker_hunt.png": {
+  "w": 82,
+  "h": 81,
+  "border_LBRT": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "sliced": false
+ },
+ "ui2_badge_crack_hex.png": {
+  "w": 141,
+  "h": 170,
+  "border_LBRT": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "sliced": false
+ },
+ "ui2_badge_warning.png": {
+  "w": 133,
+  "h": 157,
+  "border_LBRT": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "sliced": false
+ }
+}

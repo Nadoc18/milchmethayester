@@ -70,6 +70,13 @@ namespace MNLTHII.Managers
         public Image baseFill;
         public TMPro.TextMeshProUGUI baseHpText;
 
+        [Tooltip("Optionnel : Tanks en vie / plafond du commandement (InteractionRules.TankCap).")]
+        public TMPro.TextMeshProUGUI tankCountText;
+        [Tooltip("Modele du compteur de Tanks, avec {0} en vie et {1} au plafond.")]
+        public string tankCountFormat = "{0}/{1}";
+        [Tooltip("Couleur du compteur quand l'armee est au complet.")]
+        public Color tankCapFullColor = new Color(1f, 0.62f, 0.25f);
+
         [Header("Actions")]
         [Tooltip("Bouton de fin de tour. Il n'apparait que pendant la phase de depense.")]
         public Button endTurnButton;
@@ -80,6 +87,10 @@ namespace MNLTHII.Managers
         public Color phaseIdleColor = new Color(0.36f, 0.42f, 0.55f);
         public Color phaseDoneColor = new Color(0.24f, 0.88f, 0.82f, 0.42f);
         public Color phaseActiveColor = new Color(0.24f, 0.88f, 0.82f);
+        [Tooltip("Le trait de la phase du Yetzer Hara quand elle est en cours : rouge, c'est lui qui joue.")]
+        public Color phaseEnemyColor = new Color(1f, 0.36f, 0.42f);
+        [Tooltip("Le libelle de la phase en cours. Blanc : il se detache des autres, qui restent dans la couleur de leur trait.")]
+        public Color phaseActiveLabelColor = Color.white;
 
         public Color portalAliveColor = new Color(1f, 0.42f, 0.29f);
         public Color portalDownColor = new Color(0.49f, 0.63f, 1f, 0.18f);
@@ -107,6 +118,18 @@ namespace MNLTHII.Managers
             public TMPro.TextMeshProUGUI label;
         }
 
+        [Header("Traits des phases (images de Dan, optionnelles)")]
+        [Tooltip("Renseignes, le trait change d'IMAGE selon l'etat au lieu de couleur : passee, en cours, a venir.")]
+        public Sprite phaseDoneSprite;
+        public Sprite phaseActiveSprite;
+        public Sprite phaseIdleSprite;
+        [Tooltip("Le trait de la phase du Yetzer Hara quand elle est en cours (rouge). Vide : phaseActiveSprite.")]
+        public Sprite phaseEnemySprite;
+
+        [Header("Pastilles des Shofars (images de Dan, optionnelles)")]
+        public Sprite portalDotAliveSprite;
+        public Sprite portalDotDownSprite;
+
         // =================================================================
         //  ETAT MEMORISE
         //  Rien n'est reecrit tant que la valeur n'a pas change : sans ces
@@ -120,6 +143,10 @@ namespace MNLTHII.Managers
         private int _lastTurn = int.MinValue;
         private int _lastPortals = int.MinValue;
         private int _lastBaseHP = int.MinValue;
+        private int _lastTanks = int.MinValue;
+        private int _lastTankCap = int.MinValue;
+        private Color _tankCountIdleColor = Color.white;
+        private bool _tankCountColorKnown;
         private int _lastPhase = int.MinValue;
         private bool _lastSpending;
 
@@ -373,17 +400,39 @@ namespace MNLTHII.Managers
                 Color color;
                 if (activeIndex < 0) color = phaseIdleColor;
                 else if (i < activeIndex) color = phaseDoneColor;
-                else if (i == activeIndex) color = phaseActiveColor;
+                else if (i == activeIndex) color = (i == 3) ? phaseEnemyColor : phaseActiveColor;
                 else color = phaseIdleColor;
 
-                if (step.bar != null) step.bar.color = color;
+                bool current = (i == activeIndex);
+
+                if (step.bar != null)
+                {
+                    // Avec les images de Dan, le trait change d'image et reste blanc ;
+                    // sans elles, il change de couleur comme avant.
+                    Sprite wanted = null;
+                    if (phaseIdleSprite != null)
+                    {
+                        if (activeIndex < 0 || i > activeIndex) wanted = phaseIdleSprite;
+                        else if (i < activeIndex) wanted = phaseDoneSprite;
+                        else wanted = (i == 3 && phaseEnemySprite != null) ? phaseEnemySprite : phaseActiveSprite;
+                    }
+
+                    if (wanted != null)
+                    {
+                        step.bar.sprite = wanted;
+                        step.bar.color = Color.white;
+                    }
+                    else step.bar.color = color;
+                }
 
                 if (step.label != null)
                 {
-                    // Le libelle de l'etape courante est franc ; les autres reculent.
-                    Color textColor = color;
-                    if (i != activeIndex) textColor.a = 0.65f;
+                    // Le libelle de l'etape courante est franc (blanc) ; les autres
+                    // reculent, dans la couleur de leur trait.
+                    Color textColor = current ? phaseActiveLabelColor : color;
+                    if (!current) textColor.a = 0.65f;
                     step.label.color = textColor;
+                    step.label.fontStyle = current ? TMPro.FontStyles.Bold : TMPro.FontStyles.Normal;
                 }
             }
         }
@@ -409,11 +458,19 @@ namespace MNLTHII.Managers
                         for (int i = 0; i < portalDots.Length; i++)
                         {
                             if (portalDots[i] == null) continue;
-                            portalDots[i].color = (i < alive) ? portalAliveColor : portalDownColor;
+                            bool on = (i < alive);
+                            if (portalDotAliveSprite != null && portalDotDownSprite != null)
+                            {
+                                portalDots[i].sprite = on ? portalDotAliveSprite : portalDotDownSprite;
+                                portalDots[i].color = Color.white;
+                            }
+                            else portalDots[i].color = on ? portalAliveColor : portalDownColor;
                         }
                     }
                 }
             }
+
+            RefreshTankCount(force);
 
             BuildingManager buildings = BuildingManager.Instance;
             if (buildings == null) return;
@@ -439,6 +496,31 @@ namespace MNLTHII.Managers
                 baseHpText.SetText("{0}", hp);
                 baseHpText.color = tint;
             }
+        }
+
+        /// <summary>
+        /// Tanks en vie sur le plafond du commandement. Le compteur passe a la
+        /// couleur d'alerte quand l'armee est au complet : c'est le moment de batir
+        /// un Centre, ou de faire evoluer plutot que de poser.
+        /// </summary>
+        private void RefreshTankCount(bool force)
+        {
+            if (tankCountText == null) return;
+
+            int tanks = InteractionRules.CountTanks();
+            int cap = InteractionRules.TankCap();
+            if (!force && tanks == _lastTanks && cap == _lastTankCap) return;
+            _lastTanks = tanks;
+            _lastTankCap = cap;
+
+            if (!_tankCountColorKnown)
+            {
+                _tankCountIdleColor = tankCountText.color;
+                _tankCountColorKnown = true;
+            }
+
+            tankCountText.SetText(tankCountFormat, tanks, cap);
+            tankCountText.color = (tanks >= cap) ? tankCapFullColor : _tankCountIdleColor;
         }
 
         // ---------------------------------------------------------------

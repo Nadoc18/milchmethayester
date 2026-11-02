@@ -51,12 +51,20 @@ Shader "MNLTH/BoardCalm"
         #pragma surface surf Standard fullforwardshadows
         #pragma target 3.0
 
+        // INSTANCIATION GPU. Les 169 cases du plateau partagent une poignee de
+        // materiaux calmes et quelques maillages : sans cette ligne, chacune est un
+        // appel de dessin a elle seule. Avec, le GPU les dessine par paquets.
+        //
+        // _Color passe dans le tampon d'instance parce que Hexagon.FlashHit la change
+        // case par case (MaterialPropertyBlock) : une propriete modifiee par renderer
+        // et PAS declaree ici casserait justement l'instanciation qu'on vient d'ajouter.
+        #pragma multi_compile_instancing
+
         sampler2D _MainTex;
         sampler2D _BumpMap;
         sampler2D _MetallicGlossMap;
         sampler2D _EmissionMap;
 
-        fixed4 _Color;
         half _BumpScale;
         half _UseMetallicMap;
         half _Metallic;
@@ -78,6 +86,10 @@ Shader "MNLTH/BoardCalm"
             float2 uv_MainTex;
         };
 
+        UNITY_INSTANCING_BUFFER_START(Props)
+            UNITY_DEFINE_INSTANCED_PROP(fixed4, _Color)
+        UNITY_INSTANCING_BUFFER_END(Props)
+
         half Luma(half3 c)
         {
             return dot(c, half3(0.299, 0.587, 0.114));
@@ -98,7 +110,7 @@ Shader "MNLTH/BoardCalm"
 
         void surf (Input IN, inout SurfaceOutputStandard o)
         {
-            fixed4 albedo = tex2D(_MainTex, IN.uv_MainTex) * _Color;
+            fixed4 albedo = tex2D(_MainTex, IN.uv_MainTex) * UNITY_ACCESS_INSTANCED_PROP(Props, _Color);
 
             // Colorisation (plaines) : la teinte portee par la luminance du modele,
             // un peu relevee pour que la case ne s'assombrisse pas.

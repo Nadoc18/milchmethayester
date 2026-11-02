@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using MNLTHII;
 using MNLTHII.Rules;
+using MNLTHII.Dev;
 
 namespace MNLTHII.Managers
 {
@@ -202,7 +203,7 @@ namespace MNLTHII.Managers
                     if (shotCost > 0 && energy != null && !energy.CanAfford(shotCost))
                     {
                         if (fired == 0)
-                            Debug.LogFormat("[Bunker] Plus assez d'Energie ({0} par tir) : ce bunker se tait.", shotCost);
+                            GameLog.Say("[Bunker] Plus assez d'Energie ({0} par tir) : ce bunker se tait.", shotCost);
                         break;
                     }
 
@@ -265,7 +266,7 @@ namespace MNLTHII.Managers
                 if (fired > 0)
                 {
                     if (FXManager.Instance != null) FXManager.Instance.PlayAttackSFX();
-                    Debug.LogFormat("[Bunker] {0} tir(s) de {1} degats, {2} abattu(s), {3} Energie, "
+                    GameLog.Say("[Bunker] {0} tir(s) de {1} degats, {2} abattu(s), {3} Energie, "
                                   + "{4} PV d'usure ({5}/{6} restants).",
                                     fired, damage, kills, spent,
                                     fired * InteractionRules.BUNKER_WEAR_PER_SHOT,
@@ -309,7 +310,7 @@ namespace MNLTHII.Managers
 
             if (bunker.currentHP <= 0)
             {
-                Debug.Log("[Bunker] Il a tire jusqu'a sa derniere munition, il s'effondre.");
+                GameLog.Say("[Bunker] Il a tire jusqu'a sa derniere munition, il s'effondre.");
                 InteractionRules.DestroyBuilding(bunker);
             }
         }
@@ -581,7 +582,7 @@ namespace MNLTHII.Managers
 
                     if (mountain.currentHP <= 0)
                     {
-                        Debug.Log("[Montagne] Centre de Commandement epuise, il s'effondre.");
+                        GameLog.Say("[Montagne] Centre de Commandement epuise, il s'effondre.");
                         InteractionRules.DestroyBuilding(mountain);
                     }
                 }
@@ -727,8 +728,30 @@ namespace MNLTHII.Managers
 
             baseHP -= amount;
             if (baseHP < 0) baseHP = 0;
-            Debug.LogFormat("[Base] {0} degats. PV restants : {1} / {2}", amount, baseHP, InteractionRules.BASE_HP);
+            GameLog.Say("[Base] {0} degats. PV restants : {1} / {2}", amount, baseHP, InteractionRules.BASE_HP);
             SyncBaseHexes();
+        }
+
+        /// <summary>
+        /// Rend des PV a la Base. Renvoie ce qui a reellement ete rendu : zero si elle
+        /// est deja pleine, ce qui permet a l'appelant de ne rien facturer.
+        /// </summary>
+        public int RepairBase(int amount)
+        {
+            if (amount <= 0) return 0;
+            if (!baseInitialized) InitializeBase();
+
+            int before = baseHP;
+            baseHP += amount;
+            if (baseHP > InteractionRules.BASE_HP) baseHP = InteractionRules.BASE_HP;
+
+            int healed = baseHP - before;
+            if (healed > 0)
+            {
+                GameLog.Say("[Base] Reparee de {0} PV : {1} / {2}", healed, baseHP, InteractionRules.BASE_HP);
+                SyncBaseHexes();
+            }
+            return healed;
         }
 
         /// <summary>Recopie le stock commun sur chaque hexagone de Base (barres de vie, FX).</summary>

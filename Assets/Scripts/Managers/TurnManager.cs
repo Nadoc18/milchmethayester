@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using UnityEngine;
 using MNLTHII;
 using MNLTHII.Rules;
+using MNLTHII.Dev;
 
 namespace MNLTHII.Managers
 {
@@ -221,7 +222,7 @@ namespace MNLTHII.Managers
 
         private IEnumerator StartTurnRoutine()
         {
-            Debug.Log("[TurnManager] --- Debut du tour " + currentTurn + " ---");
+            GameLog.Say("[TurnManager] --- Debut du tour " + currentTurn + " ---");
 
             isPlayerTurn = true;
             phase = TurnPhase.Income;
@@ -254,7 +255,7 @@ namespace MNLTHII.Managers
             // au debut du tour ne servait plus qu'a rallonger l'attente.
             int passive = InteractionRules.GrantBaseIncome();
 
-            Debug.LogFormat("[Economie] Plancher de la Base : +{0} Energie.", passive);
+            GameLog.Say("[Economie] Plancher de la Base : +{0} Energie.", passive);
 
             // --- 1. L'ouverture du tour ---
             // Un tour doit COMMENCER quelque part, visiblement. Sans cet ecran la
@@ -468,7 +469,7 @@ namespace MNLTHII.Managers
             // chose. Pendant les phases jouees, il se tait.
             if (AdvisorPanel.Instance != null) AdvisorPanel.Instance.Refresh();
 
-            Debug.LogFormat("[TurnManager] Phase de depense. Solde : {0} Energie. Espace pour terminer, Tab pour voir la menace.", energy);
+            GameLog.Say("[TurnManager] Phase de depense. Solde : {0} Energie. Espace pour terminer, Tab pour voir la menace.", energy);
         }
 
         /// <summary>
@@ -558,7 +559,7 @@ namespace MNLTHII.Managers
             // proposerait de construire un Tank sur une case qui vient d'en recevoir un.
             if (AdvisorPanel.Instance != null) AdvisorPanel.Instance.Refresh();
 
-            Debug.LogFormat("[TurnManager] Action : {0}. Solde : {1}.", outcome, energy);
+            GameLog.Say("[TurnManager] Action : {0}. Solde : {1}.", outcome, energy);
             return outcome;
         }
 
@@ -657,6 +658,10 @@ namespace MNLTHII.Managers
             // eteintes n'apprend rien. L'ancien chemin renvoie Blocked_NotEnoughEnergy,
             // et c'est ce message-la qui est utile.
             if (energy < InteractionRules.TANK_CREATION_COST) return false;
+
+            // Armee au complet : pas d'ecran non plus. L'ancien chemin renvoie
+            // Blocked_TankCap.
+            if (!InteractionRules.CanAddTank()) return false;
 
             _pendingTank = null;
             _pendingTankHex = hex;
@@ -869,10 +874,7 @@ namespace MNLTHII.Managers
                         {
                             UnitActionCard.Move(tank);
 
-                            int crystalSteps = tank.moveRange > 0 ? tank.moveRange : 1;
-                            if (BuildingManager.Instance != null
-                                && BuildingManager.Instance.HasCommandSupport(tank.hexcoord))
-                                crystalSteps += InteractionRules.MOUNTAIN_MOVE_BONUS;
+                            int crystalSteps = InteractionRules.GetTankSteps(tank);
 
                             for (int s = 0; s < crystalSteps; s++)
                             {
@@ -929,6 +931,11 @@ namespace MNLTHII.Managers
 
                     tank.attackCoord = targetCoord;
                     tank.ApplySequenceAnimation(PawnController.TypeOfPawnInteractions.attack);
+
+                    // LE LASER BLEU : il part maintenant et met UnitAim a arriver, donc
+                    // le coup (ResolveCombat, juste apres l'attente) tombe quand sa
+                    // tete touche la cible.
+                    CombatTracer.Fire(tank, targetPawn, targetHex);
                     yield return _pace.For(PhasePace.UnitAim);
 
                     // L'origine de la victime AVANT le coup : si elle meurt, son objet
@@ -964,14 +971,10 @@ namespace MNLTHII.Managers
                     // qu'il entre a portee de tir.
                     UnitActionCard.Move(tank);
 
-                    int steps = tank.moveRange > 0 ? tank.moveRange : 1;
-
-                    // Sous le commandement d'un Centre : une case de plus. C'est ce qui
-                    // ramene un Shofar a sept cases dans le temps d'une fenetre de
-                    // bouclier au lieu du double.
-                    if (BuildingManager.Instance != null
-                        && BuildingManager.Instance.HasCommandSupport(tank.hexcoord))
-                        steps += InteractionRules.MOUNTAIN_MOVE_BONUS;
+                    // Rang, posture et commandement d'un Centre : tout est dans
+                    // InteractionRules.GetTankSteps, et la carte d'unite affiche le
+                    // meme chiffre.
+                    int steps = InteractionRules.GetTankSteps(tank);
 
                     // Vers une cible hostile, on s'arrete des qu'elle est a portee de
                     // tir ; vers un point de garde allie, on vient se poster a cote.
@@ -1358,7 +1361,7 @@ namespace MNLTHII.Managers
             // n'aurait aucun sens, et la liste se remplirait de fantomes.
             SaveManager.ForgetCurrentGame();
 
-            Debug.Log("[TurnManager] Fin de partie : " + state);
+            GameLog.Say("[TurnManager] Fin de partie : " + state);
 
             if (GameManager.instance != null)
             {
@@ -1419,7 +1422,7 @@ namespace MNLTHII.Managers
                 data = currentBoardData
             });
 
-            Debug.Log(json);
+            GameLog.Say(json);
         }
     }
 }

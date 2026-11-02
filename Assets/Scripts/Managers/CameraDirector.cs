@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using MNLTHII.Dev;
 
 namespace MNLTHII.Managers
 {
@@ -212,7 +213,7 @@ namespace MNLTHII.Managers
             // le cadreur a trouve une prise et sur quoi il va agir : sans elle, une
             // camera qui ne bouge pas peut aussi bien venir d'un composant absent,
             // d'un pivot manquant ou d'un Animator qui ecrase tout.
-            Debug.LogFormat("[Camera] Cadreur pret sur \"{0}\". Distance de repos {1:0.0}, "
+            GameLog.Say("[Camera] Cadreur pret sur \"{0}\". Distance de repos {1:0.0}, "
                           + "plan rapproche a {2:0.00} de cette distance.",
                             pivot.name, _restDistance, closeUpFactor);
         }

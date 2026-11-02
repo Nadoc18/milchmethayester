@@ -12,7 +12,20 @@ namespace MNLTHII.Managers
             if (lineRenderer == null)
             {
                 lineRenderer = gameObject.AddComponent<LineRenderer>();
-                lineRenderer.material = new Material(Shader.Find("Legacy Shaders/Particles/Additive"));
+
+                // Shader.Find ne trouve, dans un build, que les shaders effectivement
+                // inclus : un shader "Legacy" absent renvoie null, et un materiau sans
+                // shader se voit en magenta. On passe donc par le shader de Resources
+                // deja utilise par les traits de tir, avec un repli integre.
+                Shader shader = Resources.Load<Shader>("Shaders/MNLTH_GroundDecal");
+                if (shader == null) shader = Shader.Find("Sprites/Default");
+                if (shader == null) shader = Shader.Find("Unlit/Color");
+
+                if (shader != null)
+                {
+                    _generated = new Material(shader) { name = "Laser" };
+                    lineRenderer.material = _generated;
+                }
             }
             
             lineRenderer.startWidth = 0.5f;
@@ -27,6 +40,13 @@ namespace MNLTHII.Managers
             StartCoroutine(FadeOut(duration));
         }
         
+        private Material _generated;
+
+        private void OnDestroy()
+        {
+            if (_generated != null) { Destroy(_generated); _generated = null; }
+        }
+
         private IEnumerator FadeOut(float duration)
         {
             float elapsed = 0f;

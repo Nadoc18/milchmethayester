@@ -101,10 +101,10 @@ namespace MNLTHII.Rules
         //  LES REGLAGES
         // =================================================================
         /// <summary>PV des ennemis, en pourcentage de la valeur de base.</summary>
-        public static int EnemyHpPercent { get { return Pick(70, 85, 100); } }
+        public static int EnemyHpPercent { get { return Pick(60, 75, 90); } }
 
         /// <summary>Degats des ennemis, en pourcentage de la valeur de base.</summary>
-        public static int EnemyDamagePercent { get { return Pick(70, 85, 100); } }
+        public static int EnemyDamagePercent { get { return Pick(60, 75, 90); } }
 
         /// <summary>Applique un pourcentage, arrondi, jamais sous 1.</summary>
         public static int Scale(int value, int percent)

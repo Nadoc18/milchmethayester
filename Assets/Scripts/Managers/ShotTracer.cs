@@ -92,7 +92,7 @@ namespace MNLTHII.Managers
                 return false;
             }
 
-            _material = new Material(shader) { name = "Trait de tir" };
+            _material = new Material(shader) { name = "Trait de tir", enableInstancing = true };
             _material.SetTexture(MainTexId, Texture2D.whiteTexture);
             _material.SetFloat(SrcBlendId, (float)BlendMode.SrcAlpha);
             _material.SetFloat(DstBlendId, (float)BlendMode.One);   // additif : il eclaire

@@ -245,6 +245,19 @@ public class Hexagon : MonoBehaviour
         if (type != TypeOfHex.portal && type != TypeOfHex.hill && type != TypeOfHex.mountain
             && type != TypeOfHex.gas && type != TypeOfHex.crystal) return;
 
+        // UN SHOFAR SOUS SA BULLE NE MONTRE PAS SES PV. Tant que la bulle tient, ce
+        // qui compte se lit sur les pastilles de fissure (PortalStatusVisual) ; la
+        // barre de vie ne s'allume que bulle rompue, quand les coups portent vraiment.
+        // Deux jauges a la fois sur le meme batiment, et on ne savait plus laquelle
+        // regarder.
+        if (type == TypeOfHex.portal
+            && MNLTHII.Managers.PortalManager.Instance != null
+            && !MNLTHII.Managers.PortalManager.Instance.IsShieldDown(this))
+        {
+            if (_healthBar != null) _healthBar.Hide();
+            return;
+        }
+
         if (_healthBar == null)
         {
             _healthBar = gameObject.AddComponent<MNLTHII.UI.FloatingHealthBar>();

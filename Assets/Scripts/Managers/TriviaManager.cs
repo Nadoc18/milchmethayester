@@ -6,6 +6,7 @@ using UnityEngine.Events;
 using Michsky.UI.Reach;
 using MNLTHII;
 using MNLTHII.Rules;
+using MNLTHII.Dev;
 
 /// <summary>
 /// Le Trivia (Halacha, Tanakh, Musar, Tefillah).
@@ -177,7 +178,7 @@ public class TriviaManager : MonoBehaviour
         BuildCategoryBags();
         ResetDraw();
 
-        Debug.LogFormat("[Trivia] {0} question(s) chargee(s) : {1} Halacha, {2} Tanakh, {3} Moussar, {4} Tefila.",
+        GameLog.Say("[Trivia] {0} question(s) chargee(s) : {1} Halacha, {2} Tanakh, {3} Moussar, {4} Tefila.",
                         questionsLoaded,
                         _byCategory[0].Count, _byCategory[1].Count,
                         _byCategory[2].Count, _byCategory[3].Count);
@@ -301,7 +302,7 @@ public class TriviaManager : MonoBehaviour
         // Plateau verrouille : l'ecran de choix est modal, comme la question.
         if (GameManager.instance != null) GameManager.instance.canClickOrHover = false;
 
-        Debug.LogFormat("[Trivia] Choix du sujet : {0} {1}, {2} {3}, {4} {5}, {6} {7}.",
+        GameLog.Say("[Trivia] Choix du sujet : {0} {1}, {2} {3}, {4} {5}, {6} {7}.",
                         _offerKeys[0], _offerRewards[0], _offerKeys[1], _offerRewards[1],
                         _offerKeys[2], _offerRewards[2], _offerKeys[3], _offerRewards[3]);
 
@@ -376,7 +377,7 @@ public class TriviaManager : MonoBehaviour
         _forcedIndex = _offerBankIndex[slot];
         _offerBankIndex[slot] = -1;
 
-        Debug.LogFormat("[Trivia] Sujet choisi : {0}, palier {1}, gain {2}.",
+        GameLog.Say("[Trivia] Sujet choisi : {0}, palier {1}, gain {2}.",
                         CategoryKeys[slot], _offerDifficulties[slot], _offerRewards[slot]);
 
         AskQuestion(null);
@@ -446,7 +447,7 @@ public class TriviaManager : MonoBehaviour
 
         // Trace de controle : si cette ligne montre l'enonce mais que l'ecran ne l'affiche
         // pas, le probleme est dans l'UI (champ non assigne, police sans glyphes, etc.).
-        Debug.LogFormat("[Trivia] {0} : {1}", categoryLabel, _current.question);
+        GameLog.Say("[Trivia] {0} : {1}", categoryLabel, _current.question);
 
         // --- Panneau hebreu dedie : il remplace entierement la modale Reach ---
         // On lui passe la CLE latine de la categorie, pas le libelle : c'est lui
@@ -560,12 +561,12 @@ public class TriviaManager : MonoBehaviour
 
     private void LogAnswer(int answerIndex, bool isCorrect)
     {
-        if (answerIndex == -1) Debug.Log("[Trivia] Temps ecoule : aucun revenu de Trivia ce tour.");
-        else if (isCorrect) Debug.LogFormat("[Trivia] Bonne reponse ({0}, palier {1}) : +{2} Energie.",
+        if (answerIndex == -1) GameLog.Say("[Trivia] Temps ecoule : aucun revenu de Trivia ce tour.");
+        else if (isCorrect) GameLog.Say("[Trivia] Bonne reponse ({0}, palier {1}) : +{2} Energie.",
                                             currentCategory,
                                             (_current != null) ? _current.difficulty : 1,
                                             _currentReward);
-        else Debug.Log("[Trivia] Mauvaise reponse : aucun revenu de Trivia ce tour.");
+        else GameLog.Say("[Trivia] Mauvaise reponse : aucun revenu de Trivia ce tour.");
     }
 
     /// <summary>

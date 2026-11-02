@@ -172,6 +172,23 @@ namespace MNLTHII.UI
             _activeRoutine = StartCoroutine(AnimateBar(fillRatio));
         }
 
+        /// <summary>
+        /// Eteint la barre tout de suite, meme permanente. Un Shofar dont la bulle
+        /// tient ne montre pas ses PV (ce sont les pastilles de fissure qui parlent) ;
+        /// la barre ne s'allume que bulle rompue.
+        /// </summary>
+        public void Hide()
+        {
+            if (_activeRoutine != null)
+            {
+                StopCoroutine(_activeRoutine);
+                _activeRoutine = null;
+            }
+
+            _persistent = false;
+            if (_canvasGroup != null) _canvasGroup.alpha = 0f;
+        }
+
         private IEnumerator AnimateBar(float targetRatio)
         {
             float startWidth = _fillRect.sizeDelta.x;

@@ -19,7 +19,13 @@ namespace MNLTHII.Rules
         EvolveTank,
 
         /// <summary>Construire ou monter d'un niveau un terrain.</summary>
-        Build
+        Build,
+
+        /// <summary>
+        /// Envoyer un Tank rejoindre le Cristal le plus proche. Gratuit : c'est un
+        /// ordre de marche, l'evolution se paie en arrivant.
+        /// </summary>
+        SeekCrystal
     }
 
     /// <summary>
@@ -110,7 +116,15 @@ namespace MNLTHII.Rules
         public const int REASON_NO_ASSAULT = 6;
         public const int REASON_PORTAL_REGEN = 7;
         public const int REASON_BRIDGEHEAD = 8;
-        public const int REASON_COUNT = 9;
+
+        /// <summary>
+        /// Aucun Cristal debout : le joueur ne peut pas faire evoluer un seul Tank, donc
+        /// il ne peut pas gagner. C'est la lecon centrale du jeu depuis que le nombre de
+        /// Tanks est plafonne, et rien ne la disait.
+        /// </summary>
+        public const int REASON_NEED_CRYSTAL = 9;
+
+        public const int REASON_COUNT = 10;
 
         private const int MaxCandidates = 24;
 
@@ -155,6 +169,7 @@ namespace MNLTHII.Rules
             ProposeOffensive(energy);
             ProposeBridgehead(board, energy);
             ProposeDefensive(board, energy);
+            ProposeQuality(board, energy);
             ProposeEvolution(energy);
             ProposeIncome(board, energy);
 
@@ -434,7 +449,8 @@ namespace MNLTHII.Rules
             if (guards >= threats + 1) return;
 
             // a) poser un Tank de Garde sur la case libre la plus proche de la Base
-            if (energy >= InteractionRules.TANK_CREATION_COST)
+            //    - si le commandement a encore une place ; sinon, b) le Bunker.
+            if (energy >= InteractionRules.TANK_CREATION_COST && InteractionRules.CanAddTank())
             {
                 Hexagon spot = NearestBuildSpot(board, buildings);
                 if (spot != null)
@@ -474,6 +490,113 @@ namespace MNLTHII.Rules
         // =================================================================
         //  4 : L'EVOLUTION
         // =================================================================
+        /// <summary>
+        /// LA VOIE DE LA QUALITE, et c'est elle qu'il faut enseigner.
+        ///
+        /// Depuis que le commandement plafonne le nombre de Tanks, gagner ne passe plus
+        /// par la quantite : un rang 1 fait 10 degats et avance de deux cases en Assaut,
+        /// un rang 2 en fait 20, porte a deux cases et avance de trois. Mesure dans
+        /// l'audit : les seules parties qui gagnent ou qui tiennent jusqu'au bout sont
+        /// celles ou des Cristaux sont debout et ou des Tanks sont passes rang 2 ;
+        /// celles a zero Cristal meurent lentement, quel que soit leur nombre de Tanks.
+        ///
+        /// Deux conseils, dans cet ordre :
+        ///   a) aucun Cristal debout -> en batir un, et c'est presque la priorite ;
+        ///   b) un Cristal debout mais aucun Tank a sa portee -> y envoyer le plus
+        ///      proche (gratuit : c'est un ordre, pas un achat).
+        /// </summary>
+        private static void ProposeQuality(BoardController board, int energy)
+        {
+            List<Hexagon> hexes = board.HexagonsInBoard;
+            if (hexes == null) return;
+
+            // a) Y a-t-il un Cristal actif ? Sinon, le site le moins cher a portee.
+            bool anyCrystal = false;
+            Hexagon site = null;
+            int bestCost = int.MaxValue;
+
+            for (int i = 0; i < hexes.Count; i++)
+            {
+                Hexagon hex = hexes[i];
+                if (hex == null || hex.type != TypeOfHex.crystal) continue;
+
+                if (hex.level >= 1 && hex.currentHP > 0) { anyCrystal = true; continue; }
+                if (hex.level >= InteractionRules.MAX_TERRAIN_LEVEL) continue;
+                if (!InteractionRules.CanBuildAt(hex.positionInTheBoard)) continue;
+
+                int cost = InteractionRules.GetBuildCost(TypeOfHex.crystal, hex.level + 1);
+                if (cost > energy || cost >= bestCost) continue;
+
+                site = hex;
+                bestCost = cost;
+            }
+
+            if (!anyCrystal)
+            {
+                if (site == null) return;
+
+                AdvisorSuggestion s = Take();
+                if (s == null) return;
+
+                s.kind = AdvisorActionKind.Build;
+                s.hex = site;
+                s.cost = bestCost;
+                s.reason = REASON_NEED_CRYSTAL;
+                s.focus = null;
+
+                // Juste sous les deux urgences (bouclier rompu, Base menacee) : ce n'est
+                // pas un feu a eteindre, mais c'est ce qui decide de la fin de partie.
+                s.score = 840;
+                return;
+            }
+
+            // b) Un Cristal est debout : un Tank qui n'est pas a sa portee doit y aller.
+            //    On ne le propose que s'il reste de quoi payer l'evolution ensuite, sinon
+            //    on envoie un Tank se garer pour rien.
+            if (energy < InteractionRules.TANK_EVOLVE_COST) return;
+
+            for (int i = 0; i < _tanks.Count; i++)
+            {
+                PawnController tank = _tanks[i];
+                if (tank.level >= InteractionRules.MAX_TANK_LEVEL) continue;
+                if (tank.seekCrystal) return;                      // un deja en route suffit
+                if (InteractionRules.HasCrystalSupport(tank.hexcoord)) return;  // ProposeEvolution prend la suite
+            }
+
+            PawnController runner = null;
+            int bestDistance = int.MaxValue;
+            Hexagon crystalHex = null;
+
+            for (int i = 0; i < _tanks.Count; i++)
+            {
+                PawnController tank = _tanks[i];
+                if (tank.level >= InteractionRules.MAX_TANK_LEVEL || tank.hexcoord == null) continue;
+
+                Hexagon crystal = InteractionRules.FindNearestCrystal(tank.hexcoord);
+                if (crystal == null) continue;
+
+                int distance = BoardController.GetHexDistance(tank.hexcoord, crystal.positionInTheBoard);
+                if (distance >= bestDistance) continue;
+
+                runner = tank;
+                bestDistance = distance;
+                crystalHex = crystal;
+            }
+
+            if (runner == null) return;
+
+            AdvisorSuggestion order = Take();
+            if (order == null) return;
+
+            order.kind = AdvisorActionKind.SeekCrystal;
+            order.tank = runner;
+            order.hex = HexOf(runner);
+            order.cost = 0;
+            order.reason = REASON_CRYSTAL;
+            order.focus = crystalHex;
+            order.score = 540;
+        }
+
         private static void ProposeEvolution(int energy)
         {
             if (energy < InteractionRules.TANK_EVOLVE_COST) return;
@@ -494,9 +617,11 @@ namespace MNLTHII.Rules
                 s.reason = REASON_CRYSTAL;
                 s.focus = null;
 
-                // Un Tank en Hesteharut qui evolue gagne une case de mobilite : il
-                // arrivera au Shofar un tour plus tot. C'est le meilleur des 60.
-                s.score = (tank.stance == PawnStance.Assault) ? 560 : 500;
+                // Un Tank en Hesteharut qui evolue gagne une case de mobilite ET double
+                // ses degats : il arrivera au Shofar plus tot et frappera deux fois plus
+                // fort. C'est la meilleure depense du jeu, et le score le dit : au-dessus
+                // d'un Tank de plus, au-dessus d'une usine.
+                s.score = (tank.stance == PawnStance.Assault) ? 800 : 740;
                 return;   // un seul conseil d'evolution suffit
             }
         }

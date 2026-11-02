@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using UnityEngine;
 using MNLTHII.Data;
 using MNLTHII.Rules;
+using MNLTHII.Dev;
 
 namespace MNLTHII.Managers
 {
@@ -101,7 +102,7 @@ namespace MNLTHII.Managers
         public static void BeginNewGame()
         {
             CurrentGameId = "partie_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            Debug.LogFormat("[Sauvegarde] Nouvelle partie : {0}", CurrentGameId);
+            GameLog.Say("[Sauvegarde] Nouvelle partie : {0}", CurrentGameId);
         }
 
         /// <summary>
@@ -353,7 +354,7 @@ namespace MNLTHII.Managers
             // deploiement. Ceux-la sortent d'un fichier, donc il faut les recenser.
             if (PortalTether.Instance != null) PortalTether.Instance.Refresh();
 
-            Debug.LogFormat("[Sauvegarde] Partie reprise : tour {0}, {1} Energie, {2} Tank(s), "
+            GameLog.Say("[Sauvegarde] Partie reprise : tour {0}, {1} Energie, {2} Tank(s), "
                           + "{3} ennemi(s), {4} Shofar(s) debout.",
                             file.turn, file.energy, file.tanks, file.foes, file.portalsAlive);
         }
@@ -437,6 +438,13 @@ namespace MNLTHII.Managers
 
                 PawnController pawn = board.SpawnUnitVisual(hex, saved.lvl, saved.foe ? "enemy" : "unit");
                 if (pawn == null) continue;
+
+                // Le bonus du Cristal (+20 PV max) est rendu AVANT de relire les PV :
+                // sinon un Tank sauvegarde a 50/50 sous un Cristal revenait a 30/30,
+                // et le Cristal lui rendait ses 20 au tour suivant - soigne pour rien.
+                // Les cases sont deja restaurees (RestoreHexes), donc le Cristal est la.
+                if (!saved.foe && InteractionRules.HasCrystalSupport(hex.positionInTheBoard))
+                    pawn.SetCrystalBonus(true, InteractionRules.CRYSTAL_BONUS_MAXHP);
 
                 // ApplyStatsToPawn vient de remettre les PV au maximum : c'est ce qu'il
                 // faut pour un pion neuf, pas pour un pion qui a deja encaisse.

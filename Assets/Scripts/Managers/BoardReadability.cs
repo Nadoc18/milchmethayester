@@ -527,8 +527,10 @@ namespace MNLTHII.Managers
             if (!src.IsKeywordEnabled("_NORMALMAP")) calm.SetTexture(BumpMapId, null);
             if (!src.IsKeywordEnabled("_EMISSION")) calm.SetColor(EmissionColorId, Color.black);
 
-            // Le shader calme n'a pas de variante instanciee : on ne la demande pas.
-            calm.enableInstancing = false;
+            // INSTANCIATION DEMANDEE. Le shader calme a maintenant sa variante
+            // instanciee (voir MNLTH_BoardCalm), et c'est ici qu'elle sert le plus :
+            // les 169 cases du plateau partagent une poignee de materiaux calmes.
+            calm.enableInstancing = true;
 
             // La couleur d'origine est relevee AVANT toute teinte : c'est elle qu'on
             // remultipliera a chaque reglage rejoue a chaud.
@@ -876,18 +878,20 @@ namespace MNLTHII.Managers
         {
             if (_rimShader != null)
             {
-                _rimPlayer = new Material(_rimShader) { name = "Rim (joueur)" };
-                _rimEnemy = new Material(_rimShader) { name = "Rim (ennemi)" };
-                _rimPlayerBuilding = new Material(_rimShader) { name = "Rim (batiment joueur)" };
-                _rimEnemyBuilding = new Material(_rimShader) { name = "Rim (batiment ennemi)" };
+                _rimPlayer = new Material(_rimShader) { name = "Rim (joueur)", enableInstancing = true };
+                _rimEnemy = new Material(_rimShader) { name = "Rim (ennemi)", enableInstancing = true };
+                _rimPlayerBuilding = new Material(_rimShader) { name = "Rim (batiment joueur)", enableInstancing = true };
+                _rimEnemyBuilding = new Material(_rimShader) { name = "Rim (batiment ennemi)", enableInstancing = true };
             }
 
             if (_decalShader != null)
             {
-                _shadowMat = new Material(_decalShader) { name = "Ombre de contact" };
-                _shadowFlyingMat = new Material(_decalShader) { name = "Ombre de contact (vol)" };
-                _ringPlayer = new Material(_decalShader) { name = "Anneau (joueur)" };
-                _ringEnemy = new Material(_decalShader) { name = "Anneau (ennemi)" };
+                // Un disque par pion, tous le meme quad et le meme materiau : instancies,
+                // les vingt-quatre ombres du plateau tiennent dans un appel de dessin.
+                _shadowMat = new Material(_decalShader) { name = "Ombre de contact", enableInstancing = true };
+                _shadowFlyingMat = new Material(_decalShader) { name = "Ombre de contact (vol)", enableInstancing = true };
+                _ringPlayer = new Material(_decalShader) { name = "Anneau (joueur)", enableInstancing = true };
+                _ringEnemy = new Material(_decalShader) { name = "Anneau (ennemi)", enableInstancing = true };
 
                 Texture2D shadowTex = GetShadowTexture();
                 Texture2D ringTex = GetRingTexture();

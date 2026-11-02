@@ -255,7 +255,8 @@ namespace MNLTHII.Managers
             if (enemy)
                 SetRow(3, rowOriginLabel, OriginPortalName(actor), "", accent);
             else
-                SetRowNumber(3, rowMobilityLabel, actor.moveRange, unitHexPerTurn, textColor);
+                SetRowNumber(3, rowMobilityLabel, MNLTHII.Rules.InteractionRules.GetTankSteps(actor),
+                             unitHexPerTurn, textColor);
 
             // --- le chiffre flottant ---
             string caption;
@@ -275,7 +276,9 @@ namespace MNLTHII.Managers
             Color accent = enemy ? enemyColor : allyColor;
 
             SetRow(0, rowTargetLabel, "", "", accent);
-            SetRowNumber(1, rowMobilityLabel, actor.moveRange, unitHexPerTurn, textColor);
+            SetRowNumber(1, rowMobilityLabel,
+                         enemy ? actor.moveRange : MNLTHII.Rules.InteractionRules.GetTankSteps(actor),
+                         unitHexPerTurn, textColor);
             SetRowNumber(2, rowRangeLabel, actor.attackRange, unitHex, textColor);
 
             if (enemy) SetRow(3, rowOriginLabel, OriginPortalName(actor), "", accent);

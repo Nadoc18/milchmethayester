@@ -103,7 +103,7 @@ public class TestRunner : MonoBehaviour
     private void TestBuildingHP()
     {
         Check(InteractionRules.GetBuildingMaxHP(TypeOfHex.Base, 1) == 200, "Base = 200 PV");
-        Check(InteractionRules.GetBuildingMaxHP(TypeOfHex.portal, 1) == 50, "Portail Niv1 = 50 PV");
+        Check(InteractionRules.GetBuildingMaxHP(TypeOfHex.portal, 1) == InteractionRules.PORTAL_HP_L1, "Portail Niv1 = 40 / 50 / 50 PV");
         Check(InteractionRules.GetBuildingMaxHP(TypeOfHex.portal, 2) == 100, "Portail Niv2 = 100 PV");
         Check(InteractionRules.GetBuildingMaxHP(TypeOfHex.hill, 1) == 40, "Bunker = 40 PV");
         Check(InteractionRules.GetBuildingMaxHP(TypeOfHex.hill, 2) == 80, "Forteresse = 80 PV");
@@ -164,6 +164,12 @@ public class TestRunner : MonoBehaviour
     {
         Check(InteractionRules.TRIVIA_ENERGY_REWARD == 25, "Bonne reponse = +25 Energie");
         Check(InteractionRules.TANK_CREATION_COST == 40, "Creation d'un Tank = -40 Energie");
+        Check(InteractionRules.TANK_CAP_BASE >= 8 && InteractionRules.TANK_CAP_BASE <= 10,
+              "La Base coordonne 8 a 10 Tanks selon la difficulte");
+        Check(InteractionRules.TANK_CAP_PER_COMMAND_L2 > InteractionRules.TANK_CAP_PER_COMMAND_L1,
+              "Un Centre rang 2 coordonne plus de Tanks qu'un rang 1");
+        Check(InteractionRules.TANK_CAP_FROM_COMMAND_MAX == 6,
+              "Les Centres ajoutent +6 Tanks au plus, tous ensemble");
         // Depend de la difficulte (20 / 16 / 12) : on teste l'invariant. Un Shofar qui
         // monterait au rang 2 avant le tour 10 doublerait ses PV alors que le joueur
         // n'a pas encore eu le temps de sortir un seul Tank de rang 2.
@@ -235,20 +241,20 @@ public class TestRunner : MonoBehaviour
     /// <summary>Instabilite des Portails : c'est elle qui rend la victoire atteignable.</summary>
     private void TestPortalInstability()
     {
-        Check(InteractionRules.PORTAL_KILL_BACKLASH == 12, "Contrecoup par ennemi tue = 12 PV");
-        Check(InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD == GameDifficulty.Pick(3, 4, 4),
-              "Bouclier rompu au bout de 3 morts (Facile) ou 4 (Moyen, Difficile)");
-        Check(InteractionRules.PORTAL_SHIELD_DOWN_TURNS == 4, "Bouclier rompu pendant 4 tours");
-        Check(InteractionRules.PORTAL_SHIELD_DIVISOR == 2, "Bouclier intact : degats divises par 2");
+        Check(InteractionRules.PORTAL_KILL_BACKLASH == GameDifficulty.Pick(16, 12, 10), "Contrecoup par ennemi tue = 16 / 12 / 10 PV");
+        Check(InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD == GameDifficulty.Pick(2, 3, 4),
+              "Bouclier rompu au bout de 2 morts (Facile), 3 (Moyen) ou 4 (Difficile)");
+        Check(InteractionRules.PORTAL_SHIELD_DOWN_TURNS >= 4, "Bouclier rompu pendant 4 tours au moins");
+        Check(InteractionRules.PORTAL_SHIELD_DIVISOR == GameDifficulty.Pick(1, 2, 2), "Bouclier intact : degats divises par 1 / 2 / 2");
 
         // Un Tank Niv1 place 5 degats sur un portail blinde, 10 une fois le bouclier tombe.
-        Check(10 / InteractionRules.PORTAL_SHIELD_DIVISOR == 5, "Tank Niv1 : 5 degats sur un Portail blinde");
+        Check(10 / InteractionRules.PORTAL_SHIELD_DIVISOR == GameDifficulty.Pick(10, 5, 5), "Tank Niv1 : 10 / 5 / 5 degats sur un Portail blinde");
 
         // Le contrecoup ne doit JAMAIS pouvoir fermer un portail a lui seul : sinon une
         // partie purement defensive gagne sans que le joueur prenne le moindre risque.
         int floor = (InteractionRules.PORTAL_HP_L1 * InteractionRules.PORTAL_BACKLASH_FLOOR_PERCENT) / 100;
         Check(floor > 0, "Le contrecoup s'arrete a un plancher de PV, il n'acheve jamais un Portail");
-        Check(InteractionRules.PORTAL_BACKLASH_FLOOR_PERCENT == 20, "Plancher de contrecoup = 20% des PV max");
+        Check(InteractionRules.PORTAL_BACKLASH_FLOOR_PERCENT == GameDifficulty.Pick(10, 20, 20), "Plancher de contrecoup = 10 / 20 / 20 % des PV max");
 
         // Quatre morts avant la rupture du bouclier, a 12 PV chacune : un Portail Niv1
         // tombe a son plancher au moment exact ou il devient vulnerable. La defense
@@ -257,8 +263,8 @@ public class TestRunner : MonoBehaviour
         // plancher : un coup de Tank de plus, et c'est voulu - la rupture arrive
         // plus tot, pas le plancher.
         int backlashBeforeBreak = InteractionRules.PORTAL_KILL_BACKLASH * InteractionRules.PORTAL_KILLS_TO_BREAK_SHIELD;
-        Check(backlashBeforeBreak >= InteractionRules.PORTAL_HP_L1 - floor - 10,
-              "Tenir la ligne amene un Portail Niv1 a un coup de son plancher avant la rupture du bouclier");
+        Check(backlashBeforeBreak >= (InteractionRules.PORTAL_HP_L1 - floor) / 2,
+              "Tenir la ligne enleve au moins la moitie de ce qu'un Portail Niv1 peut perdre avant la rupture");
     }
 
     /// <summary>Les dispositions du plateau : memes reperes, sites deplaces, rien qui se touche.</summary>

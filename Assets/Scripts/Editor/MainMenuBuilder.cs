@@ -26,10 +26,11 @@ namespace MNLTHII.EditorTools
     ///     decoratives et pulsent doucement.
     ///   - Le titre au-dessus, la description de la difficulte choisie en dessous.
     ///
-    /// Les modeles 3D sont les prefabs du jeu (Resources/portal_1, base_1, enemy_2,
-    /// attacker_2, desert_1, plain_1). Leurs scripts de jeu (Hexagon, PawnController,
-    /// tout ce qui est MNLTHII) sont retires : dans le menu ils n'ont pas de plateau et
-    /// planteraient. Les Animator et les particules sont gardes.
+    /// Les modeles 3D sont les prefabs du jeu (portal_1, base_1, enemy_2, attacker_2,
+    /// desert_1, plain_1 - dans Art/Board, ou Resources s'ils n'ont pas bouge). Leurs
+    /// scripts de jeu (Hexagon, PawnController, tout ce qui est MNLTHII) sont retires :
+    /// dans le menu ils n'ont pas de plateau et planteraient. Les Animator et les
+    /// particules sont gardes.
     ///
     /// Relancable sans risque : la scene du menu est simplement reecrite. La scene de
     /// jeu n'est jamais modifiee. Pour deplacer un modele ou la camera, fais-le a la
@@ -49,7 +50,20 @@ namespace MNLTHII.EditorTools
         private const string HexOutlinePath = HexFolder + "Hexagon Outline 64px - 2x.png";
         private const string HexDashPath = HexFolder + "Hexagon Dash 64px - 3x.png";
 
-        private const string PrefabFolder = "Assets/Resources/";
+        private const string PrefabFolder = "Assets/Art/Board/";
+        private const string LegacyPrefabFolder = "Assets/Resources/";
+
+        // LES IMAGES DE DAN. Le menu est fait avec elles et rien d'autre : le fond, le
+        // logo complet (plaque, circuits, badges et titre bicolore), et les cinq
+        // hexagones (normal, selectionne, principal, deco rouge, deco cyan).
+        private const string ArtFolder = "Assets/Art/Sprites/";
+        private const string ArtBackground = ArtFolder + "00_fond_menu_1280x720.png";
+        private const string ArtLogo = ArtFolder + "logo_milchemet_hayetzer.png";
+        private const string ArtHexNormal = ArtFolder + "04_hexagone_normal.png";
+        private const string ArtHexSelected = ArtFolder + "05_hexagone_selectionne.png";
+        private const string ArtHexMain = ArtFolder + "06_hexagone_principal.png";
+        private const string ArtHexDecoRed = ArtFolder + "07_hexagone_deco_rouge.png";
+        private const string ArtHexDecoCyan = ArtFolder + "08_hexagone_deco_cyan.png";
 
         private static readonly Color ColBackground = new Color32(0x05, 0x08, 0x12, 0xFF);
         private static readonly Color ColText = new Color32(0xE6, 0xEC, 0xFF, 0xFF);
@@ -58,14 +72,18 @@ namespace MNLTHII.EditorTools
         private static readonly Color ColCyan = new Color32(0x3D, 0xE0, 0xD0, 0xFF);
         private static readonly Color ColHexFill = new Color32(0x0A, 0x10, 0x22, 0xE6);
 
-        // --- le plateau d'interface ---
-        /// <summary>Cote du carre de chaque image hexagonale, en pixels de reference.</summary>
-        private const float HexSize = 190f;
-        /// <summary>Largeur reelle de l'hexagone dans son image (pointe en haut) : 886 / 1024.</summary>
-        private const float HexWidthRatio = 0.8652f;
-        /// <summary>Petit jour entre deux cases.</summary>
-        private const float HexGap = 1.06f;
-        private static readonly Vector2 BoardCenter = new Vector2(0f, -40f);
+        // --- le plateau d'interface : les cotes de la maquette (1280 x 720) x 1.5 ---
+        /// <summary>Largeur d'un hexagone normal a l'ecran (image 232 x 268, pointe en haut).</summary>
+        private const float HexW = 200f;
+        private const float HexH = HexW * 268f / 232f;
+        /// <summary>L'hexagone selectionne (312 px) et le principal (360 px) sont dessines
+        /// au meme rapport que dans leurs images : leur corps tombe exactement sur le normal.</summary>
+        private const float SelectedScale = 312f / 232f;
+        private const float MainScale = 360f / 232f;
+        /// <summary>D'un centre au suivant sur une rangee, et d'une rangee a la suivante.</summary>
+        private const float ColStep = 206f;
+        private const float RowStep = 164f;
+        private static readonly Vector2 BoardCenter = new Vector2(0f, -70f);
 
         // --- la scene 3D ---
         /// <summary>Pas entre deux cases du jeu (0.55 * racine de 3).</summary>
@@ -89,10 +107,10 @@ namespace MNLTHII.EditorTools
 
             _font = HudBuilder.FindHebrewFont();
 
+            EnsureArtSprites();
+
             Sprite hexFilled = LoadSprite(HexFilledPath);
             Sprite hexOutline = LoadSprite(HexOutlinePath);
-            Sprite hexDash = LoadSprite(HexDashPath);
-            if (hexDash == null) hexDash = hexOutline;
 
             // L'inspecteur affichait peut-etre un objet de la scene qu'on va fermer :
             // on le vide AVANT, sinon Unity se plaint d'objets disparus (erreurs
@@ -140,23 +158,7 @@ namespace MNLTHII.EditorTools
             camGo.transform.position = focus + new Vector3(0f, 2.7f, -9.2f);
             camGo.transform.LookAt(focus);
 
-            // =============================================================
-            //  LA SCENE 3D : deux ilots qui se font face
-            // =============================================================
-            GameObject world = new GameObject("Diorama");
-
-            Vector3 portalPos = new Vector3(-IslandX, 0f, 0f);
-            Vector3 basePos = new Vector3(IslandX, 0f, 0f);
-
-            BuildIsland(world.transform, "Ilot_Shofar", portalPos, "portal_1", new[] { "desert_1", "desert_2", "plain_1" });
-            BuildIsland(world.transform, "Ilot_Base", basePos, "base_1", new[] { "plain_1", "plain_2", "desert_1" });
-
-            GameObject enemy = PlaceModel(world.transform, "enemy_2", "Ennemi_Rang2", portalPos);
-            GameObject tank = PlaceModel(world.transform, "attacker_2", "Tank_Rang2", basePos);
-
-            // Ils se regardent.
-            if (enemy != null) FaceTowards(enemy.transform, basePos);
-            if (tank != null) FaceTowards(tank.transform, portalPos);
+            // Pas de diorama 3D : le fond est l'image de Dan, plein ecran.
 
             // =============================================================
             //  EVENTSYSTEM ET CANVAS
@@ -177,28 +179,69 @@ namespace MNLTHII.EditorTools
             RectTransform root = NewRect("Menu", canvasGo.transform);
             Stretch(root);
 
+            // --- le fond ---
+            Sprite background = LoadSprite(ArtBackground);
+            Image bg = NewImage("Fond", root, Color.white);
+            Stretch(bg.rectTransform);
+            bg.raycastTarget = false;
+            if (background != null) { bg.sprite = background; bg.type = Image.Type.Simple; bg.preserveAspect = false; }
+            else bg.color = ColBackground;
+
             MainMenuController ctrl = canvasGo.AddComponent<MainMenuController>();
-            ctrl.idleColor = ColHexFill;
-            ctrl.selectedColor = new Color(1f, 1f, 1f, 0.30f);
+            // Les hexagones sont des images deja colorees : le controleur ne les teinte
+            // plus (blanc = telles quelles). Il allume seulement l'hexagone selectionne
+            // ("Contour") de la difficulte choisie et eteint les autres.
+            ctrl.idleColor = Color.white;
+            ctrl.selectedColor = Color.white;
+            ctrl.frameIdleAlpha = 0f;
+            ctrl.accentColors = new Color[] { Color.white, Color.white, Color.white };
+            ctrl.nightVeil = new Color(0f, 0f, 0f, 0f);
+            ctrl.titleSpriteResource = "";
+
             MainMenuDiorama diorama = canvasGo.AddComponent<MainMenuDiorama>();
-            diorama.cameraRig = camGo.transform;
+            diorama.cameraRig = null;
             diorama.focus = focus;
 
-            // --- titre ---
-            TextMeshProUGUI title = NewText("Titre", root, HudBuilder.S(mm, "menuTitle"), 104f, ColGold, true);
-            Place(title.rectTransform, new Vector2(0f, 440f), new Vector2(1500f, 140f));
+            // --- le logo : l'image complete de Dan, plaque et titre compris ---
+            Sprite logo = LoadSprite(ArtLogo);
+            Image logoImage = NewImage("Logo", root, Color.white);
+            logoImage.raycastTarget = false;
+            logoImage.preserveAspect = true;
+            if (logo != null) logoImage.sprite = logo;
+            // 2650 x 807 : a 980 de large, 298 de haut.
+            Place(logoImage.rectTransform, new Vector2(0f, 352f), new Vector2(980f, 298f));
+            ctrl.titleImage = logoImage;
+
+            // Le titre ecrit reste dans la scene, eteint : le controleur en a besoin
+            // comme repere, et il sert de secours si l'image venait a manquer.
+            TextMeshProUGUI title = NewText("Titre", root, HudBuilder.S(mm, "menuTitle"), 96f, ColGold, true);
+            Place(title.rectTransform, new Vector2(0f, 352f), new Vector2(1500f, 140f));
             title.fontStyle = FontStyles.Bold;
+            title.gameObject.SetActive(logo == null);
             ctrl.titleText = title;
 
-            TextMeshProUGUI subtitle = NewText("SousTitre", root, HudBuilder.S(mm, "menuSubtitle"), 38f, ColDim, true);
-            Place(subtitle.rectTransform, new Vector2(0f, 350f), new Vector2(1200f, 60f));
+            TextMeshProUGUI subtitle = NewText("SousTitre", root, HudBuilder.S(mm, "menuSubtitle"), 30f, ColDim, true);
+            Place(subtitle.rectTransform, new Vector2(0f, 186f), new Vector2(1200f, 50f));
             ctrl.subtitleText = subtitle;
 
             // =============================================================
-            //  LE PLATEAU D'HEXAGONES
+            //  LE PLATEAU : sept hexagones, comme sur la maquette
+            //
+            //      [ difficile ] [ normal ] [ facile ]         (facile a DROITE : hebreu)
+            //           [ comment jouer ] [ reprendre ]
+            //      ( rouge )   [ NOUVELLE PARTIE ]   ( cyan )  (deux cases decoratives)
             // =============================================================
             RectTransform board = NewRect("Plateau", root);
             Place(board, BoardCenter, new Vector2(10f, 10f));
+
+            Sprite hexNormal = LoadSprite(ArtHexNormal);
+            Sprite hexSelected = LoadSprite(ArtHexSelected);
+            Sprite hexMain = LoadSprite(ArtHexMain);
+            Sprite hexDecoRed = LoadSprite(ArtHexDecoRed);
+            Sprite hexDecoCyan = LoadSprite(ArtHexDecoCyan);
+            if (hexNormal == null) hexNormal = hexFilled;
+            if (hexSelected == null) hexSelected = hexOutline;
+            if (hexMain == null) hexMain = hexNormal;
 
             string[] nameKeys = { "menuEasy", "menuMedium", "menuHard" };
             string[] bodyKeys = { "menuEasyBody", "menuMediumBody", "menuHardBody" };
@@ -216,91 +259,83 @@ namespace MNLTHII.EditorTools
             List<float> decorAlpha = new List<float>();
             List<Vector2> decorPos = new List<Vector2>();
 
-            // Nid d'abeille de rayon 2 (19 cases), pointes en haut, coordonnees axiales.
-            for (int r = -2; r <= 2; r++)
+            // Rangee du haut : les trois difficultes. Facile (index 0) a DROITE.
+            for (int d = 0; d < 3; d++)
             {
-                for (int q = -2; q <= 2; q++)
-                {
-                    int s = -q - r;
-                    if (s < -2 || s > 2) continue;
+                Vector2 pos = new Vector2((1 - d) * ColStep, RowStep);
+                Button button; Image fill; Image frame; TextMeshProUGUI label;
+                BuildHexButton(board, "Difficulte" + d, pos, hexNormal, hexSelected, SelectedScale,
+                               HudBuilder.S(mm, nameKeys[d]), 38f, ColText,
+                               out button, out fill, out frame, out label);
+                ctrl.difficultyButtons[d] = button;
+                ctrl.difficultyBackgrounds[d] = fill;
+                ctrl.difficultyFrames[d] = frame;
+                ctrl.difficultyNames[d] = label;
+            }
 
-                    Vector2 pos = HexToPixel(q, r);
-                    string cellName = "Case_" + q + "_" + r;
+            // Rangee du milieu : comment jouer (a gauche), reprendre (a droite).
+            Button helpButton;
+            {
+                Button button; Image fill; Image frame; TextMeshProUGUI label;
+                BuildHexButton(board, "CommentJouer", new Vector2(-ColStep * 0.5f, 0f), hexNormal, hexSelected, SelectedScale,
+                               ReadHelpLabel(), 30f, ColText, out button, out fill, out frame, out label);
+                label.enableWordWrapping = true;
+                frame.gameObject.SetActive(false);
+                helpButton = button;
+            }
+            {
+                Button button; Image fill; Image frame; TextMeshProUGUI label;
+                BuildHexButton(board, "Reprendre", new Vector2(ColStep * 0.5f, 0f), hexNormal, hexSelected, SelectedScale,
+                               HudBuilder.S(mm, "menuLoadGame"), 30f, ColText, out button, out fill, out frame, out label);
+                label.enableWordWrapping = true;
+                frame.gameObject.SetActive(false);
+                ctrl.loadGameButton = button;
+                ctrl.loadGameText = label;
+            }
 
-                    // Rangee du haut : les trois difficultes. En hebreu on lit de
-                    // droite a gauche : Facile (index 0) a DROITE.
-                    int difficulty = -1;
-                    if (r == -2)
-                    {
-                        // q = 0, 1, 2 donnent x = -1, 0, +1 largeur.
-                        if (q == 2) difficulty = 0;
-                        else if (q == 1) difficulty = 1;
-                        else if (q == 0) difficulty = 2;
-                    }
-
-                    if (difficulty >= 0)
-                    {
-                        Button button; Image fill; Image frame; TextMeshProUGUI label;
-                        BuildHexButton(board, cellName, pos, hexFilled, hexOutline,
-                                       HudBuilder.S(mm, nameKeys[difficulty]), 40f, ColText,
-                                       out button, out fill, out frame, out label);
-
-                        ctrl.difficultyButtons[difficulty] = button;
-                        ctrl.difficultyBackgrounds[difficulty] = fill;
-                        ctrl.difficultyFrames[difficulty] = frame;
-                        ctrl.difficultyNames[difficulty] = label;
-                        continue;
-                    }
-
-                    if (q == 0 && r == 0)
-                    {
-                        Button button; Image fill; Image frame; TextMeshProUGUI label;
-                        BuildHexButton(board, "NouvellePartie", pos, hexFilled, hexOutline,
-                                       HudBuilder.S(mm, "menuNewGame"), 42f, ColGold,
-                                       out button, out fill, out frame, out label);
-
-                        fill.color = new Color(ColGold.r, ColGold.g, ColGold.b, 0.22f);
-                        frame.color = ColGold;
-                        label.enableWordWrapping = true;
-
-                        // Le bouton principal un peu plus grand que les autres.
-                        button.transform.localScale = Vector3.one;
-                        ((RectTransform)button.transform).sizeDelta = new Vector2(HexSize * 1.08f, HexSize * 1.08f);
-
-                        ctrl.newGameButton = button;
-                        ctrl.newGameText = label;
-                        continue;
-                    }
-
-                    // --- case decorative ---
-                    RectTransform cell = NewRect(cellName, board);
-                    Place(cell, pos, new Vector2(HexSize, HexSize));
-
-                    Image back = NewHexImage("Fond", cell, hexFilled, ColHexFill);
-                    back.raycastTarget = false;
-
-                    // Anneau interieur (tirets) sur une case sur deux, contour plein ailleurs.
-                    bool dashed = ((q + 2 * r) & 1) == 0;
-                    float alpha = dashed ? 0.30f : 0.45f;
-                    Image edge = NewHexImage("Contour", cell, dashed ? hexDash : hexOutline,
-                                             new Color(ColCyan.r, ColCyan.g, ColCyan.b, alpha));
-                    edge.raycastTarget = false;
-
-                    decor.Add(edge);
-                    decorAlpha.Add(alpha);
-                    decorPos.Add(pos);
-                }
+            // Rangee du bas : la nouvelle partie au centre (l'hexagone principal, plein
+            // et lumineux), entre deux cases decoratives : rouge a gauche (le Yetzer),
+            // cyan a droite (nous).
+            {
+                Button button; Image fill; Image frame; TextMeshProUGUI label;
+                BuildHexButton(board, "NouvellePartie", new Vector2(0f, -RowStep), hexMain, hexSelected, SelectedScale,
+                               HudBuilder.S(mm, "menuNewGame"), 38f, ColText, out button, out fill, out frame, out label);
+                // Le principal est dessine au rapport de son image (360 / 232).
+                fill.rectTransform.sizeDelta = new Vector2(HexW * MainScale, HexH * MainScale);
+                label.enableWordWrapping = true;
+                frame.gameObject.SetActive(false);
+                ctrl.newGameButton = button;
+                ctrl.newGameText = label;
+            }
+            {
+                RectTransform cell = NewRect("DecorRouge", board);
+                Place(cell, new Vector2(-ColStep, -RowStep), new Vector2(HexW, HexH));
+                Image edge = NewHexImage("Contour", cell, hexDecoRed != null ? hexDecoRed : hexNormal, Color.white);
+                edge.raycastTarget = false;
+                decor.Add(edge); decorAlpha.Add(1f); decorPos.Add(new Vector2(-ColStep, -RowStep));
+            }
+            {
+                RectTransform cell = NewRect("DecorCyan", board);
+                Place(cell, new Vector2(ColStep, -RowStep), new Vector2(HexW, HexH));
+                Image edge = NewHexImage("Contour", cell, hexDecoCyan != null ? hexDecoCyan : hexNormal, Color.white);
+                edge.raycastTarget = false;
+                decor.Add(edge); decorAlpha.Add(1f); decorPos.Add(new Vector2(ColStep, -RowStep));
             }
 
             diorama.decor = decor.ToArray();
             diorama.decorAlpha = decorAlpha.ToArray();
             diorama.decorPosition = decorPos.ToArray();
 
-            // --- la description de la difficulte choisie ---
-            TextMeshProUGUI body = NewText("Description", root, "", 32f, ColDim, true);
-            Place(body.rectTransform, new Vector2(0f, BoardCenter.y - 2f * 0.75f * HexSize * HexGap - HexSize * 0.62f),
-                  new Vector2(1100f, 60f));
+            // --- la description de la difficulte choisie, sous le plateau ---
+            TextMeshProUGUI body = NewText("Description", root, "", 28f, ColDim, true);
+            Place(body.rectTransform, new Vector2(0f, BoardCenter.y - RowStep - HexH * 0.5f - 40f), new Vector2(1200f, 50f));
             ctrl.selectedBodyText = body;
+
+            // --- la page "comment on joue", la meme que dans le jeu ---
+            HowToPlayPanel help = canvasGo.AddComponent<HowToPlayPanel>();
+            help.openButton = helpButton;
+            HudBuilder.BuildHelpPageInto(root, canvas, help);
+            HudBuilder.EnsureTeachingManagerIn(canvasGo);
 
             // =============================================================
             //  ENREGISTREMENT
@@ -323,44 +358,45 @@ namespace MNLTHII.EditorTools
         // =================================================================
         //  PLATEAU D'INTERFACE
         // =================================================================
-        /// <summary>Hexagone pointe en haut, coordonnees axiales -> pixels.</summary>
-        private static Vector2 HexToPixel(int q, int r)
-        {
-            float w = HexSize * HexWidthRatio * HexGap;
-            float h = HexSize * 0.75f * HexGap;
-            return new Vector2(w * (q + r * 0.5f), -h * r);
-        }
-
         private static void BuildHexButton(RectTransform parent, string name, Vector2 pos,
-                                           Sprite filled, Sprite outline, string text, float fontSize, Color textColor,
+                                           Sprite filled, Sprite outline, float outlineScale,
+                                           string text, float fontSize, Color textColor,
                                            out Button button, out Image fill, out Image frame, out TextMeshProUGUI label)
         {
             RectTransform cell = NewRect(name, parent);
-            Place(cell, pos, new Vector2(HexSize, HexSize));
+            Place(cell, pos, new Vector2(HexW, HexH));
 
-            fill = NewHexImage("Fond", cell, filled, ColHexFill);
+            // Le fond est l'image telle quelle (blanc = pas de teinte).
+            fill = NewHexImage("Fond", cell, filled, Color.white);
             fill.raycastTarget = false;
 
-            frame = NewHexImage("Contour", cell, outline, new Color(ColCyan.r, ColCyan.g, ColCyan.b, 0.6f));
+            // Le "contour" est l'hexagone selectionne, pose par-dessus a l'echelle de
+            // son image (son halo deborde du corps) : le controleur l'allume sur la
+            // difficulte choisie, l'eteint sur les autres.
+            frame = NewHexImage("Contour", cell, outline, Color.white);
+            frame.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            frame.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            frame.rectTransform.sizeDelta = new Vector2(HexW * outlineScale, HexH * outlineScale);
             frame.raycastTarget = false;
 
-            // Zone cliquable : un rectangle INSCRIT dans l'hexagone. L'image carree du
-            // contour deborde sur les voisines ; sans cela, un clic dans un coin
-            // pouvait tomber sur la case d'a cote.
+            // Zone cliquable : un rectangle INSCRIT dans l'hexagone. L'image carree
+            // deborde sur les voisines ; sans cela, un clic dans un coin pouvait
+            // tomber sur la case d'a cote.
             Image hit = NewImage("ZoneClic", cell, new Color(1f, 1f, 1f, 0f));
             RectTransform hitRect = hit.rectTransform;
             hitRect.anchorMin = new Vector2(0.5f, 0.5f);
             hitRect.anchorMax = new Vector2(0.5f, 0.5f);
-            hitRect.sizeDelta = new Vector2(HexSize * HexWidthRatio * 0.96f, HexSize * 0.72f);
+            hitRect.sizeDelta = new Vector2(HexW * 0.96f, HexH * 0.72f);
             hit.raycastTarget = true;
 
             button = cell.gameObject.AddComponent<Button>();
             button.targetGraphic = fill;
             ColorBlock colors = button.colors;
             colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(1.35f, 1.35f, 1.35f, 1f);
+            colors.highlightedColor = new Color(1.25f, 1.25f, 1.25f, 1f);
             colors.pressedColor = new Color(0.75f, 0.75f, 0.75f, 1f);
             colors.selectedColor = Color.white;
+            colors.disabledColor = new Color(1f, 1f, 1f, 0.35f);
             button.colors = colors;
 
             cell.gameObject.AddComponent<MainMenuHexButton>();
@@ -369,8 +405,15 @@ namespace MNLTHII.EditorTools
             RectTransform labelRect = label.rectTransform;
             labelRect.anchorMin = new Vector2(0.5f, 0.5f);
             labelRect.anchorMax = new Vector2(0.5f, 0.5f);
-            labelRect.sizeDelta = new Vector2(HexSize * HexWidthRatio * 0.86f, HexSize * 0.6f);
+            labelRect.sizeDelta = new Vector2(HexW * 0.82f, HexH * 0.6f);
             label.fontStyle = FontStyles.Bold;
+        }
+
+        /// <summary>Le libelle du bouton d'aide, lu dans teachings.json comme dans le jeu.</summary>
+        private static string ReadHelpLabel()
+        {
+            string label = HudBuilder.ReadTeachingLabelPublic("helpButton");
+            return string.IsNullOrEmpty(label) ? "?" : label;
         }
 
         private static Image NewHexImage(string name, RectTransform parent, Sprite sprite, Color color)
@@ -389,6 +432,28 @@ namespace MNLTHII.EditorTools
             Image img = rect.gameObject.AddComponent<Image>();
             img.color = color;
             return img;
+        }
+
+        /// <summary>
+        /// Les images de Dan, importees en Sprite (sans mipmaps, non compressees : ce
+        /// sont des elements d'interface, ils doivent rester nets).
+        /// </summary>
+        private static void EnsureArtSprites()
+        {
+            string[] files = { ArtBackground, ArtLogo, ArtHexNormal, ArtHexSelected, ArtHexMain, ArtHexDecoRed, ArtHexDecoCyan };
+            for (int i = 0; i < files.Length; i++)
+            {
+                TextureImporter importer = AssetImporter.GetAtPath(files[i]) as TextureImporter;
+                if (importer == null) { Debug.LogWarningFormat("[MainMenuBuilder] Image introuvable : {0}", files[i]); continue; }
+
+                bool dirty = false;
+                if (importer.textureType != TextureImporterType.Sprite) { importer.textureType = TextureImporterType.Sprite; dirty = true; }
+                if (importer.spriteImportMode != SpriteImportMode.Single) { importer.spriteImportMode = SpriteImportMode.Single; dirty = true; }
+                if (importer.mipmapEnabled) { importer.mipmapEnabled = false; dirty = true; }
+                if (!importer.alphaIsTransparency) { importer.alphaIsTransparency = true; dirty = true; }
+                if (importer.maxTextureSize < 2048) { importer.maxTextureSize = 2048; dirty = true; }
+                if (dirty) importer.SaveAndReimport();
+            }
         }
 
         private static Sprite LoadSprite(string path)
@@ -430,9 +495,17 @@ namespace MNLTHII.EditorTools
         {
             string path = PrefabFolder + prefabName + ".prefab";
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+
+            // Les prefabs n'ont pas encore bouge : l'ancien dossier.
             if (prefab == null)
             {
-                Debug.LogWarningFormat("[MainMenuBuilder] Prefab introuvable : {0}", path);
+                path = LegacyPrefabFolder + prefabName + ".prefab";
+                prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            }
+
+            if (prefab == null)
+            {
+                Debug.LogWarningFormat("[MainMenuBuilder] Prefab introuvable : {0}{1}.prefab", PrefabFolder, prefabName);
                 return null;
             }
 

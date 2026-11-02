@@ -954,8 +954,15 @@ Actif, il demarre la scene Game sans visite guidee, sans enseignements automatiq
 touche F joue une prise autonome avec les vraies regles et la vraie camera : F1 tour
 d'horizon, F2 vague, F3 Bunker, F4 bulle, F5 Tank, F6 bouclier brise puis chute,
 F7 chute et floraison, F8 ruine retournee, F9 enseignement avec question, F10 ecran
-de fin, F12 remise a zero, H cache le HUD. L'aide a l'ecran disparait pendant une
-prise. En partie normale, rien de ce fichier ne tourne.
+de fin, F11 la bobine complete (les dix prises, un carton noir entre deux, les temps
+de coupe dans la console et dans `Trailer/timecodes.txt` a cote de `Assets`), F12
+remise a zero. Par defaut les prises sont **propres** : a chaque image, le
+realisateur eteint tout l'habillage (plaques du HUD, barre de phase, bandeaux,
+ouverture du tour, barres de vie, marques de posture) et ne laisse que le plateau,
+les pions, les effets, les chiffres flottants et le sujet des prises d'interface
+(choix du Tank, enseignement, ecran de fin) ; H rallume tout (cle PlayerPrefs
+`mnlth_trailer_clean`). L'aide a l'ecran disparait pendant une prise. En partie
+normale, rien de ce fichier ne tourne.
 
 ### Ce qui n'est pas branche
 

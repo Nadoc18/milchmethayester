@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using MNLTHII;
 using MNLTHII.Rules;
+using MNLTHII.Dev;
 
 namespace MNLTHII.Managers
 {
@@ -173,7 +174,13 @@ namespace MNLTHII.Managers
         {
             if (_stagingRoot != null) Destroy(_stagingRoot.gameObject);
             if (_liveRoot != null) Destroy(_liveRoot.gameObject);
+
+            // Seulement celui qu'on a fabrique : un materiau pose dans l'inspecteur
+            // est un asset du projet, on n'y touche pas.
+            if (_generatedGhost != null) { Destroy(_generatedGhost); _generatedGhost = null; }
         }
+
+        private Material _generatedGhost;
 
         // =================================================================
         //  COMMANDE
@@ -321,7 +328,7 @@ namespace MNLTHII.Managers
             // Trace de controle : si ce compte est a zero, il n'y a tout simplement
             // aucune intention a montrer (aucun ennemi sur la carte, aucun portail
             // pret a deployer) - le probleme n'est pas dans l'affichage.
-            Debug.LogFormat("[ThreatPreview] {0} intention(s) affichee(s).", ghostsShown);
+            GameLog.Say("[ThreatPreview] {0} intention(s) affichee(s).", ghostsShown);
         }
 
         /// <summary>
@@ -821,7 +828,7 @@ namespace MNLTHII.Managers
             }
             else
             {
-                Debug.LogFormat("[ThreatPreview] Fantome Niveau {0} construit ({1} renderer(s), echelle {2:0.###}).",
+                GameLog.Say("[ThreatPreview] Fantome Niveau {0} construit ({1} renderer(s), echelle {2:0.###}).",
                                 level, rendererCount, worldScale.x);
             }
 
@@ -1103,6 +1110,7 @@ namespace MNLTHII.Managers
                 if (shader != null)
                 {
                     ghostMaterial = new Material(shader);
+                    _generatedGhost = ghostMaterial;
                     ConfigureStandardAsFade(ghostMaterial);
                 }
                 else
@@ -1118,11 +1126,12 @@ namespace MNLTHII.Managers
                     }
 
                     ghostMaterial = new Material(fallback);
+                    _generatedGhost = ghostMaterial;
                     ghostMaterial.renderQueue = 3100;
                 }
 
                 ghostMaterial.name = "ThreatPreviewGhost";
-                Debug.LogFormat("[ThreatPreview] Materiau fantome cree a partir du shader \"{0}\".",
+                GameLog.Say("[ThreatPreview] Materiau fantome cree a partir du shader \"{0}\".",
                                 ghostMaterial.shader != null ? ghostMaterial.shader.name : "?");
             }
 

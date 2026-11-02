@@ -145,10 +145,11 @@ namespace MNLTHII.Managers
 
             RefreshLoadButton();
 
-            // La disposition du plateau : la derniere choisie, ou celle d'origine.
+            // LA DISPOSITION DU PLATEAU SE TIRE AU SORT a chaque nouvelle partie - voir
+            // StartNewGame. Le bouton qui la faisait choisir n'est plus construit : on
+            // garde seulement la derniere jouee, pour ne pas la redonner deux fois de suite.
             _map = PlayerPrefs.GetInt(MapPrefKey, 0);
             if (_map < 0 || _map >= MapGenerator.LayoutCount) _map = 0;
-            if (newGameButton != null) BuildMapButton();
 
             Select((int)GameDifficulty.Current);
         }
@@ -601,6 +602,18 @@ namespace MNLTHII.Managers
             _loading = true;
 
             GameDifficulty.Current = (DifficultyLevel)_selected;
+
+            // Une disposition au hasard, jamais la meme que la partie precedente : le
+            // joueur decouvre le plateau en arrivant, il ne le choisit pas.
+            int layouts = MapGenerator.LayoutCount;
+            int drawn = _map;
+            if (layouts > 1)
+            {
+                drawn = Random.Range(0, layouts - 1);
+                if (drawn >= _map) drawn++;
+            }
+            _map = drawn;
+            PlayerPrefs.SetInt(MapPrefKey, _map);
             MapGenerator.CurrentLayout = _map;
             Time.timeScale = 1f;
 

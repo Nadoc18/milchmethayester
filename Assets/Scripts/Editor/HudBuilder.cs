@@ -50,15 +50,22 @@ namespace MNLTHII.EditorTools
         private const float RefHeight = 1080f;
 
         // --- palette, identique aux maquettes ---
-        private static readonly Color ColText = new Color32(0xE6, 0xEC, 0xFF, 0xFF);
-        private static readonly Color ColDim = new Color32(0x7E, 0x8C, 0xB0, 0xFF);
+        //
+        // LE STYLE : bleu nuit, bords fins lumineux, coins chanfreines. Deux couleurs
+        // portent du sens et deux seulement : le CYAN pour ce qui est a nous (la Base,
+        // l'Energie, le bouton principal), le ROUGE pour ce qui menace (les Shofars, le
+        // Yetzer Hara, la menace). L'acier (blanc bleute) habille tout le reste. L'or
+        // ne sert plus qu'aux mises en avant rares (recompenses, enseignement).
+        private static readonly Color ColText = new Color32(0xF2, 0xF6, 0xFF, 0xFF);
+        private static readonly Color ColDim = new Color32(0xA9, 0xB8, 0xD6, 0xFF);
         private static readonly Color ColGold = new Color32(0xFF, 0xC6, 0x5C, 0xFF);
-        private static readonly Color ColCyan = new Color32(0x3D, 0xE0, 0xD0, 0xFF);
-        private static readonly Color ColOrange = new Color32(0xFF, 0x6B, 0x4A, 0xFF);
-        private static readonly Color ColRed = new Color32(0xFF, 0x4D, 0x5E, 0xFF);
+        private static readonly Color ColCyan = new Color32(0x5B, 0xC8, 0xF5, 0xFF);
+        private static readonly Color ColOrange = new Color32(0xFF, 0x5C, 0x6C, 0xFF);
+        private static readonly Color ColRed = new Color32(0xFF, 0x5C, 0x6C, 0xFF);
+        private static readonly Color ColSteel = new Color32(0xC9, 0xD6, 0xF2, 0xFF);
         private static readonly Color ColPanel = new Color32(0x0A, 0x0F, 0x1C, 0xE0);
         private static readonly Color ColLine = new Color32(0x7E, 0xA0, 0xFF, 0x24);
-        private static readonly Color ColIdle = new Color32(0x5D, 0x6A, 0x8C, 0xFF);
+        private static readonly Color ColIdle = new Color32(0x6E, 0x7C, 0x9C, 0xFF);
 
         /// <summary>Hauteur du bandeau photo de l'info-bulle.</summary>
         private const float TooltipPhotoHeight = 230f;
@@ -80,7 +87,7 @@ namespace MNLTHII.EditorTools
         /// Une molette unique plutot que soixante nombres a retoucher : une valeur a
         /// changer ici, tout suit, et rien ne peut se desaccorder au passage.
         /// </summary>
-        private const float TextScale = 1.35f;
+        private const float TextScale = 1.5f;
 
         /// <summary>
         /// Plancher absolu, applique APRES le multiplicateur.
@@ -90,7 +97,7 @@ namespace MNLTHII.EditorTools
         /// n'est plus lu sur telephone : il est devine. Mieux vaut une note un peu
         /// grosse qu'une note decorative.
         /// </summary>
-        private const float MinFontSize = 19f;
+        private const float MinFontSize = 24f;
 
         private static TMP_FontAsset _font;
 
@@ -314,53 +321,164 @@ namespace MNLTHII.EditorTools
         // =================================================================
         //  BLOCS
         // =================================================================
-        /// <summary>Energie : en RTL, elle ouvre la lecture, donc en haut a DROITE.</summary>
+        // =================================================================
+        //  LES IMAGES DE DAN (Assets/Art/Sprites)
+        // =================================================================
+        // Le bandeau est fait avec ses cadres, et rien d'autre. Elles sont dessinees
+        // au double de la maquette (1280 x 720) ; l'ecran de reference fait 1920 x 1080,
+        // donc chaque image s'affiche a 0,75 fois sa taille native, et se place aux
+        // cotes de la maquette multipliees par 1,5. Les cadres sont decoupes en neuf
+        // (bord 40) pour qu'une plaque puisse etre un peu plus haute ou plus basse
+        // sans deformer son bord.
+        private const string ArtFolder = "Assets/Art/Sprites/";
+        private const float ArtScale = 0.75f;
+        private const float ArtBorder = 40f;
+
+        private static Sprite Art(string file, bool sliced)
+        {
+            string path = ArtFolder + file;
+            TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            if (importer == null)
+            {
+                Debug.LogWarningFormat("[HudBuilder] Image de Dan introuvable : {0}", path);
+                return null;
+            }
+
+            bool dirty = false;
+            if (importer.textureType != TextureImporterType.Sprite) { importer.textureType = TextureImporterType.Sprite; dirty = true; }
+            if (importer.spriteImportMode != SpriteImportMode.Single) { importer.spriteImportMode = SpriteImportMode.Single; dirty = true; }
+            if (importer.mipmapEnabled) { importer.mipmapEnabled = false; dirty = true; }
+            if (!importer.alphaIsTransparency) { importer.alphaIsTransparency = true; dirty = true; }
+            if (importer.textureCompression != TextureImporterCompression.Uncompressed) { importer.textureCompression = TextureImporterCompression.Uncompressed; dirty = true; }
+            if (importer.maxTextureSize < 2048) { importer.maxTextureSize = 2048; dirty = true; }
+
+            Vector4 border = sliced ? new Vector4(ArtBorder, ArtBorder, ArtBorder, ArtBorder) : Vector4.zero;
+            if (importer.spriteBorder != border) { importer.spriteBorder = border; dirty = true; }
+
+            TextureImporterSettings settings = new TextureImporterSettings();
+            importer.ReadTextureSettings(settings);
+            if (settings.spriteMeshType != SpriteMeshType.FullRect || settings.wrapMode != TextureWrapMode.Clamp)
+            {
+                settings.spriteMeshType = SpriteMeshType.FullRect;
+                settings.wrapMode = TextureWrapMode.Clamp;
+                importer.SetTextureSettings(settings);
+                dirty = true;
+            }
+
+            if (dirty) importer.SaveAndReimport();
+            return AssetDatabase.LoadAssetAtPath<Sprite>(path);
+        }
+
+        /// <summary>Un cadre de Dan comme fond d'un bloc : le bloc a la taille du cadre.</summary>
+        private static Image ArtPlate(RectTransform block, string file)
+        {
+            Sprite sprite = Art(file, true);
+            RectTransform plate = NewRect("Plaque", block);
+            Stretch(plate);
+            plate.SetAsFirstSibling();
+
+            Image image = plate.gameObject.AddComponent<Image>();
+            image.raycastTarget = false;
+            if (sprite != null) { image.sprite = sprite; image.type = Image.Type.Sliced; image.color = Color.white; }
+            else image.color = ColPanel;
+            return image;
+        }
+
+        /// <summary>Un bouton de Dan : son image est le targetGraphic, donc l'etat enfonce se voit.</summary>
+        private static Button ArtButton(RectTransform block, string file)
+        {
+            Sprite sprite = Art(file, true);
+            Image bg = block.gameObject.AddComponent<Image>();
+            if (sprite != null) { bg.sprite = sprite; bg.type = Image.Type.Sliced; bg.color = Color.white; }
+            else bg.color = ColPanel;
+
+            Button button = block.gameObject.AddComponent<Button>();
+            button.targetGraphic = bg;
+
+            ColorBlock colors = button.colors;
+            colors.highlightedColor = new Color(1.12f, 1.12f, 1.12f, 1f);
+            colors.pressedColor = new Color(0.78f, 0.86f, 1f, 1f);
+            colors.disabledColor = new Color(0.55f, 0.6f, 0.7f, 0.6f);
+            colors.fadeDuration = 0.08f;
+            button.colors = colors;
+            return button;
+        }
+
+        // Les cotes de la maquette, en 1920 x 1080. Les cadres sont poses AVEC leur
+        // marge de halo (celle de l'image), d'ou les petits decalages de bord.
+        private const float SideW = 408f;          // 544 x 0.75 : les cadres de gauche
+
+        /// <summary>Energie, en haut a DROITE (en hebreu elle ouvre la lecture) : le cadre de Dan, son logo a l'eclair.</summary>
         private static void BuildEnergy(RectTransform root, HudController hud, JObject labels)
         {
             RectTransform block = NewRect("Energie", root);
-            AnchorTopRight(block, new Vector2(-56f, -40f), new Vector2(300f, 150f));
-            PlateBehind(block, "ui_plate_gold.png", 0.92f, new Vector2(22f, 14f));
+            AnchorTopRight(block, new Vector2(-11f, -13f), new Vector2(402f, 165f));
+            ArtPlate(block, "05_cadre_energie.png");
 
-            TextMeshProUGUI label = NewText("Label", block, S(labels, "energy"), 20f, ColDim,
+            Sprite logo = Art("logo_energie.png", false);
+            Image badge = NewImage("Logo", block, Color.white);
+            badge.preserveAspect = true;
+            if (logo != null) badge.sprite = logo;
+            AnchorCenterLeft(badge.rectTransform, new Vector2(-201f + 34f, 0f), new Vector2(75f, 87f));
+
+            TextMeshProUGUI label = NewText("Label", block, S(labels, "energy"), 18f, ColText,
                                             TextAlignmentOptions.TopRight, true);
-            AnchorTopRight(label.rectTransform, Vector2.zero, new Vector2(300f, 28f));
+            AnchorTopRight(label.rectTransform, new Vector2(-36f, -26f), new Vector2(240f, 32f));
 
-            TextMeshProUGUI value = NewText("Valeur", block, "0", 56f, ColGold,
-                                            TextAlignmentOptions.TopRight, false);
+            TextMeshProUGUI value = NewText("Valeur", block, "0", 42f, ColCyan,
+                                            TextAlignmentOptions.BottomRight, false);
             value.fontStyle = FontStyles.Bold;
-            AnchorTopRight(value.rectTransform, new Vector2(0f, -34f), new Vector2(300f, 64f));
+            AnchorTopRight(value.rectTransform, new Vector2(-36f, -58f), new Vector2(240f, 70f));
 
-            TextMeshProUGUI delta = NewText("Gain", block, "", 22f, new Color32(0x7F, 0xE8, 0xA0, 0xFF),
+            TextMeshProUGUI delta = NewText("Gain", block, "", 20f, new Color32(0x8F, 0xF0, 0xB0, 0xFF),
                                             TextAlignmentOptions.TopRight, true);
-            AnchorTopRight(delta.rectTransform, new Vector2(0f, -102f), new Vector2(300f, 30f));
+            AnchorTopRight(delta.rectTransform, new Vector2(-36f, -168f), new Vector2(240f, 32f));
 
             hud.energyText = value;
             hud.energyDeltaText = delta;
         }
 
-        /// <summary>Tour et rail des phases, au centre. Le rail se lit de droite a gauche.</summary>
+        /// <summary>Le cadre des phases au centre, le badge du tour a cheval sur son bord haut.</summary>
         private static void BuildCenter(RectTransform root, HudController hud, JObject labels)
         {
             RectTransform block = NewRect("TourEtPhases", root);
-            AnchorTopCenter(block, new Vector2(0f, -36f), new Vector2(900f, 120f));
-            PlateBehind(block, "ui_panel_dark.png", 0.80f, new Vector2(18f, 10f));
+            AnchorTopCenter(block, new Vector2(0f, -43f), new Vector2(960f, 138f));
+            ArtPlate(block, "03_cadre_phases.png");
 
-            TextMeshProUGUI turn = NewText("Tour", block, "1", 20f, new Color32(0xA8, 0xB6, 0xD8, 0xFF),
-                                           TextAlignmentOptions.Top, false);
-            AnchorTopCenter(turn.rectTransform, Vector2.zero, new Vector2(400f, 28f));
+            // Le badge du tour : 192 x 132, a 0,75 = 144 x 99, au bord haut de l'ecran.
+            Sprite badgeSprite = Art("04_badge_tour.png", false);
+            RectTransform hex = NewRect("Badge", block);
+            AnchorTopCenter(hex, new Vector2(0f, 43f), new Vector2(144f, 99f));
+            Image hexImage = hex.gameObject.AddComponent<Image>();
+            hexImage.raycastTarget = false;
+            hexImage.preserveAspect = true;
+            if (badgeSprite != null) hexImage.sprite = badgeSprite; else hexImage.color = ColPanel;
+
+            TextMeshProUGUI turn = NewText("Tour", hex, "1", 24f, ColText, TextAlignmentOptions.Center, false);
+            turn.fontStyle = FontStyles.Bold;
+            AnchorCenter(turn.rectTransform, new Vector2(-12f, 0f), new Vector2(60f, 44f));
+
+            TextMeshProUGUI turnWord = NewText("Mot", hex, S(labels, "turn"), 12f, ColDim, TextAlignmentOptions.Center, true);
+            AnchorCenter(turnWord.rectTransform, new Vector2(22f, -2f), new Vector2(48f, 30f));
 
             RectTransform rail = NewRect("Rail", block);
-            AnchorTopCenter(rail, new Vector2(0f, -40f), new Vector2(880f, 62f));
+            rail.anchorMin = new Vector2(0f, 0f);
+            rail.anchorMax = new Vector2(1f, 1f);
+            rail.offsetMin = new Vector2(40f, 18f);
+            rail.offsetMax = new Vector2(-40f, -38f);
 
             HorizontalLayoutGroup layout = rail.gameObject.AddComponent<HorizontalLayoutGroup>();
-            layout.spacing = 4f;
-            layout.childAlignment = TextAnchor.UpperCenter;
+            layout.spacing = 14f;
+            layout.childAlignment = TextAnchor.LowerCenter;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
             layout.childForceExpandWidth = true;
             layout.childForceExpandHeight = false;
-            // Le rail se lit de droite a gauche : la premiere phase est a droite.
-            layout.reverseArrangement = true;
+            layout.reverseArrangement = true;   // la premiere phase est a droite
+
+            Sprite barIdle = Art("phase_a_venir.png", false);
+            Sprite barDone = Art("phase_passee.png", false);
+            Sprite barActive = Art("phase_active.png", false);
 
             JArray phases = labels["phases"] as JArray;
             HudController.PhaseStep[] steps = new HudController.PhaseStep[5];
@@ -374,24 +492,26 @@ namespace MNLTHII.EditorTools
                 RectTransform step = NewRect("Phase" + i, rail);
 
                 VerticalLayoutGroup v = step.gameObject.AddComponent<VerticalLayoutGroup>();
-                v.spacing = 9f;
-                v.childAlignment = TextAnchor.UpperCenter;
+                v.spacing = 6f;
+                v.childAlignment = TextAnchor.LowerCenter;
                 v.childControlWidth = true;
-                // La hauteur DOIT etre pilotee par le groupe : sinon LayoutElement
-                // (3 px pour le trait) est ignore et chaque trait prend 100 px - le
-                // rail devenait une rangee de gros rectangles.
                 v.childControlHeight = true;
                 v.childForceExpandWidth = true;
                 v.childForceExpandHeight = false;
 
-                Image bar = NewImage("Trait", step, ColIdle);
-                LayoutElement barLayout = bar.gameObject.AddComponent<LayoutElement>();
-                barLayout.preferredHeight = 3f;
-
-                TextMeshProUGUI text = NewText("Nom", step, name, 19f, ColIdle,
-                                               TextAlignmentOptions.Top, true);
+                TextMeshProUGUI text = NewText("Nom", step, name, 18f, ColIdle,
+                                               TextAlignmentOptions.Bottom, true);
                 LayoutElement textLayout = text.gameObject.AddComponent<LayoutElement>();
-                textLayout.preferredHeight = 28f;
+                textLayout.preferredHeight = 34f;
+
+                // Le trait : l'image "a venir" au depart, le controleur change l'image.
+                // Hauteur de l'image active (260 x 50 a 0,75 = 38) pour que le halo
+                // rouge du Yetzer ait la place ; les traits fins se centrent dedans.
+                Image bar = NewImage("Trait", step, Color.white);
+                bar.preserveAspect = true;
+                if (barIdle != null) bar.sprite = barIdle; else bar.color = ColIdle;
+                LayoutElement barLayout = bar.gameObject.AddComponent<LayoutElement>();
+                barLayout.preferredHeight = 38f;
 
                 steps[i] = new HudController.PhaseStep();
                 steps[i].bar = bar;
@@ -401,132 +521,153 @@ namespace MNLTHII.EditorTools
             hud.turnText = turn;
             hud.phaseSteps = steps;
             hud.phaseLabels = phaseNames;
+            hud.phaseIdleSprite = barIdle;
+            hud.phaseDoneSprite = barDone;
+            hud.phaseActiveSprite = barDone;      // en cours cote joueur : le trait cyan, libelle blanc gras
+            hud.phaseEnemySprite = barActive;     // en cours cote Yetzer : le trait rouge lumineux
+            hud.phaseIdleColor = ColIdle;
+            hud.phaseDoneColor = ColCyan;
+            hud.phaseActiveColor = ColCyan;
+            hud.phaseEnemyColor = ColRed;
+            hud.phaseActiveLabelColor = ColText;
         }
 
-        /// <summary>Shofars restants et PV de la Base : en RTL, ils ferment la lecture, donc a GAUCHE.</summary>
+        /// <summary>A GAUCHE : le cadre rouge des Shofars, le cadre des Bases, et un cadre pour les Tanks.</summary>
         private static void BuildObjectives(RectTransform root, HudController hud, JObject labels)
         {
-            RectTransform block = NewRect("Objectifs", root);
-            AnchorTopLeft(block, new Vector2(56f, -40f), new Vector2(480f, 120f));
-            PlateBehind(block, "ui_plate_cyan.png", 0.92f, new Vector2(22f, 14f));
+            // --- Shofars : 544 x 226 a 0,75 = 408 x 170 ---
+            RectTransform portalRow = NewRect("Shofars", root);
+            AnchorTopLeft(portalRow, new Vector2(13f, -10f), new Vector2(SideW, 170f));
+            ArtPlate(portalRow, "01_cadre_portes_rouge.png");
 
-            // --- ligne des shofars ---
-            RectTransform portalRow = NewRect("Shofars", block);
-            AnchorTopLeft(portalRow, Vector2.zero, new Vector2(480f, 34f));
+            TextMeshProUGUI portalLabel = NewText("Libelle", portalRow, S(labels, "portals"), 18f, ColText,
+                                                  TextAlignmentOptions.TopRight, true);
+            AnchorTopRight(portalLabel.rectTransform, new Vector2(-34f, -24f), new Vector2(220f, 32f));
 
-            TextMeshProUGUI portalCount = NewText("Compte", portalRow, "6/6", 24f, ColOrange,
-                                                  TextAlignmentOptions.Left, false);
+            TextMeshProUGUI portalCount = NewText("Compte", portalRow, "6/6", 26f, ColRed,
+                                                  TextAlignmentOptions.TopLeft, false);
             portalCount.fontStyle = FontStyles.Bold;
-            AnchorTopLeft(portalCount.rectTransform, Vector2.zero, new Vector2(70f, 32f));
+            AnchorTopLeft(portalCount.rectTransform, new Vector2(34f, -18f), new Vector2(120f, 44f));
 
             RectTransform dots = NewRect("Pastilles", portalRow);
-            AnchorTopLeft(dots, new Vector2(80f, -6f), new Vector2(160f, 20f));
+            AnchorBottomCenter(dots, new Vector2(0f, 30f), new Vector2(SideW - 80f, 34f));
 
             HorizontalLayoutGroup dotLayout = dots.gameObject.AddComponent<HorizontalLayoutGroup>();
-            dotLayout.spacing = 9f;
-            dotLayout.childAlignment = TextAnchor.MiddleLeft;
+            dotLayout.spacing = 10f;
+            dotLayout.childAlignment = TextAnchor.MiddleCenter;
             dotLayout.childControlWidth = false;
             dotLayout.childControlHeight = false;
 
+            Sprite dotOn = Art("pastille_rouge.png", false);
+            Sprite dotOff = Art("pastille_vide.png", false);
             Image[] portalDots = new Image[6];
             for (int i = 0; i < 6; i++)
             {
-                Image dot = NewImage("Pastille" + i, dots, ColOrange);
-                dot.rectTransform.sizeDelta = new Vector2(13f, 13f);
-                dot.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+                Image dot = NewImage("Pastille" + i, dots, Color.white);
+                if (dotOn != null) dot.sprite = dotOn; else dot.color = ColRed;
+                dot.preserveAspect = true;
+                dot.rectTransform.sizeDelta = new Vector2(27f, 32f);
                 portalDots[i] = dot;
             }
 
-            TextMeshProUGUI portalLabel = NewText("Libelle", portalRow, S(labels, "portals"), 20f, ColDim,
-                                                  TextAlignmentOptions.Left, true);
-            AnchorTopLeft(portalLabel.rectTransform, new Vector2(262f, 0f), new Vector2(200f, 32f));
+            // --- Base : 544 x 208 a 0,75 = 408 x 156 ---
+            RectTransform baseRow = NewRect("Base", root);
+            AnchorTopLeft(baseRow, new Vector2(13f, -152f), new Vector2(SideW, 156f));
+            ArtPlate(baseRow, "02_cadre_bases.png");
 
-            // --- ligne de la Base ---
-            RectTransform baseRow = NewRect("Base", block);
-            AnchorTopLeft(baseRow, new Vector2(0f, -46f), new Vector2(480f, 34f));
+            TextMeshProUGUI baseLabel = NewText("Libelle", baseRow, S(labels, "base"), 18f, ColText,
+                                                TextAlignmentOptions.TopRight, true);
+            AnchorTopRight(baseLabel.rectTransform, new Vector2(-34f, -22f), new Vector2(220f, 32f));
 
-            TextMeshProUGUI baseHp = NewText("PV", baseRow, "200", 24f, ColCyan,
-                                             TextAlignmentOptions.Left, false);
+            TextMeshProUGUI baseHp = NewText("PV", baseRow, "200", 26f, ColCyan,
+                                             TextAlignmentOptions.TopLeft, false);
             baseHp.fontStyle = FontStyles.Bold;
-            AnchorTopLeft(baseHp.rectTransform, Vector2.zero, new Vector2(70f, 32f));
+            AnchorTopLeft(baseHp.rectTransform, new Vector2(34f, -16f), new Vector2(120f, 44f));
 
-            Image track = NewImage("Fond", baseRow, new Color32(0x7E, 0xA0, 0xFF, 0x22));
-            AnchorTopLeft(track.rectTransform, new Vector2(80f, -12f), new Vector2(224f, 9f));
+            // La jauge : le fond (416 x 20 a 0,75 = 312 x 15) et le remplissage par-dessus
+            // (440 x 44 a 0,75 = 330 x 33, halo compris), qui se vide vers la gauche.
+            Sprite gaugeBack = Art("jauge_fond.png", false);
+            Sprite gaugeFill = Art("jauge_remplissage.png", false);
 
-            Image fill = NewImage("Remplissage", track.rectTransform, ColCyan);
-            Stretch(fill.rectTransform);
+            Image track = NewImage("Fond", baseRow, Color.white);
+            if (gaugeBack != null) track.sprite = gaugeBack; else track.color = new Color32(0x7E, 0xA0, 0xFF, 0x30);
+            AnchorBottomCenter(track.rectTransform, new Vector2(0f, 32f), new Vector2(312f, 15f));
+
+            Image fill = NewImage("Remplissage", baseRow, Color.white);
+            if (gaugeFill != null) fill.sprite = gaugeFill; else fill.color = ColCyan;
+            AnchorBottomCenter(fill.rectTransform, new Vector2(0f, 23f), new Vector2(330f, 33f));
             fill.type = Image.Type.Filled;
             fill.fillMethod = Image.FillMethod.Horizontal;
-            // En RTL, la jauge se vide vers la gauche : elle se remplit depuis la droite.
-            fill.fillOrigin = (int)Image.OriginHorizontal.Right;
+            fill.fillOrigin = (int)Image.OriginHorizontal.Right;   // en RTL, elle se vide vers la gauche
             fill.fillAmount = 1f;
 
-            TextMeshProUGUI baseLabel = NewText("Libelle", baseRow, S(labels, "base"), 20f, ColDim,
-                                                TextAlignmentOptions.Left, true);
-            AnchorTopLeft(baseLabel.rectTransform, new Vector2(322f, 0f), new Vector2(150f, 32f));
+            // --- Tanks : le meme cadre que la Base, plus bas, pour le plafond du commandement ---
+            RectTransform tankRow = NewRect("Tanks", root);
+            AnchorTopLeft(tankRow, new Vector2(13f, -304f), new Vector2(SideW, 110f));
+            ArtPlate(tankRow, "02_cadre_bases.png");
+
+            TextMeshProUGUI tankLabel = NewText("Libelle", tankRow, S(labels, "tanks"), 18f, ColText,
+                                                TextAlignmentOptions.Right, true);
+            AnchorCenterRight(tankLabel.rectTransform, new Vector2(SideW * 0.5f - 34f, 0f), new Vector2(220f, 34f));
+
+            TextMeshProUGUI tankCount = NewText("Compte", tankRow, "0/10", 26f, ColSteel,
+                                                TextAlignmentOptions.Left, false);
+            tankCount.fontStyle = FontStyles.Bold;
+            AnchorCenterLeft(tankCount.rectTransform, new Vector2(-SideW * 0.5f + 34f, 0f), new Vector2(140f, 44f));
 
             hud.portalDots = portalDots;
             hud.portalCountText = portalCount;
+            hud.portalDotAliveSprite = dotOn;
+            hud.portalDotDownSprite = dotOff;
             hud.baseFill = fill;
             hud.baseHpText = baseHp;
+            hud.baseHealthyColor = Color.white;    // la jauge est une image : blanc = telle quelle
+            hud.baseWarningColor = new Color(1f, 0.85f, 0.55f);
+            hud.baseCriticalColor = new Color(1f, 0.45f, 0.5f);
+            hud.tankCountText = tankCount;
+            hud.tankCapFullColor = ColRed;
         }
 
+        /// <summary>Le bouton de fin de tour de Dan, en bas au centre : 756 x 264 a 0,75 = 567 x 198.</summary>
         private static void BuildEndTurn(RectTransform root, HudController hud, JObject labels)
         {
             RectTransform block = NewRect("FinDeTour", root);
-            AnchorBottomCenter(block, new Vector2(0f, 54f), new Vector2(360f, 72f));
+            AnchorBottomCenter(block, new Vector2(0f, 4f), new Vector2(567f, 198f));
 
-            Image bg = block.gameObject.AddComponent<Image>();
-            bg.color = new Color(ColCyan.r, ColCyan.g, ColCyan.b, 0.12f);
+            Button button = ArtButton(block, "08_bouton_fin_de_tour.png");
 
-            UnityEngine.UI.Outline outline = block.gameObject.AddComponent<UnityEngine.UI.Outline>();
-            outline.effectColor = new Color(ColCyan.r, ColCyan.g, ColCyan.b, 0.55f);
-            outline.effectDistance = new Vector2(1.5f, 1.5f);
-
-            Button button = block.gameObject.AddComponent<Button>();
-            button.targetGraphic = bg;
-
-            TextMeshProUGUI text = NewText("Texte", block, S(labels, "endTurn"), 24f,
-                                           new Color32(0xBF, 0xF6, 0xEF, 0xFF),
+            TextMeshProUGUI text = NewText("Texte", block, S(labels, "endTurn"), 28f, ColText,
                                            TextAlignmentOptions.Center, true);
+            text.fontStyle = FontStyles.Bold;
             Stretch(text.rectTransform);
 
             hud.endTurnButton = button;
             hud.endTurnRoot = block.gameObject;
         }
 
-        /// <summary>
-        /// LA VISION DU YETZER : le bouton qui ouvre l'apercu de menace (Tab au
-        /// clavier). Il remplace le vieux bouton gris "VOIR LA MENACE" de l'ancien
-        /// canvas, qui se cache tout seul des qu'il voit celui-ci (ThreatPreviewButton).
-        /// Meme famille que "fin de tour", en plus discret, a sa gauche.
-        /// </summary>
+        /// <summary>La menace : le bouton rouge de Dan, en bas a gauche (544 x 168 a 0,75 = 408 x 126).</summary>
         private static void BuildThreatButton(RectTransform root, JObject labels)
         {
             RectTransform block = NewRect("Menace", root);
-            AnchorBottomCenter(block, new Vector2(-360f, 54f), new Vector2(320f, 56f));
+            block.anchorMin = new Vector2(0f, 0f);
+            block.anchorMax = new Vector2(0f, 0f);
+            block.pivot = new Vector2(0f, 0f);
+            block.anchoredPosition = new Vector2(13f, 104f);
+            block.sizeDelta = new Vector2(SideW, 126f);
 
-            Image bg = block.gameObject.AddComponent<Image>();
-            bg.color = new Color(ColGold.r, ColGold.g, ColGold.b, 0.10f);
-
-            UnityEngine.UI.Outline outline = block.gameObject.AddComponent<UnityEngine.UI.Outline>();
-            outline.effectColor = new Color(ColGold.r, ColGold.g, ColGold.b, 0.50f);
-            outline.effectDistance = new Vector2(1.5f, 1.5f);
-
-            Button button = block.gameObject.AddComponent<Button>();
-            button.targetGraphic = bg;
+            Button button = ArtButton(block, "06_bouton_menace_rouge.png");
 
             JObject banners = labels["banners"] as JObject;
-            TextMeshProUGUI text = NewText("Texte", block, S(banners, "threatShow"), 19f,
-                                           new Color32(0xFF, 0xE2, 0xA8, 0xFF),
+            TextMeshProUGUI text = NewText("Texte", block, S(banners, "threatShow"), 20f, ColText,
                                            TextAlignmentOptions.Center, true);
+            text.fontStyle = FontStyles.Bold;
             Stretch(text.rectTransform);
 
             ThreatPreviewButton relay = block.gameObject.AddComponent<ThreatPreviewButton>();
             relay.label = text;
             relay.showLabel = S(banners, "threatShow");
             relay.hideLabel = S(banners, "threatHide");
-            relay.activeColor = new Color(ColGold.r, ColGold.g, ColGold.b, 0.35f);
+            relay.activeColor = new Color(1f, 0.75f, 0.78f, 1f);
         }
 
         /// <summary>
@@ -562,38 +703,40 @@ namespace MNLTHII.EditorTools
             block.anchorMin = new Vector2(0f, 0f);
             block.anchorMax = new Vector2(0f, 0f);
             block.pivot = new Vector2(0f, 0f);
-            block.anchoredPosition = new Vector2(40f, 40f);
-            block.sizeDelta = new Vector2(280f, 66f);
+            block.anchoredPosition = new Vector2(37f, 36f);
+            block.sizeDelta = new Vector2(360f, 78f);
 
-            Image bg = block.gameObject.AddComponent<Image>();
-            bg.color = new Color(ColGold.r, ColGold.g, ColGold.b, 0.12f);
+            Button button = ArtButton(block, "07_bouton_comment_jouer.png");
 
-            UnityEngine.UI.Outline edge = block.gameObject.AddComponent<UnityEngine.UI.Outline>();
-            edge.effectColor = new Color(ColGold.r, ColGold.g, ColGold.b, 0.50f);
-            edge.effectDistance = new Vector2(1.5f, 1.5f);
-
-            Button button = block.gameObject.AddComponent<Button>();
-            button.targetGraphic = bg;
-
-            // PAS de onClick.AddListener ici. Un abonnement pose depuis l'editeur n'est
-            // pas enregistre dans la scene : il aurait disparu au lancement et le bouton
-            // serait reste muet. On confie la reference au panneau, qui s'abonne dans son
-            // Awake comme tous les autres boutons du projet.
+            // PAS de onClick.AddListener ici : un abonnement pose depuis l'editeur n'est
+            // pas enregistre dans la scene. Le panneau s'abonne dans son Awake.
             ctrl.openButton = button;
 
-            Image icon = NewImage("Icone", block, ColGold);
-            AnchorCenterRight(icon.rectTransform, new Vector2(-16f, 0f), new Vector2(32f, 32f));
-            icon.preserveAspect = true;
-            Bind(icon, MNLTHII.UI.IconKind.Energy);
-
-            TextMeshProUGUI label = NewText("Libelle", block, "", 22f, ColGold,
-                                            TextAlignmentOptions.Right, true);
-            AnchorCenterRight(label.rectTransform, new Vector2(-58f, 0f), new Vector2(200f, 40f));
-
-            // Le libelle vient de teachings.json, comme tout le reste de cette page.
-            // Il est pose ici en dur DANS LE BUILDER a partir du meme fichier, pour que
-            // le bouton ne soit pas muet avant que TeachingManager ait charge.
+            TextMeshProUGUI label = NewText("Libelle", block, "", 20f, ColText,
+                                            TextAlignmentOptions.Center, true);
+            label.fontStyle = FontStyles.Bold;
+            Stretch(label.rectTransform);
             label.text = ReadTeachingLabel("helpButton");
+        }
+
+        /// <summary>La meme page d'aide, pour le menu principal.</summary>
+        internal static void BuildHelpPageInto(RectTransform root, Canvas canvas, HowToPlayPanel ctrl)
+        {
+            _font = FindHebrewFont();
+            BuildHelpPage(root, canvas, ctrl);
+        }
+
+        internal static string ReadTeachingLabelPublic(string key)
+        {
+            return ReadTeachingLabel(key);
+        }
+
+        /// <summary>Un lecteur d'enseignements sur l'objet donne, s'il n'y en a aucun dans la scene.</summary>
+        internal static void EnsureTeachingManagerIn(GameObject host)
+        {
+            TeachingManager existing = Object.FindFirstObjectByType<TeachingManager>(FindObjectsInactive.Include);
+            if (existing != null) return;
+            host.AddComponent<TeachingManager>();
         }
 
         /// <summary>La page : les consignes en haut, la legende en bas.</summary>
@@ -1595,6 +1738,8 @@ namespace MNLTHII.EditorTools
                                + "dans son champ \"panel\" quand il sera la.");
             }
 
+            Enlarge(panel, 1.2f);
+
             panel.gameObject.SetActive(false);
         }
 
@@ -1758,6 +1903,8 @@ namespace MNLTHII.EditorTools
                 trivia.subjectPanel = ctrl;
                 EditorUtility.SetDirty(trivia);
             }
+
+            Enlarge(panel, 1.2f);
 
             panel.gameObject.SetActive(false);
         }
@@ -1980,6 +2127,10 @@ namespace MNLTHII.EditorTools
             ctrl.stanceNames = ReadArray(un, "stances", 3);
             ctrl.stanceBodies = ReadArray(tc, "bodies", 3);
 
+            ctrl.cardIdleColor = Color.white;
+            ctrl.cardHoverColor = new Color(1.25f, 1.35f, 1.5f, 1f);
+            Enlarge(panel, 1.08f);
+
             panel.gameObject.SetActive(false);
         }
 
@@ -2140,6 +2291,9 @@ namespace MNLTHII.EditorTools
 
             ctrl.reasons = ReadArray(ad, "reasons", MNLTHII.Rules.AdvisorRules.REASON_COUNT);
             ctrl.stanceNames = ReadArray(un, "stances", 3);
+
+            ctrl.cardIdleColor = Color.white;
+            ctrl.cardHoverColor = new Color(1.25f, 1.35f, 1.5f, 1f);
 
             panel.gameObject.SetActive(false);
         }
@@ -2336,6 +2490,14 @@ namespace MNLTHII.EditorTools
             EnsureTeachingManager();
             EnsureIconOverrides();
 
+            // Les cartes de reponse sont des plaques du theme : la couleur d'etat les
+            // TEINTE. Blanc = la plaque telle quelle ; le survol l'eclaircit.
+            ctrl.idleColor = Color.white;
+            ctrl.hoverColor = new Color(1.25f, 1.35f, 1.5f, 1f);
+
+            // L'ecran prend la place : c'est le moment de lecture du jeu.
+            Enlarge(panel, 1.25f);
+
             question.gameObject.SetActive(false);
             result.gameObject.SetActive(false);
             panel.gameObject.SetActive(false);
@@ -2374,9 +2536,11 @@ namespace MNLTHII.EditorTools
         {
             JObject hm = labels["hexMenu"] as JObject;
 
-            const float W = 380f;
-            const float BtnW = 344f;
-            const float BtnH = 58f;
+            // Trois boutons qu'on touche au doigt : chacun fait 76 de haut (jamais
+            // moins de 44 px a l'ecran, meme sur un petit telephone).
+            const float W = 440f;
+            const float BtnW = 400f;
+            const float BtnH = 76f;
 
             RectTransform panel = NewRect("MenuCase", root);
             panel.anchorMin = new Vector2(0f, 0f);
@@ -2397,11 +2561,13 @@ namespace MNLTHII.EditorTools
             RectTransform view = NewRect("VoirDePres", panel);
             AnchorTopCenter(view, new Vector2(0f, -18f), new Vector2(BtnW, BtnH));
 
+            // Plaque sombre (voir ApplyElectronicTheme) : la seule action pleine du
+            // menu est "utiliser l'Energie", en bas.
             Image viewBg = view.gameObject.AddComponent<Image>();
-            viewBg.color = new Color(ColCyan.r, ColCyan.g, ColCyan.b, 0.12f);
+            viewBg.color = new Color(1f, 1f, 1f, 0.06f);
 
             UnityEngine.UI.Outline viewEdge = view.gameObject.AddComponent<UnityEngine.UI.Outline>();
-            viewEdge.effectColor = new Color(ColCyan.r, ColCyan.g, ColCyan.b, 0.55f);
+            viewEdge.effectColor = ColLine;
             viewEdge.effectDistance = new Vector2(1f, 1f);
 
             Button viewButton = view.gameObject.AddComponent<Button>();
@@ -2648,41 +2814,68 @@ namespace MNLTHII.EditorTools
             // le plateau, meme un clic parti trop tot.
             group.blocksRaycasts = true;
 
-            Image dim = panel.gameObject.AddComponent<Image>();
-            dim.color = new Color32(0x03, 0x05, 0x0B, 0xE6);
-            dim.raycastTarget = true;
+            // LE RIDEAU : le fond du theme (bleu nuit, lueur rouge a gauche, cyan a
+            // droite), le meme que celui du menu. Opaque a l'ouverture de la partie,
+            // il cache le plateau qui se construit ; aux tours suivants il devient un
+            // voile. Le joueur passe du menu au jeu sans changer de decor.
+            Image curtain = panel.gameObject.AddComponent<Image>();
+            Sprite backdrop = Art("00_fond_1280x720.png", false);
+            if (backdrop == null) backdrop = UiSprite("ui_backdrop.png", false);
+            if (backdrop != null) { curtain.sprite = backdrop; curtain.type = Image.Type.Simple; curtain.color = Color.white; }
+            else curtain.color = new Color32(0x0A, 0x14, 0x28, 0xFF);
+            curtain.raycastTarget = true;
 
-            Image ruleTop = NewImage("Filet_Haut", panel, ColLine);
-            AnchorCenter(ruleTop.rectTransform, new Vector2(0f, 104f), new Vector2(520f, 1f));
+            // Les textes, dans leur propre groupe : ils apparaissent SUR le rideau.
+            RectTransform content = NewRect("Contenu", panel);
+            Stretch(content);
+            CanvasGroup contentGroup = content.gameObject.AddComponent<CanvasGroup>();
+            contentGroup.alpha = 0f;
+            contentGroup.interactable = false;
+            contentGroup.blocksRaycasts = false;
 
-            TextMeshProUGUI turnLabel = NewText("Libelle", panel, S(ta, "turnLabel"), 22f, ColDim,
-                                                TextAlignmentOptions.Top, true);
-            AnchorCenter(turnLabel.rectTransform, new Vector2(0f, 74f), new Vector2(700f, 44f));
+            // Le numero du tour dans un grand hexagone de Dan, comme sur le bandeau.
+            Sprite badge = Art("04_hexagone_normal.png", false);
+            if (badge == null) badge = UiSprite("ui_hex.png", false);
+            RectTransform hex = NewRect("Hexagone", content);
+            AnchorCenter(hex, new Vector2(0f, 20f), new Vector2(360f, 360f));
+            Image hexImage = hex.gameObject.AddComponent<Image>();
+            hexImage.raycastTarget = false;
+            hexImage.preserveAspect = true;
+            if (badge != null) hexImage.sprite = badge; else hexImage.color = ColPanel;
 
-            TextMeshProUGUI turnNumber = NewText("Numero", panel, "", 120f, ColCyan,
-                                                 TextAlignmentOptions.Top, false);
+            TextMeshProUGUI turnLabel = NewText("Libelle", hex, S(ta, "turnLabel"), 26f, ColDim,
+                                                TextAlignmentOptions.Center, true);
+            AnchorCenter(turnLabel.rectTransform, new Vector2(0f, 78f), new Vector2(300f, 44f));
+
+            TextMeshProUGUI turnNumber = NewText("Numero", hex, "", 110f, ColCyan,
+                                                 TextAlignmentOptions.Center, false);
             turnNumber.fontStyle = FontStyles.Bold;
-            AnchorCenter(turnNumber.rectTransform, new Vector2(0f, -26f), new Vector2(700f, 190f));
+            AnchorCenter(turnNumber.rectTransform, new Vector2(0f, -18f), new Vector2(300f, 170f));
 
-            Image ruleBottom = NewImage("Filet_Bas", panel, ColLine);
-            AnchorCenter(ruleBottom.rectTransform, new Vector2(0f, -112f), new Vector2(520f, 1f));
+            Image ruleTop = NewImage("Filet_Haut", content, new Color(ColSteel.r, ColSteel.g, ColSteel.b, 0.35f));
+            AnchorCenter(ruleTop.rectTransform, new Vector2(0f, 230f), new Vector2(620f, 2f));
+
+            Image ruleBottom = NewImage("Filet_Bas", content, new Color(ColSteel.r, ColSteel.g, ColSteel.b, 0.35f));
+            AnchorCenter(ruleBottom.rectTransform, new Vector2(0f, -190f), new Vector2(620f, 2f));
 
             // En hebreu la ligne se lit de droite a gauche : le libelle ouvre a droite,
             // le nombre vient ensuite, donc a sa gauche.
-            TextMeshProUGUI incomeLabel = NewText("Revenu_Libelle", panel, S(ta, "incomeLabel"),
-                                                  20f, ColDim, TextAlignmentOptions.Top, true);
-            AnchorCenter(incomeLabel.rectTransform, new Vector2(88f, -176f), new Vector2(240f, 40f));
+            TextMeshProUGUI incomeLabel = NewText("Revenu_Libelle", content, S(ta, "incomeLabel"),
+                                                  24f, ColDim, TextAlignmentOptions.Top, true);
+            AnchorCenter(incomeLabel.rectTransform, new Vector2(110f, -236f), new Vector2(300f, 48f));
 
-            TextMeshProUGUI incomeValue = NewText("Revenu_Valeur", panel, "", 28f, ColGold,
+            TextMeshProUGUI incomeValue = NewText("Revenu_Valeur", content, "", 34f, ColCyan,
                                                   TextAlignmentOptions.Top, false);
             incomeValue.fontStyle = FontStyles.Bold;
-            AnchorCenter(incomeValue.rectTransform, new Vector2(-92f, -178f), new Vector2(190f, 46f));
+            AnchorCenter(incomeValue.rectTransform, new Vector2(-110f, -240f), new Vector2(220f, 56f));
 
             TurnAnnouncePanel ctrl = canvas.gameObject.GetComponent<TurnAnnouncePanel>();
             if (ctrl == null) ctrl = canvas.gameObject.AddComponent<TurnAnnouncePanel>();
 
             ctrl.panelRoot = panel.gameObject;
             ctrl.group = group;
+            ctrl.curtain = curtain;
+            ctrl.content = contentGroup;
             ctrl.turnLabelText = turnLabel;
             ctrl.turnNumberText = turnNumber;
             ctrl.incomeLabelText = incomeLabel;
@@ -2695,10 +2888,6 @@ namespace MNLTHII.EditorTools
             ctrl.numberFormat = S(ta, "numberFormat", "{0}");
             ctrl.incomeFormat = S(ta, "incomeFormat", "+{0}");
 
-            // Le rythme est impose ici, et pas seulement par le defaut du champ : une
-            // valeur deja enregistree dans la scene ne change pas quand on modifie le
-            // defaut dans le code. Sans cette ligne, l'ancienne cadence trop rapide
-            // survivrait a toutes les reconstructions.
             ctrl.fadeInDuration = 0.35f;
             ctrl.holdDuration = 1.7f;
             ctrl.fadeOutDuration = 0.45f;
@@ -2920,6 +3109,8 @@ namespace MNLTHII.EditorTools
             ctrl.statKillsLabel = S(go, "statKills");
             ctrl.portalsFormat = S(go, "portalsFormat", "{0}/{1}");
 
+            Enlarge(screen, 1.3f);
+
             screen.gameObject.SetActive(false);
         }
 
@@ -2939,6 +3130,7 @@ namespace MNLTHII.EditorTools
         {
             hud.energyDeltaFormat = S(labels, "energyDeltaFormat", "+{0}");
             hud.portalCountFormat = S(labels, "portalCountFormat", "{0}/{1}");
+            hud.tankCountFormat = S(labels, "tankCountFormat", "{0}/{1}");
             hud.turnFormat = "{0}";
         }
 
@@ -2963,7 +3155,7 @@ namespace MNLTHII.EditorTools
         // Les cartes a survol (choix du Tank, reponses) gardent leur fond plat : leur
         // couleur change a l'execution, un sprite blanc teinte a 6 % disparaitrait.
         private const string UiSpriteDir = "Assets/Resources/UI/";
-        private const float UiSpriteBorder = 30f;
+        private const float UiSpriteBorder = 40f;
 
         private static Sprite UiSprite(string file, bool sliced)
         {
@@ -3053,12 +3245,20 @@ namespace MNLTHII.EditorTools
             Debug.Log("[HudBuilder] Sprites du theme importes (Resources/UI).");
         }
 
+        internal static void EnsureAllUiSpritesPublic()
+        {
+            EnsureAllUiSprites();
+        }
+
         private static void EnsureAllUiSprites()
         {
-            string[] sliced = { "ui_plate_cyan.png", "ui_plate_gold.png", "ui_plate_red.png",
-                                "ui_button_cyan.png", "ui_button_gold.png", "ui_panel_dark.png" };
+            string[] sliced = { "ui_plate_cyan.png", "ui_plate_gold.png", "ui_plate_red.png", "ui_plate_steel.png",
+                                "ui_button_cyan.png", "ui_button_gold.png", "ui_button_red.png",
+                                "ui_button_dark.png", "ui_button_dark_red.png", "ui_panel_dark.png" };
             string[] plain = { "ui_hexgrid.png", "ui_scanlines.png", "ui_vignette.png",
-                               "ui_glowline.png", "ui_bracket.png" };
+                               "ui_glowline.png", "ui_bracket.png",
+                               "ui_hex.png", "ui_hex_cyan.png", "ui_hex_red.png", "ui_hex_dim_red.png",
+                               "ui_hex_dim_blue.png", "ui_hex_badge.png", "ui_title_plate.png", "ui_backdrop.png" };
             for (int i = 0; i < sliced.Length; i++) UiSprite(sliced[i], true);
             for (int i = 0; i < plain.Length; i++) UiSprite(plain[i], false);
         }
@@ -3067,43 +3267,129 @@ namespace MNLTHII.EditorTools
         {
             EnsureAllUiSprites();
 
-            Sprite plateCyan = UiSprite("ui_plate_cyan.png", true);
+            Sprite panelDark = UiSprite("ui_panel_dark.png", true);
+            Sprite plateSteel = UiSprite("ui_plate_steel.png", true);
             Sprite buttonCyan = UiSprite("ui_button_cyan.png", true);
-            Sprite buttonGold = UiSprite("ui_button_gold.png", true);
-            Sprite buttonRed = UiSprite("ui_plate_red.png", true);
+            Sprite buttonDark = UiSprite("ui_button_dark.png", true);
+            Sprite buttonRed = UiSprite("ui_button_dark_red.png", true);
+            Sprite backdrop = Art("00_fond_1280x720.png", false);
+            if (backdrop == null) backdrop = UiSprite("ui_backdrop.png", false);
             Sprite hexgrid = UiSprite("ui_hexgrid.png", false);
-            if (plateCyan == null || buttonCyan == null || buttonGold == null) return;
+            if (panelDark == null || buttonCyan == null || buttonDark == null) return;
 
             Color pageBg = new Color32(0x0B, 0x11, 0x20, 0xF2);
+            Color oldGold = new Color32(0xFF, 0xC6, 0x5C, 0xFF);
 
             Image[] images = root.GetComponentsInChildren<Image>(true);
-            int plates = 0, buttons = 0;
+            int plates = 0, buttons = 0, curtains = 0, frames = 0;
 
             for (int i = 0; i < images.Length; i++)
             {
                 Image image = images[i];
-                if (image == null || image.sprite != null) continue;   // icones, photos, pastilles : on ne touche pas
+                if (image == null || image.sprite != null) continue;   // icones, photos, pastilles, deja habille : on ne touche pas
                 if (image.name == "Plaque" || image.name == "Trame") continue;
 
                 Color c = image.color;
+                RectTransform rect = image.rectTransform;
+                bool stretched = rect.anchorMin == Vector2.zero && rect.anchorMax == Vector2.one;
 
+                // 1. LES VOILES PLEIN ECRAN des panneaux modaux : le fond du theme, le
+                //    meme que le menu et l'ouverture du tour. Le plateau disparait
+                //    presque entierement derriere, et l'ecran est "dans le jeu" au lieu
+                //    d'etre un rectangle noir pose dessus.
+                if (stretched && c.r < 0.1f && c.g < 0.1f && c.b < 0.15f && c.a >= 0.80f && backdrop != null)
+                {
+                    image.sprite = backdrop;
+                    image.type = Image.Type.Simple;
+                    image.preserveAspect = false;
+                    image.color = new Color(1f, 1f, 1f, 0.96f);
+                    curtains++;
+                    continue;
+                }
+
+                // 2. LES PANNEAUX (fond bleu nuit plein) : la grande plaque acier.
                 if (SameColor(c, ColPanel) || SameColor(c, pageBg))
                 {
-                    Skin(image, plateCyan, 0.97f);
+                    Skin(image, panelDark, 1f);
                     AddTrame(image.rectTransform, hexgrid);
                     plates++;
                     continue;
                 }
 
-                // Un bouton : un Button sur le meme objet, et un fond teinte translucide.
-                if (image.GetComponent<Button>() == null || c.a > 0.30f) continue;
+                // 3. LES BOUTONS ET LES CARTES : un fond teinte translucide, en general
+                //    avec un Outline. Le cyan et l'or etaient les deux couleurs d'action :
+                //    ils deviennent le bouton plein bleu (l'action principale). Le rouge
+                //    reste une plaque sombre a bord rouge. Tout le reste - les cartes de
+                //    reponse, de posture, de conseil - devient une plaque sombre a bord
+                //    acier, que le survol eclaircit.
+                bool isButton = image.GetComponent<Button>() != null;
+                bool hasOutline = image.GetComponent<UnityEngine.UI.Outline>() != null;
 
-                if (SameHue(c, ColCyan)) { Skin(image, buttonCyan, 0.95f); buttons++; }
-                else if (SameHue(c, ColGold)) { Skin(image, buttonGold, 0.95f); buttons++; }
-                else if (SameHue(c, ColRed) && buttonRed != null) { Skin(image, buttonRed, 0.95f); buttons++; }
+                if (isButton && c.a <= 0.30f)
+                {
+                    if (SameHue(c, ColCyan) || SameHue(c, ColGold) || SameHue(c, oldGold)) Skin(image, buttonCyan, 1f);
+                    else if (SameHue(c, ColRed) && buttonRed != null) Skin(image, buttonRed, 1f);
+                    else Skin(image, buttonDark, 1f);
+                    buttons++;
+                    continue;
+                }
+
+                // 4. LES CADRES decoratifs (un Outline, pas de bouton, fond leger) : une
+                //    plaque acier. Les barres de vie et les traits n'ont pas d'Outline,
+                //    ils ne sont pas concernes.
+                if (!isButton && hasOutline && c.a <= 0.30f && plateSteel != null)
+                {
+                    Skin(image, plateSteel, 1f);
+                    frames++;
+                    continue;
+                }
             }
 
-            Debug.LogFormat("[HudBuilder] Theme electronique : {0} plaques, {1} boutons.", plates, buttons);
+            // 5. LES TEXTES LONGS s'adaptent a leur boite. Tout texte qui a le droit
+            //    de passer a la ligne est un texte dont on ne connait pas la longueur
+            //    (enseignements, questions, conseils, explications) : il retrecit si
+            //    il le faut, jamais sous 20, au lieu de deborder de son cadre.
+            TextMeshProUGUI[] texts = root.GetComponentsInChildren<TextMeshProUGUI>(true);
+            int fitted = 0;
+            for (int i = 0; i < texts.Length; i++)
+            {
+                TextMeshProUGUI t = texts[i];
+                if (t == null || !t.enableWordWrapping || t.enableAutoSizing) continue;
+                t.enableAutoSizing = true;
+                t.fontSizeMax = t.fontSize;
+                t.fontSizeMin = Mathf.Max(20f, t.fontSize * 0.6f);
+                t.overflowMode = TextOverflowModes.Overflow;
+                fitted++;
+            }
+
+            Debug.LogFormat("[HudBuilder] Theme : {0} voiles, {1} plaques, {2} boutons, {3} cadres, {4} textes ajustables.",
+                            curtains, plates, buttons, frames, fitted);
+        }
+
+        /// <summary>
+        /// Agrandit le CONTENU d'un panneau modal : tout ce qui est deja pose dedans
+        /// passe dans un conteneur mis a l'echelle. Les ecrans qui prennent toute la
+        /// place - enseignement, question, choix de posture, fin de partie - doivent
+        /// la prendre vraiment : sur un telephone, un panneau qui occupe la moitie de
+        /// l'ecran est un panneau qu'on lit en plissant les yeux.
+        /// </summary>
+        private static void Enlarge(RectTransform panel, float scale)
+        {
+            if (panel == null || scale <= 1.001f) return;
+
+            RectTransform content = NewRect("Contenu", panel);
+            Stretch(content);
+            content.localScale = new Vector3(scale, scale, 1f);
+
+            // Les enfants existants (sauf le conteneur lui-meme) passent dedans, dans
+            // le meme ordre : l'ordre des freres est l'ordre de dessin.
+            System.Collections.Generic.List<Transform> children = new System.Collections.Generic.List<Transform>();
+            for (int i = 0; i < panel.childCount; i++)
+            {
+                Transform child = panel.GetChild(i);
+                if (child != content) children.Add(child);
+            }
+            for (int i = 0; i < children.Count; i++) children[i].SetParent(content, false);
         }
 
         /// <summary>La trame hexagonale, en fond d'une plaque, sous son contenu.</summary>
@@ -3121,7 +3407,7 @@ namespace MNLTHII.EditorTools
             Image image = trame.gameObject.AddComponent<Image>();
             image.sprite = hexgrid;
             image.type = Image.Type.Tiled;   // a sa taille native, jamais etiree
-            image.color = new Color(1f, 1f, 1f, 0.55f);
+            image.color = new Color(1f, 1f, 1f, 0.16f);
             image.raycastTarget = false;
         }
 

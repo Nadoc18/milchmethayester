@@ -128,6 +128,11 @@ namespace MNLTHII.Managers
         {
             if (Instance == this) Instance = null;
             if (_root != null) Destroy(_root.gameObject);
+
+            // Un materiau cree au vol n'appartient a personne : sans ce Destroy il
+            // survivait a la scene, et une session de douze parties en laissait douze
+            // derriere elle.
+            if (_generatedMaterial != null) { Destroy(_generatedMaterial); _generatedMaterial = null; }
         }
 
         // =================================================================
@@ -139,6 +144,8 @@ namespace MNLTHII.Managers
         /// fonctionnalite d'affichage qui exige un reglage manuel finit toujours par
         /// etre livree sans ce reglage.
         /// </summary>
+        private Material _generatedMaterial;
+
         private void EnsureMaterial()
         {
             if (lineMaterial != null) return;
@@ -155,6 +162,7 @@ namespace MNLTHII.Managers
 
             lineMaterial = new Material(shader);
             lineMaterial.name = "PortalTether";
+            _generatedMaterial = lineMaterial;
         }
 
         // =================================================================
@@ -426,6 +434,11 @@ namespace MNLTHII.Managers
                 elapsed += Time.deltaTime;
                 float t = Mathf.Clamp01(elapsed / duration);
 
+                // LE MODELE PEUT DISPARAITRE EN PLEINE SECOUSSE : le Shofar tombe, ou il
+                // monte de rang et son mesh est remplace. Un Transform detruit leve une
+                // exception des qu'on le touche - on s'arrete la, sans bruit.
+                if (model == null) yield break;
+
                 // Une seule oscillation : monte vite, redescend en douceur.
                 float pulse = Mathf.Sin(t * Mathf.PI);
                 model.localScale = baseScale * (1f + (punchScale - 1f) * pulse * strength);
@@ -433,7 +446,7 @@ namespace MNLTHII.Managers
                 yield return null;
             }
 
-            model.localScale = baseScale;
+            if (model != null) model.localScale = baseScale;
         }
 
         // =================================================================

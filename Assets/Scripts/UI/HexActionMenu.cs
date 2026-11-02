@@ -79,6 +79,15 @@ namespace MNLTHII.Managers
         [Tooltip("Coche : le menu s'ouvre au centre de l'ecran. Decoche : au-dessus du point clique.")]
         public bool centered = false;
         public Vector2 cursorOffset = new Vector2(0f, 28f);
+
+        // A COTE DE LA CASE, PAS SUR ELLE. Ouvert au-dessus du curseur, le menu
+        // cachait la case qu'on venait de cliquer (et la fleche qui la designe). Il
+        // se pose maintenant a DROITE de la case, ou a GAUCHE s'il n'y a pas la
+        // place, centre sur sa hauteur, et il la suit si la camera bouge.
+        [Tooltip("Ecart entre le bord de la case et le menu, en pixels d'ecran.")]
+        public float sideGap = 44f;
+        [Tooltip("Coche : a droite de la case quand c'est possible, sinon a gauche.")]
+        public bool preferRight = true;
         public Color affordableColor = new Color(1f, 0.78f, 0.36f);
         public Color tooExpensiveColor = new Color(1f, 0.30f, 0.37f);
         public Color useIdleColor = new Color(1f, 0.78f, 0.36f, 0.14f);
@@ -94,6 +103,7 @@ namespace MNLTHII.Managers
         //  ETAT
         // =================================================================
         private Hexagon _hex;
+        private Camera _cam;
         private int _openedFrame = -1;
         private bool _closeRequested;
 
@@ -197,6 +207,9 @@ namespace MNLTHII.Managers
             // case, qui le rouvre aussitot sur elle (voir LateUpdate).
             if ((Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1)) && !PointerInside)
                 _closeRequested = true;
+
+            // Le menu suit sa case si la camera bouge ou si la fenetre change.
+            if (!centered) Place();
         }
 
         private void LateUpdate()
@@ -240,12 +253,16 @@ namespace MNLTHII.Managers
                 string refus = null;
                 if (action.kind == HexActionKind.Barren) refus = barrenLabel;
                 else if (action.outOfRange) refus = action.portalShadow ? portalShadowLabel : outOfRangeLabel;
+                else if (action.tankCap) refus = string.Format(MNLTHII.UI.HudLabelsRuntime.Get("useTankCap", useLabel),
+                                                               MNLTHII.Rules.InteractionRules.CountTanks(), MNLTHII.Rules.InteractionRules.TankCap());
                 // Les trois autres refus avaient le meme bouton gris muet : "deja au
                 // maximum", "un ennemi est dessus" et "pas assez d'Energie" se lisent
                 // maintenant sur le bouton lui-meme, sans ouvrir les details.
                 else if (action.kind == HexActionKind.MaxLevel) refus = MNLTHII.UI.HudLabelsRuntime.Get("useMaxLevel", useLabel);
                 else if (action.kind == HexActionKind.Occupied) refus = MNLTHII.UI.HudLabelsRuntime.Get("useOccupied", useLabel);
                 else if (usable && !action.affordable) refus = MNLTHII.UI.HudLabelsRuntime.Get("useTooExpensive", useLabel);
+                // Pas un refus, un nom : le bouton de la Base dit "reparer", pas "utiliser".
+                else if (action.kind == HexActionKind.BaseRepair) refus = MNLTHII.UI.HudLabelsRuntime.Get("useRepairBase", useLabel);
 
                 useText.text = string.IsNullOrEmpty(refus) ? useLabel : refus;
                 useText.color = canUse ? textColor : textDisabledColor;
@@ -255,7 +272,7 @@ namespace MNLTHII.Managers
             {
                 // Le prix disparait quand la case est hors de portee : il n'y a pas de
                 // prix a une chose qu'on ne peut pas faire.
-                bool showCost = usable && action.cost > 0 && !action.outOfRange;
+                bool showCost = usable && action.cost > 0 && !action.outOfRange && !action.tankCap;
                 costText.gameObject.SetActive(showCost);
 
                 if (showCost)
@@ -281,7 +298,7 @@ namespace MNLTHII.Managers
             if (viewText != null) viewText.text = viewLabel;
         }
 
-        /// <summary>Au-dessus du curseur, sans jamais sortir de l'ecran.</summary>
+        /// <summary>A cote de la case (droite, sinon gauche), sans jamais sortir de l'ecran.</summary>
         private void Place()
         {
             if (centered)
@@ -297,12 +314,50 @@ namespace MNLTHII.Managers
                 return;
             }
 
-            Vector2 mouse = Input.mousePosition;
-            Vector2 pos = mouse + cursorOffset;
-
             Vector3 scale = panel.lossyScale;
             float width = panel.rect.width * scale.x;
             float height = panel.rect.height * scale.y;
+
+            // Camera.main cherche par tag : resolue une fois, pas a chaque frame.
+            if (_cam == null) _cam = Camera.main;
+            Camera cam = _cam;
+            if (_hex != null && cam != null)
+            {
+                // Le point d'ancrage : le milieu de la case, un peu au-dessus du sol.
+                Vector3 world = _hex.transform.position + Vector3.up * 0.35f;
+                Vector3 screen = cam.WorldToScreenPoint(world);
+
+                if (screen.z > 0f)
+                {
+                    // Le rayon de la case a l'ecran, pour que l'ecart parte de son BORD.
+                    Vector3 edge = cam.WorldToScreenPoint(world + cam.transform.right * 0.5f);
+                    float radius = Mathf.Abs(edge.x - screen.x);
+                    float gap = radius + sideGap;
+
+                    Vector2 pivot = panel.pivot;
+
+                    // A droite si ca rentre, sinon a gauche (ou l'inverse selon le reglage).
+                    bool right = preferRight;
+                    if (right && screen.x + gap + width > Screen.width) right = false;
+                    else if (!right && screen.x - gap - width < 0f) right = true;
+
+                    float left = right ? screen.x + gap : screen.x - gap - width;
+                    float bottom = screen.y - height * 0.5f;
+
+                    // Jamais hors de l'ecran.
+                    if (left < 0f) left = 0f;
+                    if (left + width > Screen.width) left = Screen.width - width;
+                    if (bottom < 0f) bottom = 0f;
+                    if (bottom + height > Screen.height) bottom = Screen.height - height;
+
+                    panel.position = new Vector2(left + width * pivot.x, bottom + height * pivot.y);
+                    return;
+                }
+            }
+
+            // Repli (pas de camera, case derriere elle) : au-dessus du curseur.
+            Vector2 mouse = Input.mousePosition;
+            Vector2 pos = mouse + cursorOffset;
 
             // Pivot en bas au centre : le menu "sort" du point clique.
             float halfWidth = width * 0.5f;
